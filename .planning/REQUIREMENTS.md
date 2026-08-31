@@ -48,9 +48,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Доступ и данные
 
-- [ ] **ACC-01**: User can log in with username + password (single account, session cookie)
-- [ ] **ACC-02**: All pages, uploads and API are blocked without authentication
-- [ ] **ACC-03**: Data persists in a single SQLite database with an automatic backup routine
+- [x] **ACC-01**: User can log in with username + password (single account, session cookie)
+- [x] **ACC-02**: All pages, uploads and API are blocked without authentication
+- [x] **ACC-03**: Data persists in a single SQLite database with an automatic backup routine
 
 ### Интерфейс
 
@@ -97,9 +97,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ACC-01 | Phase 1 | Pending |
-| ACC-02 | Phase 1 | Pending |
-| ACC-03 | Phase 1 | Pending |
+| ACC-01 | Phase 1 | Complete |
+| ACC-02 | Phase 1 | Complete |
+| ACC-03 | Phase 1 | Complete |
 | EMP-01 | Phase 2 | Pending |
 | EMP-03 | Phase 2 | Pending |
 | UI-01 | Phase 2 | Pending |
@@ -126,6 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-03 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 27 total
 - Mapped to phases: 27
 - Unmapped: 0 ✓

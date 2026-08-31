@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Foundation
+current_phase: 01
+current_phase_name: foundation
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-08-31T18:11:48.932Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-08-31T18:39:48.685Z"
 last_activity: 2026-08-31
-last_activity_desc: roadmap created (6 phases, 27/27 v1 requirements mapped)
+last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-31)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 1 — Foundation (каркас, схема БД, вход, бэкапы)
+**Current focus:** Phase 01 — foundation
 
 ## Current Position
 
-Phase: 1 of 6 (Foundation)
-Plan: 0 of 0 in current phase (not yet planned)
+Phase: 01 (foundation) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-08-31 — roadmap created (6 phases, 27/27 v1 requirements mapped)
+Last activity: 2026-08-31 — Phase 01 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: —
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 23 min | 3 tasks | 30 files |
 
 ## Accumulated Context
 
@@ -66,6 +71,8 @@ Recent decisions affecting current work:
 - [Roadmap]: REG-04 (статус) и EMP-02 (выданная техника) доставляются в Фазе 4 — состояние меняется только действиями; в Фазах 2–3 строятся экраны-заготовки
 - [Roadmap]: UI-01/UI-02 заякорены в Фазе 2 (первые полноценные экраны = дизайн-система), UI-03 проверяется в Фазе 5
 - [Research]: append-only `movements` и нормализованные номера обязаны быть в первой миграции (Фаза 1); `device_schema.ts` — keystone-модуль Фазы 3
+- [Phase ?]: Фаза 1/План 1: миграция только generate+migrate; плоский SQL-файл миграции SQLite; триггеры append-only добавлены вручную в 0000
+- [Phase ?]: Фаза 1/План 1: matcher proxy исключает только ассеты, публичность /login — точным сравнением в обработчике; api и соседние пути за периметром
 
 ### Pending Todos
 
@@ -87,6 +94,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-31T16:17:44.170Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-08-31T18:39:48.675Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
