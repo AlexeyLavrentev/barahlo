@@ -34,7 +34,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Все данные живут в одном SQLite-файле: миграция с первого дня создаёт полную схему v1 — устройства, сотрудники, append-only перемещения (события нельзя перезаписать), вложения, нормализованные серийные/инвентарные номера с индексами (задел под MOVE-04, FIND-01, FIND-04)
   4. Бэкап БД и загрузок создаётся автоматически по расписанию, и восстановление из бэкапа успешно отрепетировано хотя бы один раз
   5. Приложение работает на внутреннем сервере одним контейнером; данные — в примонтированном томе и переживают перезапуск
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Walking Skeleton: каркас Next.js 16, полная схема v1 первой миграцией, вход (jose+rate-limit), default-deny proxy.ts
+- [ ] 01-02-PLAN.md — CLI доступа (reset-admin), seed dev-данных, единая нормализация номеров
+- [ ] 01-03-PLAN.md — Ночной бэкап: db.backup() + integrity_check + ротация 30 копий + runbook восстановления
+- [ ] 01-04-PLAN.md — Docker standalone + compose + том, deploy.sh с host-cron бэкапа
+- [ ] 01-05-PLAN.md — Репетиции (restore, рестарт тома), push в GitLab, чек-лист приёмки фазы
 
 ### Phase 2: Employees
 **Goal**: Пользователь ведёт справочник сотрудников (имя + отдел, архив вместо удаления) — и на этих простых экранах задаётся визуальный язык всего приложения: полностью русский интерфейс и Apple-эстетика, образцы list/detail-паттернов для всех следующих фаз.
@@ -134,7 +141,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/5 | Not started | - |
 | 2. Employees | 0/TBD | Not started | - |
 | 3. Device Registry | 0/TBD | Not started | - |
 | 4. Custody & Photos | 0/TBD | Not started | - |
