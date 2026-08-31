@@ -5,8 +5,8 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: foundation
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-08-31T18:39:48.685Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-08-31T18:49:27.930Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 01 execution started
 progress:
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 01 execution started
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 20%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P01 | 23 min | 3 tasks | 30 files |
+| Phase 01 P02 | 8 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Research]: append-only `movements` и нормализованные номера обязаны быть в первой миграции (Фаза 1); `device_schema.ts` — keystone-модуль Фазы 3
 - [Phase ?]: Фаза 1/План 1: миграция только generate+migrate; плоский SQL-файл миграции SQLite; триггеры append-only добавлены вручную в 0000
 - [Phase ?]: Фаза 1/План 1: matcher proxy исключает только ассеты, публичность /login — точным сравнением в обработчике; api и соседние пути за периметром
+- [Phase ?]: Фаза 1/План 2: нормализация номеров живёт в lib/normalize.mjs (ESM, общий для скриптов и приложения); lib/normalize.ts — типизированный ре-экспорт; именованные обёртки normalizeSerial/normalizeInventory — задел для усиления правил в фазах 3/5
+- [Phase ?]: Фаза 1/План 2: seed — детерминированный mulberry32(20260831) вместо faker (не прошёл legitimacy-гейт); двойной guard: NODE_ENV=production и непустая база → exit 1 (D-11)
+- [Phase ?]: Фаза 1/План 2: reset-admin проверяет sqlite_master ДО промпта — пустая база даёт вежливый отказ «запустите create-admin» без стека; readline-паттерн create-admin (один line-listener) переиспользован
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-31T18:39:48.675Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-08-31T18:49:27.920Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None
