@@ -97,13 +97,41 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmap) | | |
+| ACC-01 | Phase 1 | Pending |
+| ACC-02 | Phase 1 | Pending |
+| ACC-03 | Phase 1 | Pending |
+| EMP-01 | Phase 2 | Pending |
+| EMP-03 | Phase 2 | Pending |
+| UI-01 | Phase 2 | Pending |
+| UI-02 | Phase 2 | Pending |
+| REG-01 | Phase 3 | Pending |
+| REG-02 | Phase 3 | Pending |
+| REG-03 | Phase 3 | Pending |
+| MOVE-01 | Phase 4 | Pending |
+| MOVE-02 | Phase 4 | Pending |
+| MOVE-03 | Phase 4 | Pending |
+| MOVE-04 | Phase 4 | Pending |
+| MOVE-05 | Phase 4 | Pending |
+| REG-04 | Phase 4 | Pending |
+| EMP-02 | Phase 4 | Pending |
+| REG-05 | Phase 4 | Pending |
+| FIND-01 | Phase 5 | Pending |
+| FIND-02 | Phase 5 | Pending |
+| FIND-03 | Phase 5 | Pending |
+| FIND-04 | Phase 5 | Pending |
+| WAR-01 | Phase 5 | Pending |
+| UI-03 | Phase 5 | Pending |
+| DASH-01 | Phase 6 | Pending |
+| DASH-02 | Phase 6 | Pending |
+| DASH-03 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 24 total
-- Mapped to phases: 0
-- Unmapped: 24 ⚠️
+- v1 requirements: 27 total
+- Mapped to phases: 27
+- Unmapped: 0 ✓
+
+*(Примечание: фактическое число v1-требований — 27; прежний счётчик «24» был устаревшим.)*
 
 ---
 *Requirements defined: 2026-08-31*
-*Last updated: 2026-08-31 after initial definition*
+*Last updated: 2026-08-31 — traceability filled by roadmap creation*
