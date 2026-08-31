@@ -612,23 +612,13 @@ export function normalizeNumber(input: string): string {
 | A9 | `supercronic` image is acceptable if sidecar option chosen | Backup scheduler | Not the primary path; would need a quick legitimacy check before use |
 | A10 | `unstable_doesProxyMatch` (next/experimental/testing/server, verified in proxy docs) is usable for matcher unit tests | Validation Architecture | Test degrades to curl-based integration check — no plan impact |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Prod server profile (arch, Docker version, host Node, TZ)**
-   - What we know: Docker is present (D-08); version/arch unknown; deploy rehearsal is end-of-phase.
-   - Recommendation: planner adds a first deploy task that probes (`uname -m`, `docker --version`, `node --version`, `date`) and picks between host-side migrate (A6) and the container-side fallback.
-2. **GitLab remote creation (D-15)**
-   - What we know: local repo exists on `main`; no remote configured yet.
-   - Recommendation: human step (add remote, push) before the deploy task; planner inserts it as a checkpoint.
-3. **Backup hour + folder-date convention**
-   - What we know: "ночью" (D-07); server TZ unknown.
-   - Recommendation: default `02:00` server-local, dated folders in the same local TZ; confirm during deploy task.
-4. **`departments` vs ARCHITECTURE's free-text department string**
-   - What we know: D-18 locks a lookup table; ARCHITECTURE sketch used a text column.
-   - Recommendation: schema v1 uses `departments` + FK (D-18 wins); seed populates a few departments.
-5. **Root `/` content this phase**
-   - What we know: UI is login-only; something must render after login.
-   - Recommendation: minimal Russian stub page (name of app + «экраны появятся в фазах 2–6»); Apple aesthetics anchored in Phase 2 per roadmap.
+1. **Prod server profile (arch, Docker version, host Node, TZ)** — RESOLVED (план 04, задача 2 «deploy.sh»): host-side migrate с документированным требованием host Node ≥ 20.9 и фолбэком «разовый compose-сервис миграции» (A1/A6); deploy.sh идемпотентен и безопасен при первом прогоне, реальные версия/arch сервера фиксируются в SUMMARY первого деплоя.
+2. **GitLab remote creation (D-15)** — RESOLVED (план 05: user_setup «corporate GitLab» + precondition задачи 2 «Push в корпоративный GitLab»): URL проекта — human-шаг через user_setup; при отсутствии URL задача возвращает checkpoint, не пушит в сторонние ремоуты.
+3. **Backup hour + folder-date convention** — RESOLVED (план 03, задача 2 «Runbook восстановления + cron-конвенция в README»): cron-строка `0 2 * * *` в server-local времени, конвенция «дата папки = локальная дата сервера» (Pitfall 9); саму cron-строку ставит идемпотентно deploy.sh в плане 04.
+4. **`departments` vs ARCHITECTURE's free-text department string** — RESOLVED (план 01, задача 1, db/schema.ts): departments как справочник с `departments_name_uq` и FK из employees (D-18 побеждает free-text эскиз ARCHITECTURE); seed плана 02 наполняет 5 отделов.
+5. **Root `/` content this phase** — RESOLVED (план 01, задача 3): `app/(app)/page.tsx` — русский каркас-экран «Учёт техники» + «Экраны появятся в фазах 2–6» (граница фазы, не урезание); Apple-эстетика заякорена в фазе 2 по ROADMAP.
 
 ## Environment Availability
 
