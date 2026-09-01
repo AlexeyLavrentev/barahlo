@@ -53,36 +53,49 @@ export async function runBackup({ dataDir = process.env.DATA_DIR ?? './data', no
 
   mkdirSync(dest, { recursive: true })
 
-  // 2. Консистентный снимок живой БД. Только online backup API: сырая копия
-  // файлов app.db/-wal под WAL тихо теряет недавние коммиты (Pitfall 2, T-03-01).
-  const db = new Database(join(dataDir, 'app.db'))
-  db.pragma('busy_timeout = 5000') // ночная запись маловероятна, но прагма дешёвая
+  // Шаги 2–5 под защитой: любой сбой посреди прогона убирает недоделанную
+  // папку дня (CR-02). Иначе идемпотентность примет фантомную папку за готовую
+  // копию — тот же день навсегда останется без бэкапа («уже есть» при retry),
+  // а ротация потеряет на неё слот.
   try {
-    await db.backup(join(dest, 'app.db'))
-  } finally {
-    db.close()
-  }
+    // 2. Консистентный снимок живой БД. Только online backup API: сырая копия
+    // файлов app.db/-wal под WAL тихо теряет недавние коммиты (Pitfall 2, T-03-01).
+    const db = new Database(join(dataDir, 'app.db'))
+    db.pragma('busy_timeout = 5000') // ночная запись маловероятна, но прагма дешёвая
+    try {
+      await db.backup(join(dest, 'app.db'))
+    } finally {
+      db.close()
+    }
 
-  // 3. Проверка целостности КОПИИ — битая копия не становится «новым оригиналом» молча.
-  checkIntegrity(join(dest, 'app.db'))
+    // 3. Проверка целостности КОПИИ — битая копия не становится «новым оригиналом» молча.
+    checkIntegrity(join(dest, 'app.db'))
 
-  // 4. uploads/ едёт в комплекте; в фазе 1 его может не быть — тогда создаём
-  // пустой в копии, чтобы структура восстанавливалась единообразно.
-  const uploadsSrc = join(dataDir, 'uploads')
-  const uploadsDest = join(dest, 'uploads')
-  if (existsSync(uploadsSrc)) {
-    cpSync(uploadsSrc, uploadsDest, { recursive: true })
-  } else {
-    mkdirSync(uploadsDest, { recursive: true })
-  }
+    // 4. uploads/ едёт в комплекте; в фазе 1 его может не быть — тогда создаём
+    // пустой в копии, чтобы структура восстанавливалась единообразно.
+    const uploadsSrc = join(dataDir, 'uploads')
+    const uploadsDest = join(dest, 'uploads')
+    if (existsSync(uploadsSrc)) {
+      cpSync(uploadsSrc, uploadsDest, { recursive: true })
+    } else {
+      mkdirSync(uploadsDest, { recursive: true })
+    }
 
-  // 5. Ротация: сортировка по имени-дате, всё старше 30 самых свежих — удалить.
-  const dayDirs = readdirSync(backupsDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && DAY_NAME.test(e.name))
-    .map((e) => e.name)
-    .sort()
-  for (const name of dayDirs.slice(0, -KEEP_DAYS)) {
-    rmSync(join(backupsDir, name), { recursive: true, force: true })
+    // 5. Ротация: сортировка по имени-дате, всё старше 30 самых свежих — удалить.
+    const dayDirs = readdirSync(backupsDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && DAY_NAME.test(e.name))
+      .map((e) => e.name)
+      .sort()
+    for (const name of dayDirs.slice(0, -KEEP_DAYS)) {
+      rmSync(join(backupsDir, name), { recursive: true, force: true })
+    }
+  } catch (err) {
+    try {
+      rmSync(dest, { recursive: true, force: true }) // никогда не оставляем частичную папку дня
+    } catch {
+      // чистка не должна затирать исходную ошибку
+    }
+    throw err
   }
 
   return { dest, skipped: false }

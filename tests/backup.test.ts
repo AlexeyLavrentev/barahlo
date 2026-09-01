@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
@@ -106,6 +106,27 @@ describe('runBackup', () => {
     expect(second.dest).toBe(first.dest)
     expect(existsSync(dbPath)).toBe(true)
     expect(statSync(dbPath).mtimeMs).toBe(mtimeBefore)
+  })
+
+  it('mid-run failure leaves no phantom day folder; same-day retry performs the real backup (CR-02)', async () => {
+    const dataDir = makeDataDir()
+    // Unreadable "live" DB → the snapshot fails after the day folder is created.
+    writeFileSync(join(dataDir, 'app.db'), Buffer.from('garbage'.repeat(200), 'utf8'))
+    const dest = join(dataDir, 'backups', localDay(new Date(), 0))
+
+    await expect(runBackup({ dataDir })).rejects.toThrow()
+
+    // The partial folder is gone: idempotency must not mistake it for a done
+    // copy, and rotation must not lose a slot to it.
+    expect(existsSync(dest)).toBe(false)
+
+    // Retry the same day with a real DB → an actual backup, not «уже есть».
+    rmSync(join(dataDir, 'app.db'), { force: true }) // убрать мусорную «БД»
+    makeLiveDb(dataDir).close()
+    const retry = await runBackup({ dataDir })
+    expect(retry.skipped).toBe(false)
+    expect(retry.dest).toBe(dest)
+    expect(existsSync(join(dest, 'app.db'))).toBe(true)
   })
 
   it('rotates to exactly 30 newest day folders, deleting the oldest (D-06)', async () => {
