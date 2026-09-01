@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { checkRateLimit, recordFailure, resetFailures } from '@/lib/rate-limit'
+import { checkRateLimit, failureCount, recordFailure, resetFailures } from '@/lib/rate-limit'
 
 const MIN = 60_000
 
@@ -33,5 +33,13 @@ describe('fixed-window rate limit (5 failures / 15 min, D-03)', () => {
     for (let i = 0; i < 5; i++) recordFailure(T)
     expect(checkRateLimit(T + 14 * MIN)).toBe(true)
     expect(checkRateLimit(T + 16 * MIN)).toBe(false)
+  })
+
+  it('expired entries are pruned, not just ignored (WR-01: memory stays bounded)', () => {
+    const T = 4_000_000
+    for (let i = 0; i < 5; i++) recordFailure(T)
+    expect(checkRateLimit(T + 16 * MIN)).toBe(false)
+    // Обрезка физически освободила память; без неё failureCount() остался бы 5.
+    expect(failureCount()).toBe(0)
   })
 })

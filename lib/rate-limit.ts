@@ -10,12 +10,19 @@ export function recordFailure(nowMs: number = Date.now()): void {
   failures.push(nowMs)
 }
 
+// Вход неаутентифицирован, поэтому без обрезки массив рос бы без ограничений
+// (скриптовый хост раздувает память и удлиняет каждый скан). Срезаем
+// устаревшие записи при каждой проверке: метки приходят от Date.now() по
+// неубыванию, поэтому достаточно сдвига с головы.
 export function checkRateLimit(nowMs: number = Date.now()): boolean {
-  let count = 0
-  for (const ts of failures) {
-    if (ts > nowMs - WINDOW_MS) count++
-  }
-  return count >= MAX_FAILURES
+  const cutoff = nowMs - WINDOW_MS
+  while (failures.length > 0 && failures[0] <= cutoff) failures.shift()
+  return failures.length >= MAX_FAILURES
+}
+
+// Сколько записей сейчас в памяти (диагностика и тесты обрезки).
+export function failureCount(): number {
+  return failures.length
 }
 
 export function resetFailures(): void {
