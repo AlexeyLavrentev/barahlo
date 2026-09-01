@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 01
 current_phase_name: foundation
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-09-01T03:12:24.948Z"
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-09-01T03:31:23.543Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 4
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-08-31 — Phase 01 execution started
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 20%
 |------|----------|-------|-------|
 | Phase 01 P01 | 23 min | 3 tasks | 30 files |
 | Phase 01 P02 | 8 min | 2 tasks | 5 files |
+| Phase 01 P04 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 1/План 2: нормализация номеров живёт в lib/normalize.mjs (ESM, общий для скриптов и приложения); lib/normalize.ts — типизированный ре-экспорт; именованные обёртки normalizeSerial/normalizeInventory — задел для усиления правил в фазах 3/5
 - [Phase ?]: Фаза 1/План 2: seed — детерминированный mulberry32(20260831) вместо faker (не прошёл legitimacy-гейт); двойной guard: NODE_ENV=production и непустая база → exit 1 (D-11)
 - [Phase ?]: Фаза 1/План 2: reset-admin проверяет sqlite_master ДО промпта — пустая база даёт вежливый отказ «запустите create-admin» без стека; readline-паттерн create-admin (один line-listener) переиспользован
+- [Phase ?]: Фаза 1/План 4: официальный with-docker базис + 4 расширения для better-sqlite3 (build-tools в deps; better-sqlite3+bcryptjs в runner; /app/data chown node uid 1000; scripts/ в образе); USER node вместо useradd nextjs
+- [Phase ?]: Фаза 1/План 4: deploy.sh пинит DATABASE_PATH=./data/app.db для host-side migrate — drizzle-kit подхватывает .env, прод-.env указывает внутрь контейнера; crontab -l захватывается вне пайплайна (exit 1 на пустом crontab под pipefail)
+- [Phase ?]: Фаза 1/План 4: cron ночного бэкапа — вариант docker compose exec (внутри контейнера), deploy.sh ставит идемпотентно; README cron-раздел синхронизирован
 
 ### Pending Todos
 
@@ -98,6 +102,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-08-31T18:49:27.920Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-09-01T03:31:23.538Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None
