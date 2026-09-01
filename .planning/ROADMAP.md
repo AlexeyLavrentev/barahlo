@@ -71,7 +71,12 @@ Plans:
   3. Все экраны фазы (вход, список, карточка, формы) полностью на русском
   4. Интерфейс выдержан в Apple-эстетике (чистота, типографика, воздух; гайды skill `apple-design`) — эти паттерны переиспользуются в фазах 3–6
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Дизайн-система + tracer-срез: shadcn/токены UI-SPEC/шелл, диалог создания → пагинированный список (Wave 1)
+- [ ] 02-02-PLAN.md — Карточка /employees/[id], редактирование, архив/разархив с подтверждением (Wave 2)
+- [ ] 02-03-PLAN.md — Отдел-combobox «Создать „X“», сегмент Активные/Архив, пустые состояния, loading/error-границы, нормализация входа (Wave 3)
 
 Plans note: карточка сотрудника строится здесь как экран (имя + отдел + место под список техники); сам список выданной техники оживёт в Фазе 4 (EMP-02 доставляется там).
 **UI hint**: yes
@@ -173,7 +178,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete    | 2026-09-01 |
-| 2. Employees | 0/TBD | Not started | - |
+| 2. Employees | 0/3 | Not started | - |
 | 3. Device Registry | 0/TBD | Not started | - |
 | 4. Custody & Photos | 0/TBD | Not started | - |
 | 5. Search & Filters | 0/TBD | Not started | - |
