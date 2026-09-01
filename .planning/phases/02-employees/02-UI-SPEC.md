@@ -36,7 +36,6 @@ Declared values (multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon-to-label gaps, badge padding-y, inline emphasis gaps |
 | sm | 8px | Compact element spacing, input padding-y, stacked form rows |
-| ctl | 12px | Control padding-x (inputs, buttons `px-3`), card inner gaps |
 | md | 16px | Default element spacing, list card padding-x, dialog field gaps |
 | lg | 24px | Card padding (`p-6`), section gaps |
 | xl | 32px | Page vertical rhythm, login card padding |
@@ -46,6 +45,7 @@ Declared values (multiples of 4):
 Exceptions:
 - **44px minimum height** for list rows and interactive controls (`h-11`) — Apple touch-target guideline; serves both desktop comfort and phone use (responsive web is in scope).
 - **Header bar fixed at 48px** (`h-12`).
+- **12px control padding-x** (`px-3`) for inputs/buttons and card inner gaps — off the 8-point ladder but on the 4px grid (12 = 3×4): Tailwind-native `px-3` keeps control hit areas comfortable without inflating to 16px. Every other spacing value must come from the scale above.
 - Tailwind classes producing 6px/10px (`mt-1.5`, `py-2.5`, `px-2.5`) are **forbidden in new code**; the existing login screen is normalized to this scale during this phase (вход is an in-phase screen per roadmap success criterion 3).
 
 ---
@@ -97,7 +97,7 @@ Light theme only (see Design System). Declare in `globals.css`:
 | Destructive | `#D70015` | **Not used in Phase 2.** Archive is reversible (D-02), so its button and confirmation are neutral — apple-design principle 2 (red only for genuinely destructive). Reserved for Phase 4 «Списать» |
 
 Accent reserved for exactly three things:
-1. Primary CTA button «Добавить сотрудника» (solid `#0071E3`, white 14/600 text, hover `#0077ED`).
+1. Primary CTA button «Добавить сотрудника» (create) and the edit-dialog primary «Сохранить изменения» (solid `#0071E3`, white 14/600 text, hover `#0077ED`).
 2. Focus state: input/combobox focus ring `ring-2 ring-[#0071E3]/30` + focused border `#0071E3` (replaces the Phase 1 black focus).
 3. Combobox: checkmark and highlight of the selected department row.
 
@@ -132,10 +132,10 @@ Hover darkening for accent button only: `#0077ED`. Never accent text on gray, ne
 | `/employees` — list | Header row: «Сотрудники» (20/600) + count label (14, secondary, Russian plural via `Intl.PluralRules('ru')`: 1 сотрудник / 2–4 сотрудника / 5+ сотрудников); right-aligned primary CTA «Добавить сотрудника». Below: segmented control «Активные / Архив» (default «Активные», D-02), then white list card with rows, then pagination. Sort: имя А→Я, `Intl.Collator('ru')`. Page size 20, server-side (D-01, UI hint) |
 | List row (D-01) | One line, min-h 44px, `px-4`: **имя** (16/400, ink) + ` · ` + **отдел** (14/400, secondary), single-line `truncate` with `title` attribute, `chevron-right` 16px `#C7C7CC` at the end. Whole row is a link to `/employees/[id]`. Duplicates (D-04) are distinguished by the visible department |
 | Pagination | Prev/next quiet buttons (14/400) + «Страница N из M» (14, secondary); disabled = opacity-40; no numbered pages (planner discretion resolved: 50–200 rows make numbers noisy) |
-| `/employees/[id]` — card | Back link «← Сотрудники» (14, secondary). Name (28/600), отдел (14, secondary) beneath. Badge «В архиве» (pill, `bg-black/5`, 12/400 secondary) when inactive. Actions row: «Редактировать» (secondary button) + «Архивировать» / «Разархивировать» (secondary button). Section «Техника» (20/600): white card with empty text «Пока ничего не выдано» — the EMP-02 list lands in Phase 4 |
-| Create/Edit dialog | Centered `max-w-md`, `p-6`, opened from list CTA and card «Редактировать» (2 fields → dialog, not a page; page-pattern reserved for Phase 3's device form). Fields: «Имя» (text input, h-10, placeholder «Иван Иванов»), «Отдел» (combobox, placeholder «Выберите или введите отдел»). Footer: «Отмена» (secondary) + «Добавить сотрудника» / «Сохранить» (primary). Validation inline under the field, 14/400 `#D70015` (the only red on screen — error semantics, not a destructive action) |
+| `/employees/[id]` — card | Back link «← Сотрудники» (14, secondary). Name (28/600), отдел (14, secondary) beneath. Badge «В архиве» (pill, `bg-black/5`, 14/400 secondary — the Label role, `px-2 py-1` so the row keeps its 44px min-height) when inactive. Actions row: «Редактировать» (secondary button) + «Архивировать» / «Разархивировать» (secondary button). Section «Техника» (20/600): white card with empty text «Пока ничего не выдано» — the EMP-02 list lands in Phase 4 |
+| Create/Edit dialog | Centered `max-w-md`, `p-6`, opened from list CTA and card «Редактировать» (2 fields → dialog, not a page; page-pattern reserved for Phase 3's device form). Fields: «Имя» (text input, h-10, placeholder «Иван Иванов»), «Отдел» (combobox, placeholder «Выберите или введите отдел»). Footer: «Не сохранять» (secondary) + «Добавить сотрудника» / «Сохранить изменения» (primary). Validation inline under the field, 14/400 `#D70015` (the only red on screen — error semantics, not a destructive action) |
 | Отдел combobox (D-03) | shadcn popover + command, trigger styled as input (h-10). Options = departments, filtered as you type; selected row shows accent checkmark. **No exact match → pinned first option «Создать „{ввод}“»** (Enter or click creates and selects; name uniqueness `departments_name_uq` already in schema — if the race loses, show «Такой отдел уже есть — выберите его из списка») |
-| Archive confirmation (D-02) | Alert dialog: title «Архивировать сотрудника?»; body «{Имя} исчезнет из рабочих списков, но останется в базе вместе с историей. Вернуть можно в любой момент.»; buttons «Архивировать» (primary, neutral accent) / «Отмена». **No delete action exists anywhere in the UI** (EMP-03) |
+| Archive confirmation (D-02) | Alert dialog: title «Архивировать сотрудника?»; body «{Имя} исчезнет из рабочих списков, но останется в базе вместе с историей. Вернуть можно в любой момент.»; buttons «Архивировать» (primary, neutral accent) / «Не архивировать». **No delete action exists anywhere in the UI** (EMP-03) |
 | Login normalization | Keep copy («Логин», «Пароль», «Войти», existing error strings); restyle to this contract: system font, page `#F5F5F7`, card 16px radius + hairline, button = accent primary, focus ring per accent rule, spacing on-scale (`py-2.5`→`py-2`, `mt-1.5`→`mt-2`) |
 
 shadcn components to install: `button`, `input`, `label`, `dialog`, `popover`, `command`, `badge`. Segmented control, list row, and pagination are small custom components (no registry block matches Apple's segmented look).
@@ -149,8 +149,8 @@ All UI copy is Russian, inline strings, no i18n library (STACK.md).
 | Element | Copy |
 |---------|------|
 | Primary CTA | «Добавить сотрудника» |
-| Save / Cancel | «Сохранить» / «Отмена» |
-| Archive action | «Архивировать» — confirm: «Архивировать сотрудника?» + «{Имя} исчезнет из рабочих списков, но останется в базе вместе с историей. Вернуть можно в любой момент.» |
+| Edit dialog: save / dismiss | «Сохранить изменения» / «Не сохранять» |
+| Archive action | «Архивировать» — confirm dialog: title «Архивировать сотрудника?», body «{Имя} исчезнет из рабочих списков, но останется в базе вместе с историей. Вернуть можно в любой момент.», buttons «Архивировать» / «Не архивировать» |
 | Unarchive | «Разархивировать» |
 | Filter labels | «Активные» / «Архив» |
 | Pagination | «Назад» / «Далее» / «Страница {N} из {M}» |
@@ -210,6 +210,7 @@ CONTEXT.md mode is `--auto`; this subagent cannot prompt the user. Every gap bel
 | Dark mode (unaddressed upstream) | Light only; dark block removed from `globals.css` | Not in any requirement; halves visual surface; cheap to revisit |
 | Body font (unaddressed upstream) | System stack replacing Geist Sans | Geist has no Cyrillic subset; apple-design §15 |
 | Archive button color | Neutral, not red | Archive is reversible (D-02); red reserved for real destructive actions |
+| Card action labels are terse single verbs («Редактировать», «Архивировать», «Разархивировать») without a noun | Deliberate terseness kept: the actions row sits directly beneath the 28px employee name, which supplies the noun; the archive confirmation repeats the full noun («Архивировать сотрудника?») | apple-design favors short contextual labels on a card; checker recommendation resolved via context, not longer labels |
 
 ---
 
