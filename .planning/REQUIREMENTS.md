@@ -27,7 +27,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **EMP-01**: User can create and edit employees: имя + отдел
 - [ ] **EMP-02**: User can view an employee card with the list of currently issued devices
-- [ ] **EMP-03**: User can archive an employee (уволен); archived employees keep their movement history
+- [x] **EMP-03**: User can archive an employee (уволен); archived employees keep their movement history
 
 ### Поиск и фильтры
 
@@ -101,7 +101,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACC-02 | Phase 1 | Complete |
 | ACC-03 | Phase 1 | Complete |
 | EMP-01 | Phase 2 | Complete |
-| EMP-03 | Phase 2 | Pending |
+| EMP-03 | Phase 2 | Complete |
 | UI-01 | Phase 2 | Complete |
 | UI-02 | Phase 2 | Complete |
 | REG-01 | Phase 3 | Pending |

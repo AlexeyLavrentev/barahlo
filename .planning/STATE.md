@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 02
 current_phase_name: employees
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-09-01T17:37:30.366Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-09-01T17:55:49.071Z"
 last_activity: 2026-09-01
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 ## Current Position
 
 Phase: 02 (employees) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-09-01 — Phase 02 execution started
 
-Progress: [████████░░] 75%
+Progress: [█████████░] 88%
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [████████░░] 75%
 | Phase 01 P04 | 12 min | 2 tasks | 6 files |
 | Phase 01 P05 | 14min | 2 tasks | 1 files |
 | Phase 02 P01 | 25 min | 2 tasks | 22 files |
+| Phase 02 P02 | 14 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 1/План 5: канонический remote перенесён с корпоративного GitLab (D-15) в приватный GitHub (github.com/AlexeyLavrentev/barahlo) — решение владельца 2026-09-01; приватность сохранена, README синхронизирован; серверные шаги приёмки (2)-(8) делегированы оператору на end-of-phase
 - [Phase ?]: Фаза 2/План 1: shadcn init v4.19.1 требует именованный пресет при -b base — взят nova, все токены перекрыты UI-SPEC в globals.css (light-only сохранён)
 - [Phase ?]: Фаза 2/План 1: нативный Base UI combobox подтверждён (--dry-run), фолбэк popover+command не понадобился; семантика shadcn (--primary/--ring/--accent) ретаргетнута на #0071E3
+- [Phase ?]: Фаза 2/План 2: карточка /employees/[id] — валидация id zod'ом до any-SQL (мусор → notFound, не 500); detail-паттерн для фаз 3–6
+- [Phase ?]: Фаза 2/План 2: edit-режим одним компонентом (employee?-проп, hidden id, updateEmployeeAction); unarchive — прямой form POST через inline server action (Promise<void>), без подтверждения
+- [Phase ?]: Фаза 2/План 2: подтверждение архивации — дословный копи UI-SPEC, primary нейтральный bg-ink (не красный — архив обратим); TDD RED для UI-острова выражен smoke-ассертом data-employee-id (компонентного раннера в репо нет)
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-01T17:37:30.354Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-09-01T17:55:49.059Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
