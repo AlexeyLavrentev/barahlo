@@ -48,6 +48,8 @@ function applyMigrations(sqlite, dir) {
 const dir = mkdtempSync(join(tmpdir(), 'barahlo-smoke-'))
 const dbPath = join(dir, 'smoke.db')
 let server = null
+// Module scope so the failure path (catch) can print it.
+let serverLog = ''
 
 try {
   // 1. Temp database: migrations + probe rows.
@@ -84,7 +86,7 @@ try {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )
-  let serverLog = ''
+  serverLog = ''
   server.stdout.on('data', (c) => (serverLog += c))
   server.stderr.on('data', (c) => (serverLog += c))
 
@@ -156,6 +158,12 @@ try {
   }
   if (!cardHtml.includes('Пока ничего не выдано')) {
     throw new Error(`/employees/${probeId}: секции «Техника» («Пока ничего не выдано») нет в HTML`)
+  }
+
+  // 8b. Edit island: the card hands the employee (id/name/department) to the
+  //     client edit dialog so it opens prefilled (EMP-01 edit flow).
+  if (!cardHtml.includes('data-employee-id=')) {
+    throw new Error(`/employees/${probeId}: карточка не передаёт сотрудника в edit-диалог (data-employee-id отсутствует)`)
   }
 
   // 9. 404 matrix: unknown and garbage ids answer 404 through notFound(),
