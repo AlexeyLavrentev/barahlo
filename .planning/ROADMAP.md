@@ -71,7 +71,7 @@ Plans:
   3. Все экраны фазы (вход, список, карточка, формы) полностью на русском
   4. Интерфейс выдержан в Apple-эстетике (чистота, типографика, воздух; гайды skill `apple-design`) — эти паттерны переиспользуются в фазах 3–6
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -84,7 +84,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — Отдел-combobox «Создать „X“», сегмент Активные/Архив, пустые состояния, loading/error-границы, нормализация входа (Wave 3)
+- [x] 02-03-PLAN.md — Отдел-combobox «Создать „X“», сегмент Активные/Архив, пустые состояния, loading/error-границы, нормализация входа (Wave 3)
 
 Plans note: карточка сотрудника строится здесь как экран (имя + отдел + место под список техники); сам список выданной техники оживёт в Фазе 4 (EMP-02 доставляется там).
 **UI hint**: yes
@@ -186,7 +186,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete    | 2026-09-01 |
-| 2. Employees | 2/3 | In Progress|  |
+| 2. Employees | 3/3 | In Progress|  |
 | 3. Device Registry | 0/TBD | Not started | - |
 | 4. Custody & Photos | 0/TBD | Not started | - |
 | 5. Search & Filters | 0/TBD | Not started | - |

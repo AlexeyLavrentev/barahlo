@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 02
 current_phase_name: employees
-status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-09-01T17:55:49.071Z"
+status: verifying
+stopped_at: Completed 02-03-PLAN.md (phase 02 all plans executed)
+last_updated: "2026-09-01T18:24:12.262Z"
 last_activity: 2026-09-01
 last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 
 Phase: 02 (employees) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-01 — Phase 02 execution started
 
-Progress: [█████████░] 88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Progress: [█████████░] 88%
 | Phase 01 P05 | 14min | 2 tasks | 1 files |
 | Phase 02 P01 | 25 min | 2 tasks | 22 files |
 | Phase 02 P02 | 14 min | 3 tasks | 5 files |
+| Phase 02 P03 | 14 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 2/План 2: карточка /employees/[id] — валидация id zod'ом до any-SQL (мусор → notFound, не 500); detail-паттерн для фаз 3–6
 - [Phase ?]: Фаза 2/План 2: edit-режим одним компонентом (employee?-проп, hidden id, updateEmployeeAction); unarchive — прямой form POST через inline server action (Promise<void>), без подтверждения
 - [Phase ?]: Фаза 2/План 2: подтверждение архивации — дословный копи UI-SPEC, primary нейтральный bg-ink (не красный — архив обратим); TDD RED для UI-острова выражен smoke-ассертом data-employee-id (компонентного раннера в репо нет)
+- [Phase ?]: Фаза 2/План 3: сегментный loading.tsx в этой версии Next стримит поддерево с дочерними сегментами и флешит 200 до notFound() — карточка /employees/[id] вынесена в route group (card), 404-матрица восстановлена; [id]-loading сознательно не создаётся
+- [Phase ?]: Фаза 2/План 3: combobox отдела только записывает имя в hidden departmentName — создание делает серверный resolveDepartmentId в транзакции (гонка UNIQUE переиспользует существующий); закрепление «Создать „X“» байт-точное, как departments_name_uq
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-01T17:55:49.059Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-09-01T18:24:12.251Z
+Stopped at: Completed 02-03-PLAN.md (phase 02 all plans executed)
 Resume file: None
