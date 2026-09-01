@@ -167,7 +167,9 @@ try {
   }
 
   // 9. 404 matrix: unknown and garbage ids answer 404 through notFound(),
-  //    never 500 (V4/V5 — validation before any database access).
+  //    never 500 (V4/V5 — validation before any database access). The body
+  //    is the Russian app/not-found.tsx boundary, not Next's default
+  //    English fallback (UI-01, REVIEW WR-02).
   for (const bad of ['99999', 'abc']) {
     const res = await fetch(`${BASE}/employees/${bad}`, {
       headers: { cookie: `session=${token}` },
@@ -175,6 +177,12 @@ try {
     })
     if (res.status !== 404) {
       throw new Error(`/employees/${bad}: ожидался 404, получен ${res.status}`)
+    }
+    const notFoundHtml = await res.text()
+    if (!notFoundHtml.includes('Страница не найдена')) {
+      throw new Error(
+        `/employees/${bad}: русской 404-страницы («Страница не найдена») нет в HTML`,
+      )
     }
   }
 
@@ -228,7 +236,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie; карточка 200 + «Пока ничего не выдано»; 404 на 99999/abc; бейдж «В архиве»/«Разархивировать» переключается с is_active',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie; карточка 200 + «Пока ничего не выдано»; 404 на 99999/abc + русская страница «Страница не найдена»; бейдж «В архиве»/«Разархивировать» переключается с is_active',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
