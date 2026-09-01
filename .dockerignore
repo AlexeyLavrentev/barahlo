@@ -1,0 +1,10 @@
+# Контекст сборки без секретов, рабочих данных и planning-материалов (T-04-04, D-15)
+node_modules
+.next
+.git
+data
+.env
+.planning
+.claude
+tests
+*.md

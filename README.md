@@ -72,11 +72,13 @@ curl -s -o /dev/null -w '%{http_code}' -H "Cookie: session=$TOKEN" http://localh
 
 ### Ночной запуск (cron)
 
-Строка cron (server-local время; устанавливается автоматически скриптом `deploy.sh` при деплое — см. план 04):
+Строка cron (server-local время; ставится автоматически скриптом `deploy.sh`, см. «Деплой на сервер»):
 
 ```
-0 2 * * * cd /путь/к/barahlo && DATA_DIR=./data node scripts/backup.mjs >> data/backups/backup.log 2>&1
+0 2 * * * cd /путь/к/barahlo && docker compose exec -T app node scripts/backup.mjs
 ```
+
+Бэкап выполняется внутри контейнера (scripts/ и better-sqlite3 есть в образе), `DATA_DIR=/app/data` берётся из `.env`. Ручная альтернатива без контейнера — host-node: `0 2 * * * cd /путь/к/barahlo && DATA_DIR=./data node scripts/backup.mjs >> data/backups/backup.log 2>&1` (требует `node_modules` на хосте).
 
 Конвенция времени (одна на весь проект): **час 02:00 локального времени сервера; имя папки бэкапа = локальная дата сервера** (`YYYY-MM-DD`, не UTC). Повторный запуск в тот же день — идемпотентен (exit 0, ничего не пересоздаёт).
 
@@ -98,6 +100,56 @@ curl -s -o /dev/null -w '%{http_code}' -H "Cookie: session=$TOKEN" http://localh
 8. Проверить вход в браузере
 
 > Репетиция этой процедуры — обязательный шаг приёмки фазы 1 (успех-критерий 4, выполняется в плане 05). На живом проде — только с остановленным контейнером (шаг 1 не опционален: SQLite под WAL не терпит подмены файла под живым процессом).
+
+## Деплой на сервер
+
+Приложение живёт на внутреннем сервере компании одним контейнером (порт `3000`), всё состояние — в примонтированном томе `./data:/app/data` (БД + uploads + бэкапы). Обновление — `git pull` + одна команда (D-08/09/10).
+
+### Требования к серверу
+
+- **Docker + compose plugin** — основной путь деплоя (D-08). Docker не нужен на хосте для Node-кода: сборка и работа — в контейнере.
+- **Host Node ≥ 20.9** — нужен только для шага миграции: `drizzle-kit` — devDependency, миграция выполняется на хосте против `./data/app.db` через том (standalone-образ devDeps не содержит).
+  - *Фолбэк при отсутствии host-Node:* разовый compose-сервис миграции из deps-стадии (там есть devDeps) — задокументированная альтернатива; при деплое заменить шаг `npx drizzle-kit migrate` на `docker compose run --rm --no-deps migrate`. Встроенного такого сервиса в `compose.yml` нет — добавляется при необходимости.
+- **Canonical remote** — корпоративный GitLab, приватный (D-15); `git pull` деплоя тянется оттуда.
+
+### Первый деплой
+
+```bash
+git clone <gitlab-url>/barahlo.git && cd barahlo   # или git pull, если уже склонировано
+
+# 1. Env: прод-пути + секрет сессий
+cp .env.example .env
+# впишите в .env:
+#   DATABASE_PATH=/app/data/app.db
+#   DATA_DIR=/app/data
+openssl rand -base64 32   # результат — в .env как AUTH_SECRET=...
+
+# 2. Права на каталог данных (в контейнере процесс работает под uid 1000 — user node)
+mkdir -p data && sudo chown -R 1000:1000 data
+
+# 3. Деплой одной командой
+bash scripts/deploy.sh
+```
+
+### Что делает `scripts/deploy.sh`
+
+1. `npm ci` — devDeps на хосте для мигратора (шаг 4)
+2. `git pull origin main` — обновление кода (без настроенного origin — предупреждение и продолжение)
+3. `docker compose build` — пересборка образа
+4. `npx drizzle-kit migrate` — миграции на хосте против `./data/app.db` через том (никогда `push`)
+5. `docker compose up -d` — перезапуск контейнера
+6. Идемпотентная установка cron-строки ночного бэкапа (`0 2 * * *`, `docker compose exec -T app node scripts/backup.mjs`) — повторный запуск не плодит дублей
+
+Повторный деплой/обновление — та же команда: `bash scripts/deploy.sh`. Данные на томе переживают пересборку и перезапуск: `./data` не участвует в образе, только монтируется.
+
+### Проверка после деплоя
+
+```bash
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/login   # → 200
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/        # → 307 (redirect на /login)
+```
+
+`/api/health` и все остальные пути без сессии закрыты периметром так же, как на dev — см. «Проверка периметра».
 
 ## Важные правила
 

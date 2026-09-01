@@ -1,0 +1,9 @@
+# Весь стейт приложения (app.db + uploads/ + backups/) живёт на томе ./data:/app/data —
+# переживает restart и down/up. AUTH_SECRET и прод-пути берутся из .env (env_file).
+services:
+  app:
+    build: .
+    ports: ["3000:3000"]            # D-09: приложение слушает :3000
+    env_file: .env                  # AUTH_SECRET (openssl rand -base64 32); DATABASE_PATH=/app/data/app.db
+    volumes: ["./data:/app/data"]   # всё состояние: app.db + uploads/ + backups/
+    restart: unless-stopped
