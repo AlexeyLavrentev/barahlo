@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Одно-командный деплой/обновление на внутреннем сервере (D-10):
-#   npm ci → git pull origin main → docker compose build → drizzle-kit migrate → docker compose up -d
+#   git pull origin main → npm ci → docker compose build → drizzle-kit migrate → docker compose up -d
 # + идемпотентная установка host-cron строки ночного бэкапа (D-07: 02:00 server-local).
 # Требования: Docker + compose; host Node >= 20.9 (для мигратора, см. README «Деплой на сервер»).
 # Запуск из корня проекта на сервере: bash scripts/deploy.sh
@@ -10,15 +10,18 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
-echo "==> [1/6] npm ci (devDeps на хосте — drizzle-kit для шага миграции)"
-npm ci
-
-echo "==> [2/6] git pull origin main (корпоративный GitLab, D-15)"
+# Порядок принципиален (WR-02): сначала git pull, потом npm ci — иначе миграция
+# (шаг 4) выполнялась бы новым кодом со старыми зависимостями (drizzle-kit
+# предыдущего коммита), а свежий npm ci доставался бы только со следующего прогона.
+echo "==> [1/6] git pull origin main (корпоративный GitLab, D-15)"
 if git remote get-url origin >/dev/null 2>&1; then
   git pull origin main
 else
   echo "предупреждение: git remote 'origin' не настроен — пропускаю git pull (настройте remote по D-15)" >&2
 fi
+
+echo "==> [2/6] npm ci (devDeps на хосте — drizzle-kit для шага миграции, уже по свежему lockfile)"
+npm ci
 
 echo "==> [3/6] docker compose build"
 docker compose build
