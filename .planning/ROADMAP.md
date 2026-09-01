@@ -71,12 +71,12 @@ Plans:
   3. Все экраны фазы (вход, список, карточка, формы) полностью на русском
   4. Интерфейс выдержан в Apple-эстетике (чистота, типографика, воздух; гайды skill `apple-design`) — эти паттерны переиспользуются в фазах 3–6
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Дизайн-система + tracer-срез: shadcn/токены UI-SPEC/шелл, диалог создания → пагинированный список (Wave 1)
+- [x] 02-01-PLAN.md — Дизайн-система + tracer-срез: shadcn/токены UI-SPEC/шелл, диалог создания → пагинированный список (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -186,7 +186,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete    | 2026-09-01 |
-| 2. Employees | 0/3 | Not started | - |
+| 2. Employees | 1/3 | In Progress|  |
 | 3. Device Registry | 0/TBD | Not started | - |
 | 4. Custody & Photos | 0/TBD | Not started | - |
 | 5. Search & Filters | 0/TBD | Not started | - |

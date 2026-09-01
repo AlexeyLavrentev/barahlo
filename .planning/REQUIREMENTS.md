@@ -25,7 +25,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Сотрудники
 
-- [ ] **EMP-01**: User can create and edit employees: имя + отдел
+- [x] **EMP-01**: User can create and edit employees: имя + отдел
 - [ ] **EMP-02**: User can view an employee card with the list of currently issued devices
 - [ ] **EMP-03**: User can archive an employee (уволен); archived employees keep their movement history
 
@@ -54,8 +54,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Интерфейс
 
-- [ ] **UI-01**: Интерфейс полностью на русском
-- [ ] **UI-02**: Apple-aesthetic design: чистота, типографика, воздух (гайды skill `apple-design`)
+- [x] **UI-01**: Интерфейс полностью на русском
+- [x] **UI-02**: Apple-aesthetic design: чистота, типографика, воздух (гайды skill `apple-design`)
 - [ ] **UI-03**: Lists stay fast at hundreds of devices (server-side pagination, indexed search columns)
 
 ## v2 Requirements
@@ -100,10 +100,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ACC-01 | Phase 1 | Complete |
 | ACC-02 | Phase 1 | Complete |
 | ACC-03 | Phase 1 | Complete |
-| EMP-01 | Phase 2 | Pending |
+| EMP-01 | Phase 2 | Complete |
 | EMP-03 | Phase 2 | Pending |
-| UI-01 | Phase 2 | Pending |
-| UI-02 | Phase 2 | Pending |
+| UI-01 | Phase 2 | Complete |
+| UI-02 | Phase 2 | Complete |
 | REG-01 | Phase 3 | Pending |
 | REG-02 | Phase 3 | Pending |
 | REG-03 | Phase 3 | Pending |

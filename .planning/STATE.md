@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Employees
+current_phase: 02
+current_phase_name: employees
 status: executing
-stopped_at: Phase 2 UI-SPEC approved
-last_updated: "2026-09-01T16:54:12.813Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-09-01T17:37:30.366Z"
 last_activity: 2026-09-01
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
+last_activity_desc: Phase 02 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 8
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-31)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 01 — foundation
+**Current focus:** Phase 02 — employees
 
 ## Current Position
 
-Phase: 2 — Employees
-Plan: Not started
+Phase: 02 (employees) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-09-01 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-09-01 — Phase 02 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ Progress: [██████████] 100%
 | Phase 01 P02 | 8 min | 2 tasks | 5 files |
 | Phase 01 P04 | 12 min | 2 tasks | 6 files |
 | Phase 01 P05 | 14min | 2 tasks | 1 files |
+| Phase 02 P01 | 25 min | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 1/План 4: deploy.sh пинит DATABASE_PATH=./data/app.db для host-side migrate — drizzle-kit подхватывает .env, прод-.env указывает внутрь контейнера; crontab -l захватывается вне пайплайна (exit 1 на пустом crontab под pipefail)
 - [Phase ?]: Фаза 1/План 4: cron ночного бэкапа — вариант docker compose exec (внутри контейнера), deploy.sh ставит идемпотентно; README cron-раздел синхронизирован
 - [Phase ?]: Фаза 1/План 5: канонический remote перенесён с корпоративного GitLab (D-15) в приватный GitHub (github.com/AlexeyLavrentev/barahlo) — решение владельца 2026-09-01; приватность сохранена, README синхронизирован; серверные шаги приёмки (2)-(8) делегированы оператору на end-of-phase
+- [Phase ?]: Фаза 2/План 1: shadcn init v4.19.1 требует именованный пресет при -b base — взят nova, все токены перекрыты UI-SPEC в globals.css (light-only сохранён)
+- [Phase ?]: Фаза 2/План 1: нативный Base UI combobox подтверждён (--dry-run), фолбэк popover+command не понадобился; семантика shadcn (--primary/--ring/--accent) ретаргетнута на #0071E3
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-01T15:29:46.702Z
-Stopped at: Phase 2 UI-SPEC approved
-Resume file: .planning/phases/02-employees/02-UI-SPEC.md
+Last session: 2026-09-01T17:37:30.354Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
