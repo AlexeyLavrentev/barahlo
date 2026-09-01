@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useActionState, useCallback, useEffect, useState } from 'react'
 import {
   Dialog,
   DialogClose,
@@ -46,21 +46,29 @@ function foldRu(s: string): string {
   return s.toLowerCase().replaceAll('ё', 'е')
 }
 
-export function EmployeeDialog({
+// WR-01: the wrapper below stays mounted (it owns the trigger and the open
+// state), so `useActionState` must NOT live there — it would keep the failed
+// submit's errors alive across close/reopen. This inner component owns the
+// form + action state + combobox input; the dialog portal unmounts its
+// children once the close animation finishes, so every open session starts
+// from a clean state under untouched fields.
+function EmployeeDialogForm({
   label,
   departments,
   employee,
+  editing,
+  onDone,
 }: {
   label: string
   departments: DepartmentRow[]
-  employee?: { id: number; name: string; department: string }
+  employee: { id: number; name: string; department: string } | undefined
+  editing: boolean
+  onDone: () => void
 }) {
-  const editing = employee !== undefined
   const [state, formAction, pending] = useActionState(
     editing ? updateEmployeeAction : createEmployeeAction,
     {},
   )
-  const [open, setOpen] = useState(false)
   // The submitted name IS the trigger text: the hidden input mirrors the
   // combobox input, so what the user sees is exactly what the server resolves.
   const [inputValue, setInputValue] = useState(employee?.department ?? '')
@@ -69,8 +77,8 @@ export function EmployeeDialog({
   // (a new identity on every action response) shows the updated page behind
   // the dialog immediately.
   useEffect(() => {
-    if (state.ok) setOpen(false)
-  }, [state])
+    if (state.ok) onDone()
+  }, [state, onDone])
 
   // Client-side RU ordering of the option list (UI-SPEC: Intl.Collator('ru')).
   // listDepartments() pre-sorts in SQL; the combobox re-sorts its small copy
@@ -85,14 +93,122 @@ export function EmployeeDialog({
   const showCreate = query !== '' && !exact
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        // Reopen on the employee's current values, never stale input.
-        if (next) setInputValue(employee?.department ?? '')
-      }}
-    >
+    <form action={formAction} className="space-y-4">
+      {employee ? (
+        <input type="hidden" name="id" value={employee.id} />
+      ) : null}
+      <div className="space-y-2">
+        <Label htmlFor="employee-name">Имя</Label>
+        <Input
+          id="employee-name"
+          name="name"
+          placeholder="Иван Иванов"
+          autoComplete="off"
+          maxLength={100}
+          defaultValue={employee?.name}
+          className="h-10 px-3 text-base md:text-base"
+          aria-invalid={state.fieldErrors?.name ? true : undefined}
+        />
+        {state.fieldErrors?.name ? (
+          <p className="text-sm text-[#D70015]">{state.fieldErrors.name}</p>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="employee-department">Отдел</Label>
+        <Combobox
+          // Options are filtered and ordered in JSX below — disable the
+          // primitive's internal filtering of rendered items.
+          filter={null}
+          // While typing, the first row (the pinned «Создать „X“» when
+          // present) is highlighted so Enter selects it.
+          autoHighlight
+          inputValue={inputValue}
+          onInputValueChange={setInputValue}
+          value={exact ? exact.name : null}
+          onValueChange={(value) => {
+            if (value !== null) setInputValue(value)
+          }}
+        >
+          <ComboboxInput
+            id="employee-department"
+            placeholder="Выберите или введите отдел"
+            autoComplete="off"
+            maxLength={80}
+            aria-invalid={
+              state.fieldErrors?.departmentName ? true : undefined
+            }
+            className="h-10 w-full"
+            inputClassName="h-full px-3 text-base md:text-base"
+          />
+          <ComboboxContent>
+            <ComboboxList>
+              {showCreate ? (
+                <ComboboxItem value={query}>
+                  Создать „{query}“
+                </ComboboxItem>
+              ) : null}
+              {matches.map((d) => (
+                <ComboboxItem key={d.id} value={d.name}>
+                  {d.name}
+                </ComboboxItem>
+              ))}
+              {matches.length === 0 && !showCreate ? (
+                <p className="px-3 py-2 text-sm text-ink-secondary">
+                  Начните вводить название отдела
+                </p>
+              ) : null}
+            </ComboboxList>
+          </ComboboxContent>
+          {/* The name rides to the action as departmentName; the server
+              resolves-or-creates it race-safely in its transaction. */}
+          <input type="hidden" name="departmentName" value={query} />
+        </Combobox>
+        {state.fieldErrors?.departmentName ? (
+          <p className="text-sm text-[#D70015]">
+            {state.fieldErrors.departmentName}
+          </p>
+        ) : null}
+      </div>
+
+      {state.error ? (
+        <p className="text-sm text-[#D70015]" role="alert">
+          {state.error}
+        </p>
+      ) : null}
+
+      <DialogFooter>
+        <DialogClose render={<Button variant="secondary" />}>
+          Не сохранять
+        </DialogClose>
+        <Button type="submit" disabled={pending}>
+          {pending
+            ? 'Сохранение…'
+            : editing
+              ? 'Сохранить изменения'
+              : label}
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+export function EmployeeDialog({
+  label,
+  departments,
+  employee,
+}: {
+  label: string
+  departments: DepartmentRow[]
+  employee?: { id: number; name: string; department: string }
+}) {
+  const editing = employee !== undefined
+  const [open, setOpen] = useState(false)
+  // Stable identity so the form's ok-effect keyed on [state, onDone] fires
+  // per action response, not per parent render.
+  const close = useCallback(() => setOpen(false), [])
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={<Button size="xl" data-employee-id={employee?.id} />}
       >
@@ -104,102 +220,15 @@ export function EmployeeDialog({
             {editing ? 'Редактировать сотрудника' : 'Новый сотрудник'}
           </DialogTitle>
         </DialogHeader>
-        <form action={formAction} className="space-y-4">
-          {editing ? (
-            <input type="hidden" name="id" value={employee.id} />
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="employee-name">Имя</Label>
-            <Input
-              id="employee-name"
-              name="name"
-              placeholder="Иван Иванов"
-              autoComplete="off"
-              maxLength={100}
-              defaultValue={employee?.name}
-              className="h-10 px-3 text-base md:text-base"
-              aria-invalid={state.fieldErrors?.name ? true : undefined}
-            />
-            {state.fieldErrors?.name ? (
-              <p className="text-sm text-[#D70015]">{state.fieldErrors.name}</p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="employee-department">Отдел</Label>
-            <Combobox
-              // Options are filtered and ordered in JSX below — disable the
-              // primitive's internal filtering of rendered items.
-              filter={null}
-              // While typing, the first row (the pinned «Создать „X“» when
-              // present) is highlighted so Enter selects it.
-              autoHighlight
-              inputValue={inputValue}
-              onInputValueChange={setInputValue}
-              value={exact ? exact.name : null}
-              onValueChange={(value) => {
-                if (value !== null) setInputValue(value)
-              }}
-            >
-              <ComboboxInput
-                id="employee-department"
-                placeholder="Выберите или введите отдел"
-                autoComplete="off"
-                maxLength={80}
-                aria-invalid={
-                  state.fieldErrors?.departmentName ? true : undefined
-                }
-                className="h-10 w-full"
-                inputClassName="h-full px-3 text-base md:text-base"
-              />
-              <ComboboxContent>
-                <ComboboxList>
-                  {showCreate ? (
-                    <ComboboxItem value={query}>
-                      Создать „{query}“
-                    </ComboboxItem>
-                  ) : null}
-                  {matches.map((d) => (
-                    <ComboboxItem key={d.id} value={d.name}>
-                      {d.name}
-                    </ComboboxItem>
-                  ))}
-                  {matches.length === 0 && !showCreate ? (
-                    <p className="px-3 py-2 text-sm text-ink-secondary">
-                      Начните вводить название отдела
-                    </p>
-                  ) : null}
-                </ComboboxList>
-              </ComboboxContent>
-              {/* The name rides to the action as departmentName; the server
-                  resolves-or-creates it race-safely in its transaction. */}
-              <input type="hidden" name="departmentName" value={query} />
-            </Combobox>
-            {state.fieldErrors?.departmentName ? (
-              <p className="text-sm text-[#D70015]">
-                {state.fieldErrors.departmentName}
-              </p>
-            ) : null}
-          </div>
-
-          {state.error ? (
-            <p className="text-sm text-[#D70015]" role="alert">
-              {state.error}
-            </p>
-          ) : null}
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="secondary" />}>
-              Не сохранять
-            </DialogClose>
-            <Button type="submit" disabled={pending}>
-              {pending
-                ? 'Сохранение…'
-                : editing
-                  ? 'Сохранить изменения'
-                  : label}
-            </Button>
-          </DialogFooter>
-        </form>
+        {/* Rendered inside the portal: mounts with the dialog session and
+            unmounts after the close animation — WR-01 state reset. */}
+        <EmployeeDialogForm
+          label={label}
+          departments={departments}
+          employee={employee}
+          editing={editing}
+          onDone={close}
+        />
       </DialogContent>
     </Dialog>
   )
