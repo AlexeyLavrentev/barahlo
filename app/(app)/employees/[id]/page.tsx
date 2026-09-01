@@ -47,8 +47,16 @@ export default async function EmployeeCardPage({
       </div>
 
       <div className="mt-6 flex gap-2">
-        {/* Temporary create-mode hosting — Task 2 wires the edit mode. */}
-        <EmployeeDialog label="Редактировать" />
+        {/* Server page renders a small client island: the edit dialog opens
+            prefilled; the action's refresh() updates card and list. */}
+        <EmployeeDialog
+          label="Редактировать"
+          employee={{
+            id: employee.id,
+            name: employee.name,
+            department: employee.department,
+          }}
+        />
       </div>
 
       <section className="mt-8">
