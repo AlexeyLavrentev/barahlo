@@ -178,8 +178,57 @@ try {
     }
   }
 
+  // 10. Archive cycle (EMP-03): flip is_active in the temp DB (what the
+  //     confirmed action writes), the card must show the badge and the
+  //     direct «Разархивировать»; restoring removes the badge again.
+  const setProbeActive = (active) => {
+    const d = new Database(dbPath)
+    d.pragma('busy_timeout = 5000')
+    d.prepare('UPDATE employees SET is_active = ? WHERE id = ?').run(
+      active,
+      probeId,
+    )
+    d.close()
+  }
+
+  setProbeActive(0)
+  const archivedCard = await fetch(`${BASE}/employees/${probeId}`, {
+    headers: { cookie: `session=${token}` },
+    redirect: 'manual',
+  })
+  if (archivedCard.status !== 200) {
+    throw new Error(
+      `архивная карточка /employees/${probeId}: ожидался 200, получен ${archivedCard.status}`,
+    )
+  }
+  const archivedHtml = await archivedCard.text()
+  if (!archivedHtml.includes('В архиве')) {
+    throw new Error(`архивная карточка: бейджа «В архиве» нет в HTML`)
+  }
+  if (!archivedHtml.includes('Разархивировать')) {
+    throw new Error(`архивная карточка: кнопки «Разархивировать» нет в HTML`)
+  }
+
+  setProbeActive(1)
+  const restoredCard = await fetch(`${BASE}/employees/${probeId}`, {
+    headers: { cookie: `session=${token}` },
+    redirect: 'manual',
+  })
+  if (restoredCard.status !== 200) {
+    throw new Error(
+      `карточка после возврата: ожидался 200, получен ${restoredCard.status}`,
+    )
+  }
+  const restoredHtml = await restoredCard.text()
+  if (restoredHtml.includes('В архиве')) {
+    throw new Error(`карточка после возврата: бейдж «В архиве» всё ещё в HTML`)
+  }
+  if (!restoredHtml.includes('Архивировать')) {
+    throw new Error(`карточка после возврата: кнопки «Архивировать» нет в HTML`)
+  }
+
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie; карточка 200 + «Пока ничего не выдано»; 404 на 99999/abc',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie; карточка 200 + «Пока ничего не выдано»; 404 на 99999/abc; бейдж «В архиве»/«Разархивировать» переключается с is_active',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

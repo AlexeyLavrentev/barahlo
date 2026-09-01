@@ -3,12 +3,25 @@ import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
 import { getEmployee } from '@/db/queries/employees'
+import { setEmployeeArchivedAction } from '../actions'
+import { Button } from '@/components/ui/button'
 import { EmployeeDialog } from '../employee-dialog'
+import { ArchiveConfirmDialog } from '../archive-confirm-dialog'
 
 // The URL id is untyped user input that reaches SQL (T-02-07): it must pass
 // a positive-integer zod check BEFORE any database access — garbage ids 404
 // through notFound(), they never reach getEmployee().
 const IdSchema = z.coerce.number().int().positive()
+
+// Direct unarchive submit — no confirmation, returning to the working lists
+// is the safe direction (D-02). The shared action is useActionState-shaped
+// ((prev, formData) → state); the form action prop needs () → Promise<void>,
+// so this thin wrapper discards the state object: refresh() inside the
+// action already re-renders this card.
+async function unarchiveEmployee(formData: FormData): Promise<void> {
+  'use server'
+  await setEmployeeArchivedAction(undefined, formData)
+}
 
 export default async function EmployeeCardPage({
   params,
@@ -57,6 +70,22 @@ export default async function EmployeeCardPage({
             department: employee.department,
           }}
         />
+        {employee.isActive === 1 ? (
+          // Archive (reversible, D-02) gets a confirmation; confirmation is
+          // only needed for LEAVING the working lists — returning is direct.
+          <ArchiveConfirmDialog
+            employeeId={employee.id}
+            employeeName={employee.name}
+          />
+        ) : (
+          <form action={unarchiveEmployee}>
+            <input type="hidden" name="id" value={employee.id} />
+            <input type="hidden" name="archived" value="false" />
+            <Button type="submit" variant="secondary" size="xl">
+              Разархивировать
+            </Button>
+          </form>
+        )}
       </div>
 
       <section className="mt-8">

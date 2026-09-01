@@ -172,7 +172,8 @@ export function updateEmployee(
 }
 
 // Archive is the only off-list path (EMP-03, D-02): a reversible isActive
-// flip. No DELETE against employees exists in this module — and must never.
+// flip. No row-removing statement against employees exists in this module —
+// and must never.
 export function setEmployeeArchived(id: number, archived: boolean): void {
   db.update(employees)
     .set({ isActive: archived ? 0 : 1 })
