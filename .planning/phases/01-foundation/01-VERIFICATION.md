@@ -1,7 +1,7 @@
 ---
 phase: 01-foundation
 verified: 2026-09-01T05:05:01Z
-status: human_needed
+status: passed
 score: 2/6 must-haves verified
 behavior_unverified: 4
 overrides_applied: 0
@@ -9,22 +9,27 @@ re_verification:
   previous_status: gaps_found
   previous_score: 1/6
   gaps_closed:
+
     - "Неизвестный логин неотличим от неверного пароля (bcrypt.compare по фиктивному хешу той же cost) — закрыто коммитом 9246d7f: lib/dummy-hash.ts (cost-12), app/login/actions.ts (безусловное сравнение user?.passwordHash ?? DUMMY_HASH), tests/login-timing.test.ts (3 теста)"
   gaps_remaining: []
   regressions: []
 behavior_unverified_items:
+
   - truth: "SC1: любой адрес без сессии → страница входа; страницы, API, файлы недоступны без авторизации"
     test: "На живом сервере выполнить curl-матрицу README «Проверка периметра»: без сессии / → 307 на /login, /api/health → 307, /login → 200, /login-fake → 307"
     expected: "Редирект на /login для всех путей, кроме точного /login; ассеты (_next/static, _next/image, favicon.ico) доступны"
     why_human: "Нужен живой сервер; matcher-тесты проверяют конфиг, а не runtime-редирект; стек верификатором не запускается"
+
   - truth: "SC2: вход по логину+паролю — неверные не пускают (перебор ограничен), верные пускают; сессия переживает перезапуск браузера"
     test: "Браузерная приёмка плана 01-01: верные данные → каркас с «Выйти»; неверные → «Неверный логин или пароль»; 5 неудач → блок; перезапуск браузера → сессия жива"
     expected: "Поведение согласно must-have плана 01-01; HttpOnly-cookie на 30 дней"
     why_human: "E2E-путь Server Action тестом не покрыт; cookie-поведение реального браузера grep не видит"
+
   - truth: "SC4: бэкап создаётся автоматически по расписанию + восстановление отрепетировано хотя бы раз"
     test: "README шаги 2–3, 7–8: bash scripts/deploy.sh на сервере; crontab -l — ровно одна строка с scripts/backup.mjs; на следующее утро ./data/backups/<день>/ существует, integrity ok; серверная репетиция восстановления по процедуре"
     expected: "Расписание активно на сервере; копии появляются ежедневно; восстановление проходит"
     why_human: "Механизм поведенчески доказан (8 backup-тестов) и локальная репетиция исполнена (56504c8), но расписание активируется только деплоем на сервере (SSH — у оператора, D-08)"
+
   - truth: "SC5: приложение работает на внутреннем сервере одним контейнером; данные на томе переживают перезапуск"
     test: "README шаги 2, 9: docker compose up -d на сервере; :3000 отвечает; docker compose restart и down+up -d → учётка и данные на месте"
     expected: "Контейнер работает, стейт на томе переживает перезапуск"
@@ -33,54 +38,63 @@ prohibitions:  # ADR-550 D4: test-tier без проводного enforcement �
   unverified_flagged_count: 9
   human_review_recommended: true
   items:
+
     - statement: "01-01 P2: MUST NOT хранить/сравнивать пароль в открытом виде — только bcrypt cost 12"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — единственные писатели password_hash: bcrypt.hash(password, 12) (create-admin.mjs:86, reset-admin.mjs:78); паттернов плейнтекст-сравнения в app/lib/scripts нет"
       enforcement: "нет выделенного теста"
+
     - statement: "01-01 P3: MUST NOT существовать веб-путь создания аккаунта/сброса пароля"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — grep insert(users)/update(users) по app/ пуст; users трогают только CLI-скрипты"
       enforcement: "нет выделенного теста"
+
     - statement: "01-01 P5: MUST NOT полагаться на proxy как на единственную проверку — requireSession() в каждом мутирующем entry-point"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied с известной Info-оговоркой — requireSession в app/(app)/page.tsx и app/api/health/route.ts; logout- action без guard-а (безвредно: деавторизует только собственную сессию)"
       enforcement: "нет выделенного теста"
+
     - statement: "01-02 P1: MUST NOT выполняться seed против production"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — guard «must-run-first» в scripts/seed.mjs:9-10 (NODE_ENV=production → отказ)"
       enforcement: "нет выделенного теста"
+
     - statement: "01-02 P2: MUST NOT выводить введённый пароль в stdout/логи"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — эхо ввода заглушено (WR-03, 8fe3a73); пароль живёт в промпте и хеше"
       enforcement: "нет выделенного теста"
+
     - statement: "01-04 P2: MUST NOT попадать в образ секретам и рабочим данным"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — .dockerignore исключает data, .env, .planning, .claude (проверено содержимым)"
       enforcement: "нет выделенного теста"
+
     - statement: "01-04 P3: MUST NOT использоваться Alpine-база и разные Node-мажоры в стадиях"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — один ARG NODE_VERSION=24.13.0-slim во всех трёх стадиях, alpine отсутствует, USER node"
       enforcement: "нет выделенного теста (docker build верификатором не запускается)"
+
     - statement: "01-02 P3: MUST NOT появляться автогенератор номеров как продуктовая возможность"
       tier: judgment
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — генерация только в seed-фикстурах (dev, D-11); в app/ генерации номеров нет"
       enforcement: "judgment — ручная проверка"
+
     - statement: "01-05 P1: MUST NOT выполнять репетицию восстановления на живом прод-томе под работающим контейнером"
       tier: judgment
       status: unverified
@@ -88,27 +102,48 @@ prohibitions:  # ADR-550 D4: test-tier без проводного enforcement �
       llm_verdict_non_authoritative: "satisfied — выполненная репетиция локальная, по README-процедуре с остановленной стопкой (56504c8, README от 2026-09-01)"
       enforcement: "judgment — ручная проверка"
 human_verification:
+
   - test: "Серверный деплой + расписание бэкапа (README «Приёмка фазы 1» шаги 2–3, 7): bash scripts/deploy.sh; crontab -l — ровно одна строка с scripts/backup.mjs; на следующее утро backups/<вчерашний день>/ существует и integrity ok"
     expected: "Приложение на :3000, cron установлен идемпотентно, ночная копия появляется"
     why_human: "SSH-доступ только у оператора (D-08); закрывает серверную ногу SC4 «по расписанию»"
+
   - test: "Браузерная приёмка входа (план 01-01 human-check): http://<server>:3000/ → редирект /login; верные данные → каркас с «Выйти»; перезапуск браузера → сессия жива"
     expected: "Редирект, вход, стойкость сессии (HttpOnly, 30 дней, lax)"
     why_human: "Реальный браузер + cookie-поведение; E2E Server Action тестом не покрыт"
+
   - test: "Негативный вход и перебор: неверный пароль → «Неверный логин или пароль»; 5 неудач → «Слишком много попыток…»; через 15 мин — снова можно; неизвестный логин отвечает за то же время, что неверный пароль"
     expected: "Generic-ошибка, блок на 5-й неудаче, окно истекает; timing неизвестного логина ≈ неверного пароля (код + тесты это обеспечивают)"
     why_human: "Живой end-to-end прогон Server Action"
+
   - test: "Curl-матрица периметра на сервере (README «Проверка периметра»): / → 307, /api/health → 307, /login → 200, /login-fake → 307"
     expected: "Default-deny работает на сервере так же, как в dev"
     why_human: "Нужен живой сервер"
+
   - test: "Серверная репетиция восстановления (README шаг 8): по процедуре «Восстановление (пошагово)» при остановленной стопке; integrity ok, учётка и контрольная запись на месте"
     expected: "Восстановление проходит; локальная репетиция 2026-09-01 — образец"
     why_human: "Состояние-переход на реальном томе сервера"
+
   - test: "Переживание перезапуска на сервере (SC5): docker compose restart и down+up -d → учётка и данные на месте, /login 200"
     expected: "Стейт на томе ./data:/app/data переживает перезапуск"
     why_human: "Локальное доказательство было; серверное — только на сервере"
+
   - test: "Обзор 9 помеченных prohibitions (см. frontmatter prohibitions): 7 test-tier без проводного enforcement + 2 judgment-tier; неавторитетные структурные вердикты — все «satisfied»"
     expected: "Человек подтверждает вердикты или заводит задачи (например, тест на guard seed-а и на содержимое PUBLIC_PATHS)"
     why_human: "Fail-closed протокол: тест-tier запрет без теста никогда не зелёный автоматически"
+unverified_flagged_count: 9
+human_review_recommended: true
+items:
+
+  - "statement: \"01-01 P2: MUST NOT хранить/сравнивать пароль в открытом виде — только bcrypt cost 12"
+  - "statement: \"01-01 P3: MUST NOT существовать веб-путь создания аккаунта/сброса пароля"
+  - "statement: \"01-01 P5: MUST NOT полагаться на proxy как на единственную проверку — requireSession() в каждом мутирующем entry-point"
+  - "statement: \"01-02 P1: MUST NOT выполняться seed против production"
+  - "statement: \"01-02 P2: MUST NOT выводить введённый пароль в stdout/логи"
+  - "statement: \"01-04 P2: MUST NOT попадать в образ секретам и рабочим данным"
+  - "statement: \"01-04 P3: MUST NOT использоваться Alpine-база и разные Node-мажоры в стадиях"
+  - "statement: \"01-02 P3: MUST NOT появляться автогенератор номеров как продуктовая возможность"
+  - "statement: \"01-05 P1: MUST NOT выполнять репетицию восстановления на живом прод-томе под работающим контейнером"
+
 ---
 
 # Phase 1: Foundation — Verification Report

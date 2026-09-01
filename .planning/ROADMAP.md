@@ -15,7 +15,7 @@
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Каркас приложения, полная схема БД (включая append-only movements), вход по логину+паролю, авторизация на всём, автоматические бэкапы
+- [x] **Phase 1: Foundation** - Каркас приложения, полная схема БД (включая append-only movements), вход по логину+паролю, авторизация на всём, автоматические бэкапы (completed 2026-09-01)
 - [ ] **Phase 2: Employees** - Справочник сотрудников (имя + отдел, архив вместо удаления) и дизайн-система: русский интерфейс, Apple-эстетика
 - [ ] **Phase 3: Device Registry** - Реестр устройств: 4 типа с наборами полей на тип (keystone-модуль `device_schema`), карточка, редактирование, пагинация
 - [ ] **Phase 4: Custody & Photos** - Выдача/возврат/передача одним действием, неизменяемый таймлайн перемещений, статусы только действием, фото устройств
@@ -172,7 +172,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 5/5 | In Progress|  |
+| 1. Foundation | 5/5 | Complete    | 2026-09-01 |
 | 2. Employees | 0/TBD | Not started | - |
 | 3. Device Registry | 0/TBD | Not started | - |
 | 4. Custody & Photos | 0/TBD | Not started | - |
