@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 01
 current_phase_name: foundation
-status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-09-01T03:31:23.543Z"
+status: verifying
+stopped_at: Completed 01-05-PLAN.md
+last_updated: "2026-09-01T03:55:56.178Z"
 last_activity: 2026-08-31
 last_activity_desc: Phase 01 execution started
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 
 Phase: 01 (foundation) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-08-31 — Phase 01 execution started
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Progress: [████████░░] 80%
 | Phase 01 P01 | 23 min | 3 tasks | 30 files |
 | Phase 01 P02 | 8 min | 2 tasks | 5 files |
 | Phase 01 P04 | 12 min | 2 tasks | 6 files |
+| Phase 01 P05 | 14min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,7 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 1/План 4: официальный with-docker базис + 4 расширения для better-sqlite3 (build-tools в deps; better-sqlite3+bcryptjs в runner; /app/data chown node uid 1000; scripts/ в образе); USER node вместо useradd nextjs
 - [Phase ?]: Фаза 1/План 4: deploy.sh пинит DATABASE_PATH=./data/app.db для host-side migrate — drizzle-kit подхватывает .env, прод-.env указывает внутрь контейнера; crontab -l захватывается вне пайплайна (exit 1 на пустом crontab под pipefail)
 - [Phase ?]: Фаза 1/План 4: cron ночного бэкапа — вариант docker compose exec (внутри контейнера), deploy.sh ставит идемпотентно; README cron-раздел синхронизирован
+- [Phase ?]: Фаза 1/План 5: канонический remote перенесён с корпоративного GitLab (D-15) в приватный GitHub (github.com/AlexeyLavrentev/barahlo) — решение владельца 2026-09-01; приватность сохранена, README синхронизирован; серверные шаги приёмки (2)-(8) делегированы оператору на end-of-phase
 
 ### Pending Todos
 
@@ -102,6 +104,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-01T03:31:23.538Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-09-01T03:55:56.173Z
+Stopped at: Completed 01-05-PLAN.md
 Resume file: None
