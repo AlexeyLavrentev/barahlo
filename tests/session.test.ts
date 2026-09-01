@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { SignJWT } from 'jose'
 
 // lib/session imports 'server-only' (stubbed in vitest.config) and resolves
 // next/headers lazily — safe to import under the node test environment once
-// AUTH_SECRET is set before the module is loaded.
-process.env.AUTH_SECRET ??= 'vitest-secret-0123456789abcdef'
+// AUTH_SECRET is set before the module is loaded. 32+ chars: the minimum the
+// module enforces at first key use (CR-01).
+process.env.AUTH_SECRET ??= 'vitest-secret-0123456789abcdef0123456789'
 
 const { verifySession } = await import('@/lib/session')
 
@@ -49,5 +50,36 @@ describe('verifySession (jose HS256)', () => {
   it('verifySession(undefined) and verifySession("") → null without throwing', async () => {
     await expect(verifySession(undefined)).resolves.toBeNull()
     await expect(verifySession('')).resolves.toBeNull()
+  })
+})
+
+describe('AUTH_SECRET validation at first key use (CR-01)', () => {
+  const original = process.env.AUTH_SECRET
+
+  afterEach(() => {
+    process.env.AUTH_SECRET = original
+    vi.resetModules() // fresh module instance per test → fresh key cache
+  })
+
+  it('missing AUTH_SECRET → createSession rejects with a clear error (not a cryptic DataError)', async () => {
+    delete process.env.AUTH_SECRET
+    vi.resetModules()
+    const { createSession } = await import('@/lib/session')
+    await expect(createSession(1)).rejects.toThrow(/AUTH_SECRET/)
+  })
+
+  it('short AUTH_SECRET (< 32 chars) → createSession rejects — no silently forgeable tokens', async () => {
+    process.env.AUTH_SECRET = 'abc'
+    vi.resetModules()
+    const { createSession } = await import('@/lib/session')
+    await expect(createSession(1)).rejects.toThrow(/AUTH_SECRET/)
+  })
+
+  it('verifySession stays fail-closed (null) when the secret is invalid — never throws', async () => {
+    process.env.AUTH_SECRET = 'abc'
+    vi.resetModules()
+    const { verifySession: verify } = await import('@/lib/session')
+    const token = await sign({ userId: 1 }, '30d')
+    await expect(verify(token)).resolves.toBeNull()
   })
 })
