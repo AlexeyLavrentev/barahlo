@@ -3,10 +3,14 @@ import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
 import { getEmployee, listDepartments } from '@/db/queries/employees'
-import { setEmployeeArchivedAction } from '../actions'
+// This page lives in the (card) route group: a segment loading.tsx on the
+// list branch streams its whole subtree (child segments included) and flushes
+// status 200 before notFound() can answer — grouping the card separately
+// keeps the 404 contract (T-02-07) while the list keeps its skeleton.
+import { setEmployeeArchivedAction } from '@/app/(app)/employees/actions'
 import { Button } from '@/components/ui/button'
-import { EmployeeDialog } from '../employee-dialog'
-import { ArchiveConfirmDialog } from '../archive-confirm-dialog'
+import { EmployeeDialog } from '@/app/(app)/employees/employee-dialog'
+import { ArchiveConfirmDialog } from '@/app/(app)/employees/archive-confirm-dialog'
 
 // The URL id is untyped user input that reaches SQL (T-02-07): it must pass
 // a positive-integer zod check BEFORE any database access — garbage ids 404
