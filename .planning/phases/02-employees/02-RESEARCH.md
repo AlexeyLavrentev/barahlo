@@ -434,14 +434,16 @@ export async function archiveEmployee(_prev: unknown, formData: FormData) {
 | A4 | All seeded employees have `isActive=1`, so the «Архив» empty state is what dev shows until first archive | Validation (manual checks) | Trivial: verified in `scripts/seed.mjs` (is_active 1 always) — not really an assumption |
 | A5 | UI-aesthetic compliance (UI-02) is verified manually / at UAT, not by automated tests | Validation Architecture | None on correctness; affects gate design only |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Native `combobox` vs popover+command — final composition**
+   - **RESOLVED → 02-01 Task 2:** сначала `npx shadcn@latest add combobox --dry-run` — нативный Base UI combobox, если закреплённый первый пункт «Создать „X“» ложится чисто; иначе фолбэк `npx shadcn@latest add -y popover command`; любая подмена композиции, названной в UI-SPEC, фиксируется как отклонение в SUMMARY плана.
    - What we know: UI-SPEC text prescribes popover+command; registry now ships a native combobox with built-in filtering; approved visual contract is identical either way; D-03 leaves composition form to the planner.
    - What's unclear: exact generated API quality for a pinned «Создать „X"» first row.
    - Recommendation: first task installs both candidates (`add --dry-run`), pick native combobox if the custom first item is clean, else popover+command. No user decision needed (within UI-SPEC's stated composition latitude? — strictly speaking UI-SPEC named popover+command, so if the planner switches to native combobox, note the substitution in the plan).
 
 2. **Post-archive navigation on the card page**
+   - **RESOLVED → 02-02 Task 3:** остаёмся на карточке — без redirect; `refresh()` в том же ответе действия перерисовывает бейдж «В архиве» и переключённую кнопку «Разархивировать».
    - What we know: UI-SPEC shows the badge «В архиве» + button toggling to «Разархивировать» on the same card — i.e., archive keeps you on the card (`refresh()` covers it).
    - Recommendation: stay on card; no redirect. (List rows simply disappear from Активные on next visit/refresh.)
 

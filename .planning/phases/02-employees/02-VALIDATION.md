@@ -3,7 +3,7 @@ phase: 2
 slug: employees
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-09-01
 ---
@@ -39,7 +39,15 @@ created: 2026-09-01
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (filled by planner per task) | 02-xx | 1+ | EMP-01, EMP-03, UI-01, UI-02 | T-02-xx | archive-not-delete; dept race safe | unit/integration | `npx vitest run` | ✅ | ⬜ pending |
+| 02-01-T1 | 02-01 | 1 | UI-01, UI-02 (гейт установки) | T-02-SC | Ни одной установки пакетов до human-подтверждения (never auto-approve) | human checkpoint (из автоматической карты исключён) | — (шаги проверки npmjs.com — в плане) | — | ⬜ pending |
+| 02-01-T2 | 02-01 | 1 | UI-01, UI-02 | T-02-SC | Light-only токены; установка только одобренным CLI после гейта | build + suite + grep-гейты | `npm run build && npx vitest run && grep -q -- '--color-accent: #0071E3' app/globals.css && grep -q -- '--color-page: #F5F5F7' app/globals.css && [ -f components.json ] && [ -f components/ui/dialog.tsx ] && [ -f components/ui/combobox.tsx ] && [ "$(grep -c 'prefers-color-scheme' app/globals.css)" = "0" ] && [ "$(grep -rn 'font-medium' 'app/(app)/' \| wc -l \| tr -d ' ')" = "0" ] && [ "$(grep -rnE '(py\|px\|mt\|mb)-[0-9]+\.5' 'app/(app)/' \| wc -l \| tr -d ' ')" = "0" ]` | ✅ | ⬜ pending |
+| 02-01-T3 | 02-01 | 1 | EMP-01, UI-01 | T-02-01, T-02-02, T-02-03, T-02-04 | requireSession в каждом действии/странице; параметризованный SQL; без dangerouslySetInnerHTML; zod-whitelist | unit/integration + E2E smoke | `npx vitest run tests/employees-queries.test.ts tests/ru.test.ts && npm run build && node scripts/smoke-employees.mjs` | ✅ (тесты и smoke создаёт сам таск до прогона) | ⬜ pending |
+| 02-02-T1 | 02-02 | 2 | EMP-01, EMP-03 | T-02-01, T-02-07 | Мусорный id → notFound() до SQL; requireSession | E2E smoke + build | `npm run build && node scripts/smoke-employees.mjs` | ✅ (smoke из 02-01, расширяется таском) | ⬜ pending |
+| 02-02-T2 | 02-02 | 2 | EMP-01 | T-02-01, T-02-04 | Update через zod-whitelist {id, name, departmentName}; requireSession | suite + E2E smoke + build | `npm run build && npx vitest run && node scripts/smoke-employees.mjs` | ✅ | ⬜ pending |
+| 02-02-T3 | 02-02 | 2 | EMP-03 | T-02-01, T-02-08 | Архив-не-удаление (grep-гейт = 0); requireSession; нейтральный primary | suite + E2E smoke + grep-гейт | `npm run build && npx vitest run && node scripts/smoke-employees.mjs && [ "$(grep -rniE '\bdelete\b' db/queries/ 'app/(app)/employees/' \| wc -l \| tr -d ' ')" = "0" ] && grep -q 'Архивировать сотрудника?' 'app/(app)/employees/archive-confirm-dialog.tsx' && grep -q 'Разархивировать' 'app/(app)/employees/[id]/page.tsx'` | ✅ | ⬜ pending |
+| 02-03-T1 | 02-03 | 3 | EMP-01 | T-02-01, T-02-04 | departmentName zod (trim, 1..80); a11y из примитива, не самописный | build + suite + grep-гейты | `npm run build && npx vitest run && grep -q 'Создать „' 'app/(app)/employees/employee-dialog.tsx' && grep -q 'listDepartments' 'app/(app)/employees/page.tsx' && grep -q 'listDepartments' 'app/(app)/employees/[id]/page.tsx' && grep -q 'ruCollator' 'app/(app)/employees/employee-dialog.tsx'` | ✅ | ⬜ pending |
+| 02-03-T2 | 02-03 | 3 | EMP-01, UI-01 | T-02-02 | Filter enum + page clamp до SQL | build + suite + grep-гейты | `npm run build && npx vitest run && grep -q 'Пока нет сотрудников' 'app/(app)/employees/page.tsx' && grep -q 'Архив пуст' 'app/(app)/employees/page.tsx' && grep -q 'buildQuery' 'app/(app)/employees/page.tsx' && grep -q 'Страница' 'app/(app)/employees/page.tsx'` | ✅ | ⬜ pending |
+| 02-03-T3 | 02-03 | 3 | UI-01, UI-02 | T-02-09 | Граница ошибки не отдаёт деталей наружу; 0 англо-лейблов; дизайн-гейты 0 | build + suite + grep-гейты + E2E smoke | `npm run build && npx vitest run && [ "$(grep -rn 'font-medium' app/ \| wc -l \| tr -d ' ')" = "0" ] && [ "$(grep -rnE '(py\|px\|mt\|mb)-[0-9]+\.5' app/ \| wc -l \| tr -d ' ')" = "0" ] && grep -q 'retry' 'app/(app)/employees/error.tsx' && grep -q 'Не удалось загрузить список' 'app/(app)/employees/error.tsx' && [ "$(grep -rnE '>(Add\|Save\|Delete\|Cancel\|Edit\|Search\|Loading\|Close)<' app/ \| wc -l \| tr -d ' ')" = "0" ] && node scripts/smoke-employees.mjs` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
