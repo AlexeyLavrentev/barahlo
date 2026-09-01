@@ -153,8 +153,8 @@ bash scripts/deploy.sh
 
 ### Что делает `scripts/deploy.sh`
 
-1. `npm ci` — devDeps на хосте для мигратора (шаг 4)
-2. `git pull origin main` — обновление кода (без настроенного origin — предупреждение и продолжение)
+1. `git pull origin main` — обновление кода (без настроенного origin — предупреждение и продолжение)
+2. `npm ci` — devDeps на хосте для мигратора (шаг 4), уже по свежему lockfile после `git pull`
 3. `docker compose build` — пересборка образа
 4. `npx drizzle-kit migrate` — миграции на хосте против `./data/app.db` через том (никогда `push`)
 5. `docker compose up -d` — перезапуск контейнера
