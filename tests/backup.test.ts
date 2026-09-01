@@ -61,7 +61,11 @@ describe('runBackup', () => {
     const result = await runBackup({ dataDir })
 
     const copy = new Database(join(result.dest, 'app.db'), { readonly: true })
-    const labels = copy.prepare('SELECT label FROM items ORDER BY id').all().map((r) => r.label)
+    // .all() типизируется как unknown[] (@types/better-sqlite3 v9) — это ломало
+    // typecheck стадии next build (next проверяет и tests/), аннотируем строку.
+    const labels = (copy.prepare('SELECT label FROM items ORDER BY id').all() as { label: string }[]).map(
+      (r) => r.label,
+    )
     copy.close()
     live.close()
     expect(labels).toContain('первая')
