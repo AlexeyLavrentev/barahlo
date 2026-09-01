@@ -116,3 +116,6 @@ status: complete
 
 - Файлы: app/(app)/employees/{loading,error}.tsx, app/(app)/(card)/employees/[id]/{page,error}.tsx, app/(app)/employees/employee-dialog.tsx, app/(app)/employees/page.tsx, components/ui/combobox.tsx, app/login/{page,login-form}.tsx — FOUND
 - Коммиты: 3b586d3, 804c1ce, d0ceff8 — FOUND в git log
+
+> **Note (WR-03, code-review fix 2026-09-01):** `components.json` остаётся `"style": "base-nova"` (+ `menuColor`/`menuAccent`) — сознательно принятое отклонение от UI-SPEC `preset: none`. Пресет-фри стиль `"base"` в реестре shadcn v4 НЕ существует: `https://ui.shadcn.com/r/styles/base/badge.json` отвечает 404, резолвятся только имена `{base}-{preset}` (проверено `add badge --dry-run` в обе стороны), поэтому нормализация сломала бы все будущие `shadcn add` в фазах 3–6. Контракт при этом соблюдён на уровне токенов: UI-SPEC-палитра/радиусы/шрифты диктуются `app/globals.css` (`@theme`), а nova-флейвор в сгенерированных файлах фазы 02 перекрыт вручную. Правило для будущих `shadcn add`: после генерации сверять компонент с globals.css и UI-SPEC (веса 400/600, полушаги запрещены, акцент только в трёх зарезервированных местах).
+
