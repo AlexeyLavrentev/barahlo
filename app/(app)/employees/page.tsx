@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
-import { listEmployees } from '@/db/queries/employees'
+import { listEmployees, listDepartments } from '@/db/queries/employees'
 import { pluralEmployees } from '@/lib/ru'
 import { EmployeeDialog } from './employee-dialog'
 
@@ -51,7 +51,9 @@ export default async function EmployeesPage({
           </h1>
           <p className="text-sm text-ink-secondary">{pluralEmployees(total)}</p>
         </div>
-        <EmployeeDialog label="Добавить сотрудника" />
+        {/* The dialog's department combobox lists the current departments
+            (D-03) — fetched server-side and handed to the client island. */}
+        <EmployeeDialog label="Добавить сотрудника" departments={listDepartments()} />
       </div>
 
       <nav

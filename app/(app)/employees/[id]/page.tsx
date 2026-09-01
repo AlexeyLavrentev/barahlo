@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
-import { getEmployee } from '@/db/queries/employees'
+import { getEmployee, listDepartments } from '@/db/queries/employees'
 import { setEmployeeArchivedAction } from '../actions'
 import { Button } from '@/components/ui/button'
 import { EmployeeDialog } from '../employee-dialog'
@@ -61,9 +61,11 @@ export default async function EmployeeCardPage({
 
       <div className="mt-6 flex gap-2">
         {/* Server page renders a small client island: the edit dialog opens
-            prefilled; the action's refresh() updates card and list. */}
+            prefilled; the action's refresh() updates card and list. The
+            department combobox needs the current department list (D-03). */}
         <EmployeeDialog
           label="Редактировать"
+          departments={listDepartments()}
           employee={{
             id: employee.id,
             name: employee.name,
