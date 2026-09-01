@@ -60,11 +60,12 @@ try {
   const dept = sqlite
     .prepare("INSERT INTO departments (name, created_at) VALUES ('Отдел дыма', unixepoch()) RETURNING id")
     .get()
-  sqlite
+  const probe = sqlite
     .prepare(
-      "INSERT INTO employees (name, department_id, is_active, created_at) VALUES ('Смок Сотрудник', ?, 1, unixepoch())",
+      "INSERT INTO employees (name, department_id, is_active, created_at) VALUES ('Смок Сотрудник', ?, 1, unixepoch()) RETURNING id",
     )
-    .run(dept.id)
+    .get(dept.id)
+  const probeId = probe.id
   sqlite.close()
 
   // 2. One-shot AUTH_SECRET (same ≥32-char rule as lib/session.ts).
@@ -140,7 +141,38 @@ try {
     throw new Error('/employees с cookie: заголовка «Сотрудники» нет в HTML')
   }
 
-  console.log('SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie')
+  // 8. Card route: the probe's card renders 200 with its name and the
+  //    «Техника» empty section (EMP-02 lands in Phase 4).
+  const card = await fetch(`${BASE}/employees/${probeId}`, {
+    headers: { cookie: `session=${token}` },
+    redirect: 'manual',
+  })
+  if (card.status !== 200) {
+    throw new Error(`/employees/${probeId} с cookie: ожидался 200, получен ${card.status}`)
+  }
+  const cardHtml = await card.text()
+  if (!cardHtml.includes('Смок Сотрудник')) {
+    throw new Error(`/employees/${probeId}: имени зонда нет в HTML карточки`)
+  }
+  if (!cardHtml.includes('Пока ничего не выдано')) {
+    throw new Error(`/employees/${probeId}: секции «Техника» («Пока ничего не выдано») нет в HTML`)
+  }
+
+  // 9. 404 matrix: unknown and garbage ids answer 404 through notFound(),
+  //    never 500 (V4/V5 — validation before any database access).
+  for (const bad of ['99999', 'abc']) {
+    const res = await fetch(`${BASE}/employees/${bad}`, {
+      headers: { cookie: `session=${token}` },
+      redirect: 'manual',
+    })
+    if (res.status !== 404) {
+      throw new Error(`/employees/${bad}: ожидался 404, получен ${res.status}`)
+    }
+  }
+
+  console.log(
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Сотрудник» с cookie; карточка 200 + «Пока ничего не выдано»; 404 на 99999/abc',
+  )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
   if (server && serverLog) console.error(`--- лог сервера ---\n${serverLog}`)
