@@ -58,7 +58,7 @@ export type DeviceField = {
   label: string            // русский, из UI-SPEC field table
   type: FieldType
   required: boolean
-  options?: string[]       // для select (peripheralKind, panelType)
+  options?: string[]       // для select (только peripheralKind; panelType — свободный текст по UI-SPEC)
   group: 'type' | 'main' | 'purchase'
 }
 export const DEVICE_TYPES = [
@@ -82,7 +82,7 @@ export function buildZodSchema(typeKey: string): z.ZodObject  // required → mi
 Переиспользование Pattern 1 (02-RESEARCH): `searchParams` Promise → `type` валидируется против DEVICE_TYPES (иначе «все»), page Number+clamp; `listDevices({type, page, pageSize})` возвращает `{rows,total,page,pages}`; row = Link на карточку; RU-сортировка по модели тем же `replace()`-выражением; строка запроса целиком в пагинации (`?type=laptop&page=3`).
 
 ### Pattern D5: карточка + (card) group
-`app/(card)/devices/[id]/page.tsx` — id: `z.coerce.number().int().positive()` → не число/нет строки → `notFound()`; группы полей из device_schema (только заполненные пер-типовые показываем, прочерк для пустых опциональных); секции «История»/«Фото» — placeholder-строки (фаза 4). loading/error границы — в списочном сегменте; ВНУТРИ (card) loading НЕ класть (404-инвариант фазы 2 — streamed 200 до notFound).
+`app/(app)/(card)/devices/[id]/page.tsx` — id: `z.coerce.number().int().positive()` → не число/нет строки → `notFound()`; группы полей из device_schema (только заполненные пер-типовые показываем, прочерк для пустых опциональных); секции «История»/«Фото» — placeholder-строки (фаза 4). loading/error границы — в списочном сегменте; ВНУТРИ (card) loading НЕ класть (404-инвариант фазы 2 — streamed 200 до notFound).
 
 ### Pattern D6: redirect `/` → `/devices`
 `app/(app)/page.tsx` (заглушка) → `redirect('/devices')`; nav-шапка получает «Устройства» рядом с «Сотрудники» (active-state по pathname). Тонкость: redirect в RSC — до рендера, без refresh()-взаимодействий.
