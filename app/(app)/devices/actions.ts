@@ -10,7 +10,8 @@ import {
   type DeviceInput,
 } from '@/db/queries/devices'
 import {
-  buildZodSchema,
+  deviceSaveSchema,
+  deviceUpdateSchema,
   isDeviceTypeKey,
   typeFields,
   type DeviceTypeKey,
@@ -27,19 +28,6 @@ import {
 // never reads typeKey — the row's own type decides the field set (Pitfall 3).
 
 const SAVE_ERROR = 'Не удалось сохранить. Попробуйте ещё раз.'
-
-// Common bounds (plan 03-01): the schema is the real gate; input maxLength
-// mirrors the UI-SPEC input contract.
-const CommonFields = {
-  model: z.string().min(1).max(200),
-  serialNumber: z.string().min(1).max(100),
-  inventoryNumber: z.string().min(1).max(80).optional(),
-  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  purchasePrice: z.number().int().positive().optional(),
-  supplier: z.string().min(1).max(80).optional(),
-  warrantyUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  notes: z.string().max(2000).optional(),
-}
 
 const IdSchema = z.coerce.number().int().positive()
 
@@ -195,15 +183,10 @@ function deviceInputOf(data: Record<string, unknown>): DeviceInput {
   }
 }
 
-// The merged schema of one save: common bounds + the strict per-type shape of
-// exactly this type. Strictness is the tamper gate — extra keys are rejected,
-// never stored (T-03-02).
-function schemaFor(typeKey: DeviceTypeKey) {
-  return z.strictObject({
-    ...CommonFields,
-    ...buildZodSchema(typeKey).shape,
-  })
-}
+// The merged schema of one save comes from the keystone (deviceSaveSchema /
+// deviceUpdateSchema): common bounds + the strict per-type shape of exactly
+// this type. Strictness is the tamper gate — extra keys are rejected, never
+// stored (T-03-02).
 
 export async function createDeviceAction(
   _prev: unknown,
@@ -216,7 +199,7 @@ export async function createDeviceAction(
   if (!isDeviceTypeKey(typeKey)) {
     return { fieldErrors: { typeKey: 'Выберите тип устройства' } }
   }
-  const parsed = schemaFor(typeKey).safeParse({
+  const parsed = deviceSaveSchema(typeKey).safeParse({
     ...commonPayload(formData),
     ...typedPayload(typeKey, formData),
   })
@@ -242,17 +225,21 @@ export async function updateDeviceAction(
   const existing = getDevice(idParsed.data)
   if (!existing) return { error: SAVE_ERROR }
   // The row's own type decides the field set; a typeKey in the payload is
-  // never read — the type is the identity of the field set (Pitfall 3).
+  // never read — the type is the identity of the field set (Pitfall 3). The
+  // merged update schema carries the id and the whitelist, so an injected
+  // typeKey/status/currentEmployeeId is rejected by the strict object, and
+  // the unknown-id race still ends in the generic error (no rows created).
   const typeKey = existing.typeKey
   if (!isDeviceTypeKey(typeKey)) return { error: SAVE_ERROR }
-  const parsed = schemaFor(typeKey).safeParse({
+  const parsed = deviceUpdateSchema(typeKey).safeParse({
+    id: idParsed.data,
     ...commonPayload(formData),
     ...typedPayload(typeKey, formData),
   })
   if (!parsed.success) return fieldErrorsOf(parsed.error)
   try {
     const updated = updateDevice(
-      idParsed.data,
+      parsed.data.id,
       deviceInputOf(parsed.data),
     )
     if (!updated) return { error: SAVE_ERROR }

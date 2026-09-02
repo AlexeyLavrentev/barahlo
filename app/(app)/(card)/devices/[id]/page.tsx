@@ -5,11 +5,16 @@ import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
 import { getDevice, type DeviceRow } from '@/db/queries/devices'
 import {
+  DEVICE_TYPES,
   deviceStatusLabel,
   deviceTypeName,
   typeFields,
   type DeviceField,
 } from '@/lib/device-schema'
+import {
+  DeviceDialog,
+  type DeviceDialogDevice,
+} from '@/app/(app)/devices/device-dialog'
 // This page lives in the (card) route group: a segment loading.tsx on the
 // list branch streams its whole subtree (child segments included) and flushes
 // status 200 before notFound() can answer — grouping the card separately
@@ -34,6 +39,37 @@ const priceFormat = new Intl.NumberFormat('ru-RU', {
 
 function dateValue(value: Date | null): string | null {
   return value ? dateFormat.format(value) : null
+}
+
+// yyyy-mm-dd for the edit dialog's input[type=date] — the same UTC reading as
+// the display formatters, so what the user edits is what the card shows.
+function isoDate(value: Date | null): string | null {
+  return value ? value.toISOString().slice(0, 10) : null
+}
+
+// The client edit island gets a flat serializable snapshot (vercel
+// server-serialization): Dates become yyyy-mm-dd strings, no Date objects, no
+// query rows. Type/status/holder are display-only (D-06) and absent here.
+function dialogDeviceOf(device: DeviceRow): DeviceDialogDevice {
+  return {
+    id: device.id,
+    typeKey: device.typeKey,
+    model: device.model,
+    serialNumber: device.serialNumber,
+    inventoryNumber: device.inventoryNumber,
+    notes: device.notes,
+    purchaseDate: isoDate(device.purchaseDate),
+    purchasePrice: device.purchasePrice,
+    supplier: device.supplier,
+    warrantyUntil: isoDate(device.warrantyUntil),
+    ramGb: device.ramGb,
+    ramUpgraded: device.ramUpgraded,
+    ssdGb: device.ssdGb,
+    screenDiagonal: device.screenDiagonal,
+    panelType: device.panelType,
+    portCount: device.portCount,
+    peripheralKind: device.peripheralKind,
+  }
 }
 
 function priceValue(value: number | null): string | null {
@@ -172,6 +208,17 @@ export default async function DeviceCardPage({
             </span>
           ) : null}
         </div>
+      </div>
+
+      {/* Edit island (REG-03, D-06): the same dialog the list creates with,
+          in edit mode — type read-only, every field of the row's own type
+          editable; status/holder have no fields anywhere. */}
+      <div className="mt-6 flex gap-2">
+        <DeviceDialog
+          label="Редактировать"
+          typeConfigs={DEVICE_TYPES}
+          device={dialogDeviceOf(device)}
+        />
       </div>
 
       <FieldGroup title="Основное">

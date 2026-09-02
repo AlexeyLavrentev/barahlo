@@ -224,6 +224,11 @@ try {
       throw new Error(`/devices/${probeId}: «${needle}» нет в HTML карточки`)
     }
   }
+  // Edit island: the card hands the device (flat snapshot) to the client edit
+  // dialog so it opens prefilled (REG-03 edit flow).
+  if (!cardHtml.includes('data-device-edit-id=')) {
+    throw new Error(`/devices/${probeId}: карточка не передаёт устройство в edit-диалог (data-device-edit-id отсутствует)`)
+  }
 
   // 11. 404 invariant (T-02-07): unknown and garbage ids answer 404 through
   //     notFound() — the Russian root boundary, never a 500 and never a
@@ -245,7 +250,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + плейсхолдеры фазы 4; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + плейсхолдеры фазы 4 + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

@@ -148,3 +148,41 @@ export function buildZodSchema(typeKey: DeviceTypeKey) {
       })
   }
 }
+
+// Common (all-type) field bounds of the registry form (plan 03-01): the zod
+// layer is the real gate — the DOM maxLength only mirrors the UI-SPEC input
+// contract. Lives in the keystone so the actions and the tests share one
+// source (D-02 — no parallel validation lists).
+const CommonFields = {
+  model: z.string().min(1).max(200),
+  serialNumber: z.string().min(1).max(100),
+  inventoryNumber: z.string().min(1).max(80).optional(),
+  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  purchasePrice: z.number().int().positive().optional(),
+  supplier: z.string().min(1).max(80).optional(),
+  warrantyUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  notes: z.string().max(2000).optional(),
+}
+
+// The merged schema of one CREATE: common bounds + the strict per-type shape
+// of exactly this type. Strictness is the tamper gate — extra keys (a
+// submitted typeKey, status, currentEmployeeId…) are rejected, never stored
+// (T-03-02).
+export function deviceSaveSchema(typeKey: DeviceTypeKey) {
+  return z.strictObject({
+    ...CommonFields,
+    ...buildZodSchema(typeKey).shape,
+  })
+}
+
+// The merged schema of one EDIT (plan 03-02): {id} + the same whitelist. The
+// caller passes the typeKey of the EXISTING row — a typeKey in the payload is
+// never read (Pitfall 3), and the custody columns stay out of the schema
+// entirely (Pitfall 4): status and holder change only via the phase 4 actions.
+export function deviceUpdateSchema(typeKey: DeviceTypeKey) {
+  return z.strictObject({
+    id: z.coerce.number().int().positive(),
+    ...CommonFields,
+    ...buildZodSchema(typeKey).shape,
+  })
+}
