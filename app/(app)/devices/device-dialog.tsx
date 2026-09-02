@@ -539,8 +539,16 @@ export function DeviceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* Edit mode is a secondary trigger (UI-SPEC card contract); accent
+          stays reserved for the list primary CTA and the dialog primary. */}
       <DialogTrigger
-        render={<Button size="xl" data-device-edit-id={device?.id} />}
+        render={
+          <Button
+            size="xl"
+            variant={editing ? 'secondary' : 'default'}
+            data-device-edit-id={device?.id}
+          />
+        }
       >
         {label}
       </DialogTrigger>
