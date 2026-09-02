@@ -16,7 +16,7 @@
 | `app/(app)/(card)/devices/[id]/page.tsx` | card RSC | `app/(app)/(card)/employees/[id]/page.tsx` (id zod→notFound, groups) | 02-02-SUMMARY |
 | `app/(app)/devices/loading.tsx` | skeleton | `app/(app)/employees/loading.tsx` (h-[60px] rows per UI-SPEC) | 02-03 |
 | `app/(app)/devices/error.tsx` | boundary | `app/(app)/employees/error.tsx` (`retry` prop!) | 02-03 |
-| `app/layout.tsx` (MOD) | nav | существующий header (добавить «Устройства») | фаза 2 shell |
+| `app/(app)/layout.tsx` (MOD) | nav | существующий header в shell-лэйауте (добавить «Устройства») | фаза 2 shell |
 | `app/(app)/page.tsx` (MOD) | redirect | — (заглушка → `redirect('/devices')`) | 03-RESEARCH D6 |
 | `tests/devices-queries.test.ts` | tests | `tests/employees-queries.test.ts` (temp-SQLite helper) | tests/helpers.ts |
 | `tests/device-schema.test.ts` | tests | `tests/normalize.test.ts` (чистый модуль) | — |

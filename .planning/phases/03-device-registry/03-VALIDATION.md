@@ -1,9 +1,9 @@
 ---
 phase: 3
 slug: device-registry
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-09-02
 ---
 
@@ -38,7 +38,10 @@ created: 2026-09-02
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (planner fills from plans' `<automated>`) | 03-xx | 1+ | REG-01..03 | T-03-xx | UNIQUE normalized, zod-whitelist per type | unit/integration | `npx vitest run` | ✅ | ⬜ pending |
+| 03-01-T1 | 01 | 1 | REG-01, REG-02 | T-03-01..04 | whitelist, normalized | unit/integration | `npx vitest run && npm run build && node scripts/smoke-devices.mjs && node scripts/smoke-employees.mjs` | ✅ | ⬜ pending |
+| 03-02-T1 | 02 | 2 | REG-03 | T-03-02 | 404-инвариант | integration | `npm run build && node scripts/smoke-devices.mjs` | ✅ | ⬜ pending |
+| 03-02-T2 | 02 | 2 | REG-03 | T-03-02 | edit-whitelist без typeKey | unit | `npx vitest run && npm run build && node scripts/smoke-devices.mjs` | ✅ | ⬜ pending |
+| 03-02-T3 | 02 | 2 | REG-03 | T-03-03 | no-delete гейт | grep | `grep -rniE "\\bdelete\\b" db/queries/devices.ts "app/(app)/devices" \|\| true` + full suite | ✅ | ⬜ pending |
 
 ---
 
@@ -65,4 +68,4 @@ created: 2026-09-02
 - [ ] Feedback latency < 15s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-09-02
