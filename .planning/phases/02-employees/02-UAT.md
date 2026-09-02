@@ -1,18 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 02-employees
 source: [02-VERIFICATION.md]
 started: 2026-09-01
-updated: 2026-09-01
+updated: 2026-09-02
 ---
 
 ## Current Test
 
-number: 4
-name: Ошибки в диалогах не переживают закрытие (WR-01)
-expected: |
-  вызвать ошибку валидации в диалоге (например, пустое имя), закрыть диалог, открыть снова — поля чистые, старая ошибка не показана
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -31,7 +27,7 @@ result: pass
 
 ### 4. Ошибки в диалогах не переживают закрытие (WR-01)
 expected: вызвать ошибку валидации в диалоге (например, пустое имя), закрыть диалог, открыть снова — поля чистые, старая ошибка не показана
-result: [pending]
+result: pass
 
 ## Summary
 
