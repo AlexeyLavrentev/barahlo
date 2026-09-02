@@ -57,18 +57,18 @@ const base = {
 }
 
 describe('createDevice — normalized write (D-17, Pitfall 1/5)', () => {
-  it('writes the raw serial and its normalized twin (trim/case via lib/normalize)', () => {
-    const id = createDevice({ typeKey: 'laptop', ...base, serialNumber: '  c123  ' })
+  it('writes the given serial next to its normalized twin (action trims first)', () => {
+    const id = createDevice({ typeKey: 'laptop', ...base, serialNumber: 'c123' })
     const row = rawDevice(id)
     expect(row.serial_number).toBe('c123')
     expect(row.serial_normalized).toBe('C123')
   })
 
   it('treats a Cyrillic homoglyph serial as a duplicate — UNIQUE surfaces as {code}', () => {
-    createDevice({ typeKey: 'monitor', ...base, serialNumber: 'C123' })
+    createDevice({ typeKey: 'monitor', ...base, serialNumber: 'X-2A' })
     let thrown: unknown
     try {
-      createDevice({ typeKey: 'monitor', ...base, serialNumber: 'С123' })
+      createDevice({ typeKey: 'monitor', ...base, serialNumber: 'Х-2А' })
     } catch (e) {
       thrown = e
     }
@@ -76,24 +76,39 @@ describe('createDevice — normalized write (D-17, Pitfall 1/5)', () => {
   })
 
   it('empty inventory number stores the NULL/NULL pair (never an empty string)', () => {
-    const id = createDevice({ typeKey: 'dock', ...base })
+    const id = createDevice({ typeKey: 'dock', ...base, serialNumber: 'inv-null-1' })
     const row = rawDevice(id)
     expect(row.inventory_number).toBeNull()
     expect(row.inventory_normalized).toBeNull()
   })
 
   it('a given inventory number writes both columns normalized', () => {
-    const id = createDevice({ typeKey: 'dock', ...base, inventoryNumber: ' inv-001 ' })
+    const id = createDevice({
+      typeKey: 'dock',
+      ...base,
+      serialNumber: 'inv-both-1',
+      inventoryNumber: 'inv-001',
+    })
     const row = rawDevice(id)
     expect(row.inventory_number).toBe('inv-001')
     expect(row.inventory_normalized).toBe('INV-001')
   })
 
   it('a duplicate inventory number surfaces as {code: inventoryNormalized}', () => {
-    createDevice({ typeKey: 'peripheral', ...base, serialNumber: 'P-1', inventoryNumber: 'inv-dup' })
+    createDevice({
+      typeKey: 'peripheral',
+      ...base,
+      serialNumber: 'inv-p-1',
+      inventoryNumber: 'inv-dup',
+    })
     let thrown: unknown
     try {
-      createDevice({ typeKey: 'peripheral', ...base, serialNumber: 'P-2', inventoryNumber: 'INV-DUP' })
+      createDevice({
+        typeKey: 'peripheral',
+        ...base,
+        serialNumber: 'inv-p-2',
+        inventoryNumber: 'INV-DUP',
+      })
     } catch (e) {
       thrown = e
     }
@@ -105,6 +120,7 @@ describe('createDevice — normalized write (D-17, Pitfall 1/5)', () => {
       createDevice({
         typeKey: 'laptop',
         ...base,
+        serialNumber: 'typed-1',
         ramGb: 16,
         ramUpgraded: 1,
         ssdGb: 512,
@@ -114,7 +130,12 @@ describe('createDevice — normalized write (D-17, Pitfall 1/5)', () => {
     expect(laptop.ram_upgraded).toBe(1)
     expect(laptop.ssd_gb).toBe(512)
     const peripheral = rawDevice(
-      createDevice({ typeKey: 'peripheral', ...base, serialNumber: 'P-3', peripheralKind: 'мышь' }),
+      createDevice({
+        typeKey: 'peripheral',
+        ...base,
+        serialNumber: 'typed-2',
+        peripheralKind: 'мышь',
+      }),
     )
     expect(peripheral.peripheral_kind).toBe('мышь')
   })

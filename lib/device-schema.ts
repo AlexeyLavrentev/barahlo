@@ -15,6 +15,14 @@ export type FieldType = 'text' | 'number' | 'select' | 'checkbox'
 
 export type DeviceTypeKey = 'laptop' | 'monitor' | 'dock' | 'peripheral'
 
+// Flat, serializable shape handed to the client dialog as props
+// (server-serialization): no functions, no rows — just field configs.
+export type DeviceTypeConfig = {
+  key: DeviceTypeKey
+  name: string
+  fields: readonly DeviceField[]
+}
+
 export type DeviceFieldKey =
   | 'ramGb'
   | 'ramUpgraded'
