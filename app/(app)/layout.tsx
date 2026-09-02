@@ -1,10 +1,11 @@
-import Link from 'next/link'
 import { requireSession } from '@/lib/auth'
 import { logout } from './actions'
+import { AppNav } from './nav'
 
 // Shell of the protected zone (UI-SPEC «App shell», D-06): sticky 48px bar
 // in translucent material (apple-design §12), content column beneath it.
-// Inherited as-is by phases 3–6 screens.
+// Phase 3 adds the second nav item — «Устройства» · «Сотрудники», core entity
+// first, active/inactive state from the client island's pathname.
 export default async function AppLayout({
   children,
 }: {
@@ -18,12 +19,7 @@ export default async function AppLayout({
         <div className="flex h-full items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-4">
             <span className="text-sm font-semibold text-ink">Учёт техники</span>
-            <Link
-              href="/employees"
-              className="text-sm text-ink-secondary transition-colors hover:text-ink"
-            >
-              Сотрудники
-            </Link>
+            <AppNav />
           </div>
           <form action={logout}>
             <button
