@@ -18,7 +18,12 @@ awaiting: user response
 
 ### 1. Интерактивный цикл: создать → править (SC1)
 expected: диалог → Server Action → список обновляется без перезагрузки; инлайн-создание отдела работает
-result: [pending]
+result: issue
+reported: "не могу создать сотрудника — не создаётся отдел (замкнутый круг)"
+severity: major
+diagnosis: "Base UI combobox: пункты не регистрировались в реестре выбора (нужны items на Root + ComboboxCollection), а контролируемый value=null стирал введённый текст при закрытии попапа → hidden departmentName пуст → zod «Выберите отдел»"
+fixed: "7e400c9 — items+ComboboxCollection + input-driven selection; e2e-прогон Playwright: создание сотрудника с новым отделом через UI работает"
+status: fixed-awaiting-retest
 
 ### 2. Apple-эстетика по всем экранам (SC4, UI-02)
 expected: воздух, типографика 4 размеров/2 веса, акцент только на CTA/фокусе/галочке combobox, пресс-фидбек, русский копи-контракт — сверка с UI-SPEC и apple-design гайдами
