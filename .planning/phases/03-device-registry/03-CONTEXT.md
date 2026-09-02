@@ -44,6 +44,7 @@
 
 ### Дизайн и паттерны
 - `/Users/aleksey/.zcode/skills/apple-design/SKILL.md` — визуальный язык (унаследован с фазы 2)
+- `/Users/aleksey/.zcode/skills/vercel-react-best-practices/SKILL.md` — правила производительности React/Next.js (waterfalls, bundle, RSC-сериализация, re-render); сверяться при написании компонентов/страниц и на code review. Релевантные для фазы: `server-auth-actions`, `server-serialization`, `server-cache-react`, `bundle-barrel-imports`, `rerender-*`, `rendering-conditional-render`
 - `.planning/phases/02-employees/02-UI-SPEC.md` — действующий UI-контракт (токены, копи, состояния); фаза 3 расширяет его на устройства
 - `.planning/phases/02-employees/02-PATTERNS.md` — list/detail/dialog/actions аналоги
 
