@@ -64,12 +64,13 @@ try {
   sqlite.pragma('foreign_keys = ON')
   sqlite.pragma('busy_timeout = 5000')
   applyMigrations(sqlite, join(process.cwd(), 'drizzle'))
-  sqlite
+  const probeInsert = sqlite
     .prepare(
       `INSERT INTO devices (type_key, model, serial_number, serial_normalized, created_at, updated_at)
        VALUES ('laptop', 'Смок Устройство', 'SMOKE-001', 'SMOKE-001', unixepoch(), unixepoch())`,
     )
     .run()
+  const probeId = Number(probeInsert.lastInsertRowid)
   sqlite.close()
 
   // 2. One-shot AUTH_SECRET (same ≥32-char rule as lib/session.ts).
@@ -196,8 +197,55 @@ try {
     throw new Error(`/devices?type=monitor&page=99: ожидался 200 (clamp), получен ${clamped.status}`)
   }
 
+  // 10. Card route (03-02): the probe's card renders 200 with the model and
+  //     the field groups of the UI-SPEC card recipe (D-06), including the
+  //     phase 4 placeholders for history and photos.
+  const card = await fetch(`${BASE}/devices/${probeId}`, {
+    headers: cookieHeaders,
+    redirect: 'manual',
+  })
+  if (card.status !== 200) {
+    throw new Error(`/devices/${probeId} с cookie: ожидался 200, получен ${card.status}`)
+  }
+  const cardHtml = await card.text()
+  const cardNeedles = [
+    'Смок Устройство',
+    '← Устройства',
+    'Основное',
+    'Характеристики типа',
+    'Закупка',
+    'История перемещений',
+    'Здесь появится история выдач и возвратов.',
+    'Фото',
+    'Здесь появятся фотографии устройства.',
+  ]
+  for (const needle of cardNeedles) {
+    if (!cardHtml.includes(needle)) {
+      throw new Error(`/devices/${probeId}: «${needle}» нет в HTML карточки`)
+    }
+  }
+
+  // 11. 404 invariant (T-02-07): unknown and garbage ids answer 404 through
+  //     notFound() — the Russian root boundary, never a 500 and never a
+  //     streamed 200 ((card) group carries no loading.tsx).
+  for (const bad of ['99999', 'abc']) {
+    const res = await fetch(`${BASE}/devices/${bad}`, {
+      headers: cookieHeaders,
+      redirect: 'manual',
+    })
+    if (res.status !== 404) {
+      throw new Error(`/devices/${bad}: ожидался 404, получен ${res.status}`)
+    }
+    const notFoundHtml = await res.text()
+    if (!notFoundHtml.includes('Страница не найдена')) {
+      throw new Error(
+        `/devices/${bad}: русской 404-страницы («Страница не найдена») нет в HTML`,
+      )
+    }
+  }
+
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + плейсхолдеры фазы 4; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

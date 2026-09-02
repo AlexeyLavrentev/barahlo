@@ -3,7 +3,12 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import { listDevices } from '@/db/queries/devices'
-import { DEVICE_TYPES, isDeviceTypeKey } from '@/lib/device-schema'
+import {
+  DEVICE_TYPES,
+  deviceStatusLabel,
+  deviceTypeName,
+  isDeviceTypeKey,
+} from '@/lib/device-schema'
 import { pluralDevices } from '@/lib/ru'
 import { DeviceDialog } from './device-dialog'
 import { DeviceTypeFilter } from './type-filter'
@@ -16,20 +21,6 @@ const PAGE_SIZE = 20
 
 type DevicesSearchParams = {
   [key: string]: string | string[] | undefined
-}
-
-// Canonical singular names (rows); the filter island carries its own plural
-// copy from the UI-SPEC table.
-const TYPE_NAMES: Record<string, string> = Object.fromEntries(
-  DEVICE_TYPES.map((t) => [t.key, t.name]),
-)
-
-// Display vocabulary (REG-04 wording); colored semantics arrive in phases 4–5.
-const STATUS_LABELS: Record<string, string> = {
-  in_stock: 'На складе',
-  assigned: 'Используется',
-  repair: 'В ремонте',
-  disposed: 'Списано',
 }
 
 // Links always rebuild the FULL query string — a bare `?page=2` would drop
@@ -119,7 +110,7 @@ export default async function DevicesPage({
                   href={`/devices/${row.id}`}
                   title={[
                     row.model,
-                    TYPE_NAMES[row.typeKey] ?? row.typeKey,
+                    deviceTypeName(row.typeKey),
                     row.serialNumber,
                     row.inventoryNumber ?? '—',
                     row.holder ?? '—',
@@ -132,11 +123,11 @@ export default async function DevicesPage({
                         {row.model}
                       </span>
                       <span className="shrink-0 rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary">
-                        {STATUS_LABELS[row.status] ?? row.status}
+                        {deviceStatusLabel(row.status)}
                       </span>
                     </span>
                     <span className="mt-0.5 block truncate text-sm text-ink-secondary">
-                      {TYPE_NAMES[row.typeKey] ?? row.typeKey}
+                      {deviceTypeName(row.typeKey)}
                       {' · '}
                       <span className="font-mono">{row.serialNumber}</span>
                       {' · '}

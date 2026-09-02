@@ -95,6 +95,27 @@ export function isDeviceTypeKey(value: unknown): value is DeviceTypeKey {
   )
 }
 
+// Russian name of a type key (list line 2, card meta/row); an unknown key
+// falls back to itself — the device_types FK makes that unreachable, the
+// display stays honest anyway.
+export function deviceTypeName(typeKey: string): string {
+  return DEVICE_TYPES.find((t) => t.key === typeKey)?.name ?? typeKey
+}
+
+// Display vocabulary of the four statuses (REG-04 wording, UI-SPEC): neutral
+// pills everywhere — colored semantics arrive with phases 4–5. Shared by the
+// list and the card so no component keeps a parallel status map.
+const DEVICE_STATUS_LABELS = {
+  in_stock: 'На складе',
+  assigned: 'Используется',
+  repair: 'В ремонте',
+  disposed: 'Списано',
+} as const
+
+export function deviceStatusLabel(status: string): string {
+  return DEVICE_STATUS_LABELS[status as keyof typeof DEVICE_STATUS_LABELS] ?? status
+}
+
 // Per-type fields of one device type; an unknown key has no fields.
 export function typeFields(typeKey: string): readonly DeviceField[] {
   return isDeviceTypeKey(typeKey) ? PER_TYPE_FIELDS[typeKey] : []
