@@ -102,10 +102,10 @@ Plans note: карточка сотрудника строится здесь к
   3. Реестр листается по типам с серверной пагинацией — список быстрый уже на старте
   4. Статус и владелец не редактируются в форме устройства напрямую — состояние меняется только действиями выдачи/возврата/ремонта/списания (строятся в Фазе 4); защита от «протухшего» статуса заложена с первого экрана
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans executed
 
 - [x] 03-01-PLAN.md
-- [ ] 03-02-PLAN.md
+- [x] 03-02-PLAN.md
 
 **UI hint**: yes
 
@@ -191,7 +191,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 5/5 | Complete    | 2026-09-01 |
 | 2. Employees | 3/3 | Complete    | 2026-09-02 |
-| 3. Device Registry | 1/2 | In Progress|  |
+| 3. Device Registry | 2/2 | In Progress|  |
 | 4. Custody & Photos | 0/TBD | Not started | - |
 | 5. Search & Filters | 0/TBD | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |
