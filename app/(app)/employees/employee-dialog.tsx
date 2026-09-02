@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Combobox,
+  ComboboxCollection,
   ComboboxContent,
   ComboboxInput,
   ComboboxItem,
@@ -89,8 +90,13 @@ function EmployeeDialogForm({
     query === ''
       ? sorted
       : sorted.filter((d) => foldRu(d.name).includes(foldRu(query)))
-  const exact = query === '' ? undefined : sorted.find((d) => d.name === query)
-  const showCreate = query !== '' && !exact
+  const showCreate = query !== ''
+  // Base UI registers selectable items from the root's `items` prop — the
+  // pinned «Создать „X“» row rides first so Enter/click selects it.
+  const comboItems: { value: string; label: string }[] = [
+    ...(showCreate ? [{ value: query, label: `Создать „${query}“` }] : []),
+    ...matches.map((d) => ({ value: d.name, label: d.name })),
+  ]
 
   return (
     <form action={formAction} className="space-y-4">
@@ -116,6 +122,7 @@ function EmployeeDialogForm({
       <div className="space-y-2">
         <Label htmlFor="employee-department">Отдел</Label>
         <Combobox
+          items={comboItems}
           // Options are filtered and ordered in JSX below — disable the
           // primitive's internal filtering of rendered items.
           filter={null}
@@ -124,9 +131,8 @@ function EmployeeDialogForm({
           autoHighlight
           inputValue={inputValue}
           onInputValueChange={setInputValue}
-          value={exact ? exact.name : null}
           onValueChange={(value) => {
-            if (value !== null) setInputValue(value)
+            if (typeof value === 'string' && value !== '') setInputValue(value)
           }}
         >
           <ComboboxInput
@@ -142,17 +148,14 @@ function EmployeeDialogForm({
           />
           <ComboboxContent>
             <ComboboxList>
-              {showCreate ? (
-                <ComboboxItem value={query}>
-                  Создать „{query}“
-                </ComboboxItem>
-              ) : null}
-              {matches.map((d) => (
-                <ComboboxItem key={d.id} value={d.name}>
-                  {d.name}
-                </ComboboxItem>
-              ))}
-              {matches.length === 0 && !showCreate ? (
+              <ComboboxCollection>
+                {(item: { value: string; label: string }) => (
+                  <ComboboxItem key={item.value} value={item.value}>
+                    {item.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxCollection>
+              {comboItems.length === 0 ? (
                 <p className="px-3 py-2 text-sm text-ink-secondary">
                   Начните вводить название отдела
                 </p>
