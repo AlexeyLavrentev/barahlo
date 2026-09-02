@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEVICE_TYPES,
   buildZodSchema,
+  deviceSaveSchema,
+  deviceUpdateSchema,
   isDeviceTypeKey,
   typeFields,
 } from '@/lib/device-schema'
@@ -144,5 +146,87 @@ describe('buildZodSchema — strict per-type whitelist (Pitfall 7)', () => {
     expect(schema.safeParse({ portCount: 1 }).success).toBe(true)
     expect(schema.safeParse({ portCount: 0 }).success).toBe(false)
     expect(schema.safeParse({ portCount: 2.5 }).success).toBe(false)
+  })
+})
+
+describe('deviceUpdateSchema — edit gate (REG-03, plan 03-02)', () => {
+  const valid = { id: 7, model: 'Ноутбук Pro', serialNumber: 'SN-7' }
+
+  it('validates {id} + common fields + the per-type shape of the ROW type', () => {
+    const schema = deviceUpdateSchema('laptop')
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(schema.safeParse({ ...valid, ramGb: 16 }).success).toBe(true)
+    // The id rides inside the schema: a missing or garbage id never reaches
+    // the query layer.
+    expect(schema.safeParse({ model: 'M', serialNumber: 'S' }).success).toBe(false)
+    expect(schema.safeParse({ ...valid, id: 0 }).success).toBe(false)
+    expect(schema.safeParse({ ...valid, id: 'abc' }).success).toBe(false)
+  })
+
+  it('rejects an injected typeKey — the row type comes from the DB, not the payload', () => {
+    const schema = deviceUpdateSchema('laptop')
+    expect(
+      schema.safeParse({ ...valid, typeKey: 'monitor' }).success,
+    ).toBe(false)
+  })
+
+  it('rejects custody columns — status/holder change only via phase 4 actions', () => {
+    const schema = deviceUpdateSchema('laptop')
+    expect(
+      schema.safeParse({ ...valid, status: 'disposed' }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...valid, currentEmployeeId: 3 }).success,
+    ).toBe(false)
+  })
+
+  it('keeps the strict per-type whitelist of the row type', () => {
+    const schema = deviceUpdateSchema('monitor')
+    expect(
+      schema.safeParse({ id: 1, model: 'M', serialNumber: 'S', screenDiagonal: 27.5 })
+        .success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({ id: 1, model: 'M', serialNumber: 'S', ramGb: 16 }).success,
+    ).toBe(false)
+  })
+
+  it('keeps the common bounds on edit (dates, price, notes length)', () => {
+    const schema = deviceUpdateSchema('dock')
+    expect(
+      schema.safeParse({
+        id: 1,
+        model: 'M',
+        serialNumber: 'S',
+        purchaseDate: '2026-02-05',
+        purchasePrice: 124000,
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({ id: 1, model: 'M', serialNumber: 'S', purchaseDate: '05.02.2026' })
+        .success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ id: 1, model: 'M', serialNumber: 'S', notes: 'x'.repeat(2001) })
+        .success,
+    ).toBe(false)
+  })
+})
+
+describe('deviceSaveSchema — create shares the same merged whitelist', () => {
+  it('merges common bounds with the per-type shape and requires no id', () => {
+    const schema = deviceSaveSchema('peripheral')
+    expect(
+      schema.safeParse({ model: 'M', serialNumber: 'S', peripheralKind: 'мышь' })
+        .success,
+    ).toBe(true)
+    // peripheralKind is required for периферия (D-03).
+    expect(schema.safeParse({ model: 'M', serialNumber: 'S' }).success).toBe(false)
+    // The create payload carries typeKey OUTSIDE the schema (validated before
+    // the fields) — inside it is a tampering signal and is rejected.
+    expect(
+      schema.safeParse({ id: 1, model: 'M', serialNumber: 'S', peripheralKind: 'мышь' })
+        .success,
+    ).toBe(false)
   })
 })

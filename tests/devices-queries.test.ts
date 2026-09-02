@@ -171,7 +171,10 @@ describe('updateDevice — normalized recompute (Pitfall 2)', () => {
   })
 
   it('returns false for an unknown id without creating anything', () => {
+    const before = listDevices({ type: 'all', page: 1, pageSize: 1 }).total
     expect(updateDevice(424242, { ...base, serialNumber: 'ghost' })).toBe(false)
+    // Not only no update — no INSERT either: the ghost serial must not appear.
+    expect(listDevices({ type: 'all', page: 1, pageSize: 1 }).total).toBe(before)
   })
 
   it('a serial collision with another row surfaces as {code: serialNormalized}', () => {
