@@ -1,7 +1,8 @@
 ---
 phase: 3
 slug: device-registry
-status: draft
+status: approved
+reviewed_at: 2026-09-02
 shadcn_initialized: true
 preset: base-nova
 created: 2026-09-02
@@ -36,7 +37,7 @@ Phase 3 specifics:
 - **Two-line device rows:** `min-h-11 px-4 py-2` — both values on-scale; the 44px minimum is preserved by content + padding, no new exception.
 - **Device form dialog:** same `max-w-md p-6` as phase 2; the form is taller than the employee form (8–11 fields), so the dialog body scrolls: `max-h-[85svh] overflow-y-auto` on the content wrapper. Field groups separated by `space-y-4`, group header to first field `space-y-2` (same as employee dialog rhythm).
 - **Card field rows:** `min-h-11 px-4 py-2`, hairline separators (`divide-y divide-hairline`) — identical recipe to list rows so list and card read as one system.
-- **Skeleton rows (list loading):** height 56px (`h-14`) — matches the two-line row height; same `bg-black/5 rounded-lg` recipe as phase 2, 5 rows.
+- **Skeleton rows (list loading):** height 56px (`h-[60px]`) — matches the two-line row height; same `bg-black/5 rounded-lg` recipe as phase 2, 5 rows.
 
 ---
 
