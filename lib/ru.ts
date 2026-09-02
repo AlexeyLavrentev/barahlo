@@ -21,6 +21,21 @@ export function pluralEmployees(n: number): string {
   return `${n} ${word}`
 }
 
+// Devices list count label (phase 3): 1 устройство / 2–4 устройства / 5+ устройств.
+const DEVICE_FORMS: Record<Intl.LDMLPluralRule, string> = {
+  zero: 'устройств',
+  one: 'устройство',
+  two: 'устройства',
+  few: 'устройства',
+  many: 'устройств',
+  other: 'устройств',
+}
+
+export function pluralDevices(n: number): string {
+  const word = DEVICE_FORMS[pluralRules.select(n)]
+  return `${n} ${word}`
+}
+
 // Client-side Russian ordering (combobox options in 02-03): case-insensitive,
 // ё sorted after е.
 export const ruCollator = new Intl.Collator('ru')
