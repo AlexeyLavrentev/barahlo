@@ -40,9 +40,12 @@ export default async function DevicesPage({
   await requireSession() // defense-in-depth: proxy + in-app guard
   const sp = await searchParams
   // searchParams is untyped user input — validate, never trust (T-03-04):
-  // type via the 4-key enum (anything else = all), page via Number + clamp.
+  // type via the 4-key enum (anything else = all), page via Number +
+  // integer guard (a fractional ?page= would bind a non-integer OFFSET
+  // and crash the query — WR-01); the query still clamps into [1, pages].
   const type = isDeviceTypeKey(sp.type) ? sp.type : 'all'
-  const page = Math.max(1, Number(sp.page) || 1)
+  const parsedPage = Number(sp.page)
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const { rows, total, page: current, pages } = listDevices({
     type,
     page,
