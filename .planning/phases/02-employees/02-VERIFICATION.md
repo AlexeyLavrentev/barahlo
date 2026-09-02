@@ -1,43 +1,52 @@
 ---
 phase: 02-employees
 verified: 2026-09-01T19:07:02Z
-status: human_needed
+status: passed
 score: 12/14 must-haves verified
 behavior_unverified: 2
 overrides_applied: 2
 overrides:
+
   - must_have: "Загрузка списка и карточки показывает 5 скелет-строк h-11 bg-black/5 rounded-lg в белой карточке — без сдвига раскладки (UI-SPEC loading)"
     reason: "Карточный скелетон сознательно не создаётся: в этой версии Next любая loading-граница на пути /employees/[id] стримит поддерево и флешит 200 до notFound() — ломается 404-матрица (инвариант безопасности V4/V5). Конфликт разрешён в пользу статуса; скелетон списка сохранён, карточка вынесена в route group (card). Задокументировано в 02-03-SUMMARY.md Deviation #1, бисект подтверждён, коммит d0ceff8; smoke 404/404 на 99999/abc — зелёный"
     accepted_by: "developer (documented deviation, 02-03-SUMMARY.md + orchestrator execution context)"
     accepted_at: "2026-09-01T23:54:00+05:00"
+
   - must_have: "components.json + components/ui — shadcn, Base UI, пресет none (UI-SPEC preset: none)"
     reason: "Preset-фри стиль base в реестре shadcn CLI v4.19.1 НЕ существует: styles/base/badge.json → 404, резолвятся только {base}-{preset} (проверено add --dry-run в обе стороны). Оставлен base-nova; контракт соблюдён на уровне токенов — палитра/радиусы/шрифты диктуются app/globals.css (@theme), nova-флейвор в сгенерированных файлах фазы перекрыт вручную (font-medium=0, полушаги=0, prefers-color-scheme=0 — греп-гейты зелёные). Review option (a): отклонение записано в 02-03-SUMMARY.md Note, коммит 8fea0cc"
     accepted_by: "developer (02-REVIEW-FIX.md WR-03, option a — accepted after registry verification)"
     accepted_at: "2026-09-01T18:53:51Z"
 re_verification: null
 deferred:
+
   - truth: "Карточка показывает список выданной техники (секция «Техника» сейчас с «Пока ничего не выдано»)"
     addressed_in: "Phase 4"
     evidence: "REQUIREMENTS.md: EMP-02 → Phase 4; ROADMAP Phase 4 SC2: «карточка сотрудника (список выданной техники) обновляются мгновенно»; ROADMAP Phase 2 plans note: «сам список выданной техники оживёт в Фазе 4»"
 behavior_unverified_items:
+
   - truth: "SC1: пользователь добавляет сотрудника (имя + отдел) и исправляет данные через диалог — изменение видно в списке/карточке без ручной перезагрузки (в т.ч. combobox «Создать „X“»)"
     test: "В браузере: «Добавить сотрудника» → ввести имя, в отделе набрать новый отдел → Enter на «Создать „X“» → сохранение; затем «Редактировать» на карточке → поменять имя/отдел → «Сохранить изменения»"
     expected: "Диалог закрывается, новый сотрудник виден в списке (счётчик N обновлён), карточка отражает правки — всё без F5; отдел создан и доступен в combobox"
     why_human: "Smoke-зонд создаётся прямой DB-вставкой — клиентский раундтрип useActionState → Server Action → refresh() → пере-рендер ни одним автотестом не проведён; нужен живой браузер"
+
   - truth: "SC4: интерфейс выдержан в Apple-эстетике (воздух, типографика, пресс-фидбек, дисциплина акцента) — паттерны для фаз 3–6"
     test: "Визуальная сверка 9 covered-состояний UI-SPEC (список/карточка/диалоги/сегмент/пустые/скелетон/вход) + skill apple-design"
     expected: "Чистота, типографика 400/600, воздух, акцент только на CTA/фокусе/галочке combobox, белая пилюля сегмента"
     why_human: "Субъективное визуальное свойство — план помечает его [backstop/manual UAT]; автогрепы доказывают контракт (токены/веса/полушаги), но не качество"
 human_verification:
+
   - test: "Браузерный проход SC1: создать сотрудника через диалог (новый отдел через «Создать „X“»), найти в списке, отредактировать имя и отдел, проверить обновление без перезагрузки"
     expected: "Сотрудник появляется в списке сразу после сохранения; правки видны на карточке и в списке; отдел из ввода создан и переиспользуется"
     why_human: "Интерактивный клиентский раундтрип (диалог → Server Action → refresh) автотестами не покрыт; smoke проверяет только серверный рендер из прямой DB-вставки"
+
   - test: "UAT Apple-эстетики: сверить глазами 9 covered-состояний UI-SPEC на всех экранах фазы (вход, список, карточка, диалоги) с гайдами skill apple-design"
     expected: "Единый визуальный язык: системный шрифт, вес 400/600, воздух, hairline-карточки, пресс-фидбек, акцент-дисциплина"
     why_human: "Субъективное качество; план объявил его ручным backstop-тестом фазы"
+
   - test: "Backstop длинного текста: имя 100 символов + отдел 80 символов в строке списка и в диалоге"
     expected: "Обрезка с многоточием, высота строки 44px не меняется, max-w-md диалога не ломается; полные данные видны на карточке и в title-атрибуте"
     why_human: "Визуальный held-out тест из UI Considerations UI-SPEC; grep доказывает truncate/title, но не поведение при реальных 100+80 символах"
+
   - test: "WR-01 (код-ревью): открыть диалог, спровоцировать ошибку (например, очистить имя и сохранить), закрыть и переоткрыть диалог"
     expected: "При переоткрытии старая ошибка/role=alert не показывается — поля чистые под текущие значения (сброс состояния на каждую сессию диалога)"
     why_human: "Семантика state-reset проверена структурно (перенос useActionState внутрь портала, 294878c) + build/tests; интерактивное упражнение диалога требует браузера — явно помечено REVIEW-FIX как требующее human verification"
@@ -45,60 +54,83 @@ prohibitions: # ADR-550 D4: test-tier без выделенного теста �
   unverified_flagged_count: 9
   human_review_recommended: true
   items:
+
     - statement: "02-01 P1: Нигде нет удаления сотрудника — ни кнопки, ни удаляющего запроса, только архив (EMP-03, D-02)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — grep -rniE '\\bdelete\\b' по db/queries/, app/(app)/employees/, app/(app)/(card)/ = 0; тест 'exposes no delete/remove capability at module level' зелёный; единственный off-list путь — setEmployeeArchived (isActive flip)"
       enforcement: "модульный тест employees-queries (косвенный), выделенного негативного e2e-теста нет"
+
     - statement: "02-01 P2: Никаких drizzle-kit push; в фазе нет миграций"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — package.json не содержит push; git log d9323df..HEAD по db/schema.ts и drizzle/ пуст"
       enforcement: "нет выделенного теста"
+
     - statement: "02-01 P3: Никакой клиентской пагинации — сортировка, фильтр и лимиты живут в SQL"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — listEmployees: where/orderBy/limit/offset в SQL; клиент хранит только filter/page в query-string; тест 20-страничной нарезки зелёный"
       enforcement: "косвенно тестом пагинации; выделенного негативного теста нет"
+
     - statement: "02-02 P1: Нет удаления; греп-гейт \\bdelete\\b по db/queries/ и app/(app)/employees/ = 0"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — гейт воспроизведён верификатором: 0 совпадений (включая (card)-группу)"
       enforcement: "греп-гейт исполнялся исполнителем; в CI не проводан"
+
     - statement: "02-02 P2: Никаких drizzle-kit push; схема не меняется"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — см. 02-01 P2"
       enforcement: "нет выделенного теста"
+
     - statement: "02-02 P3: Никакой клиентской пагинации; списочные данные — только через db/queries"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — pages импортируют listEmployees/getEmployee/listDepartments из db/queries; прямых db-вызовов в app/ нет"
       enforcement: "нет выделенного теста"
+
     - statement: "02-03 P1: Нигде нет удаления сотрудника (EMP-03); греп-гейты 02-02 действуют"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — см. 02-02 P1"
       enforcement: "греп-гейт; в CI не проводан"
+
     - statement: "02-03 P2: Никаких drizzle-kit push; схема не меняется"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — см. 02-01 P2"
       enforcement: "нет выделенного теста"
+
     - statement: "02-03 P3: Никакой клиентской пагинации и никакого поиска по имени в списке (D-01, D-05)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — в app/(app)/employees/page.tsx нет поискового инпута (все вхождения «search» — API searchParams); поиск отложен к Фазе 5 (FIND-01)"
       enforcement: "нет выделенного теста"
+unverified_flagged_count: 9
+human_review_recommended: true
+items:
+
+  - "statement: \"02-01 P1: Нигде нет удаления сотрудника — ни кнопки, ни удаляющего запроса, только архив (EMP-03, D-02)"
+  - "statement: \"02-01 P2: Никаких drizzle-kit push; в фазе нет миграций"
+  - "statement: \"02-01 P3: Никакой клиентской пагинации — сортировка, фильтр и лимиты живут в SQL"
+  - "statement: \"02-02 P1: Нет удаления; греп-гейт \\\\bdelete\\\\b по db/queries/ и app/(app)/employees/ = 0"
+  - "statement: \"02-02 P2: Никаких drizzle-kit push; схема не меняется"
+  - "statement: \"02-02 P3: Никакой клиентской пагинации; списочные данные — только через db/queries"
+  - "statement: \"02-03 P1: Нигде нет удаления сотрудника (EMP-03); греп-гейты 02-02 действуют"
+  - "statement: \"02-03 P2: Никаких drizzle-kit push; схема не меняется"
+  - "statement: \"02-03 P3: Никакой клиентской пагинации и никакого поиска по имени в списке (D-01, D-05)"
+
 ---
 
 # Phase 2: Employees — Verification Report
