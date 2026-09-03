@@ -54,6 +54,10 @@ export type DeviceFormState = {
   ok?: boolean
   error?: string
   fieldErrors?: DeviceFieldErrors
+  // Echo of the submitted strings: React 19 resets an uncontrolled form after
+  // every form action (success or failure), so failures carry the input back
+  // to defaultValue — otherwise the user retypes everything on each error.
+  values?: Record<string, string>
 }
 
 // Map zod issues onto the UI-SPEC inline copy (14/400 #D70015 under field).
@@ -112,6 +116,33 @@ function uniqueFieldError(e: unknown): DeviceFormState {
 function textOf(formData: FormData, key: string): string {
   const value = formData.get(key)
   return typeof value === 'string' ? value.trim() : ''
+}
+
+// Raw strings (pre-coercion) of every field the form may submit — the echo
+// payload attached to any failure state (see DeviceFormState.values).
+function echoValues(formData: FormData): Record<string, string> {
+  const keys = [
+    'model',
+    'serialNumber',
+    'inventoryNumber',
+    'purchaseDate',
+    'purchasePrice',
+    'supplier',
+    'warrantyUntil',
+    'notes',
+    'ramGb',
+    'ssdGb',
+    'screenDiagonal',
+    'panelType',
+    'portCount',
+    'peripheralKind',
+  ]
+  const values: Record<string, string> = {}
+  for (const key of keys) {
+    const raw = formData.get(key)
+    if (typeof raw === 'string' && raw !== '') values[key] = raw
+  }
+  return values
 }
 
 // FormData → whitelisted plain values. An empty optional string becomes
@@ -196,18 +227,19 @@ export async function createDeviceAction(
   // Early exit: the type decides which fields even exist (js-early-exit).
   const typeKeyRaw = formData.get('typeKey')
   const typeKey = typeof typeKeyRaw === 'string' ? typeKeyRaw : ''
+  const values = echoValues(formData)
   if (!isDeviceTypeKey(typeKey)) {
-    return { fieldErrors: { typeKey: 'Выберите тип устройства' } }
+    return { fieldErrors: { typeKey: 'Выберите тип устройства' }, values }
   }
   const parsed = deviceSaveSchema(typeKey).safeParse({
     ...commonPayload(formData),
     ...typedPayload(typeKey, formData),
   })
-  if (!parsed.success) return fieldErrorsOf(parsed.error)
+  if (!parsed.success) return { ...fieldErrorsOf(parsed.error), values }
   try {
     createDevice({ typeKey, ...deviceInputOf(parsed.data) })
   } catch (e) {
-    return uniqueFieldError(e)
+    return { ...uniqueFieldError(e), values }
   }
   // Without refresh() the route is NOT re-rendered in the action response
   // (Pitfall 1) — the new device would not appear until a manual reload.
@@ -223,7 +255,7 @@ export async function updateDeviceAction(
   const idParsed = IdSchema.safeParse(formData.get('id'))
   if (!idParsed.success) return { error: SAVE_ERROR }
   const existing = getDevice(idParsed.data)
-  if (!existing) return { error: SAVE_ERROR }
+  if (!existing) return { error: SAVE_ERROR, values: echoValues(formData) }
   // The row's own type decides the field set; a typeKey in the payload is
   // never read — the type is the identity of the field set (Pitfall 3). The
   // merged update schema carries the id and the whitelist, so an injected
@@ -231,12 +263,13 @@ export async function updateDeviceAction(
   // the unknown-id race still ends in the generic error (no rows created).
   const typeKey = existing.typeKey
   if (!isDeviceTypeKey(typeKey)) return { error: SAVE_ERROR }
+  const values = echoValues(formData)
   const parsed = deviceUpdateSchema(typeKey).safeParse({
     id: idParsed.data,
     ...commonPayload(formData),
     ...typedPayload(typeKey, formData),
   })
-  if (!parsed.success) return fieldErrorsOf(parsed.error)
+  if (!parsed.success) return { ...fieldErrorsOf(parsed.error), values }
   try {
     const updated = updateDevice(
       parsed.data.id,

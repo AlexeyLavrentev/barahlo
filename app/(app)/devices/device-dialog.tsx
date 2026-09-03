@@ -273,6 +273,11 @@ function DeviceDialogForm({
   // the per-type section stays hidden until a type is picked. Edit: pinned to
   // the row's own type — never user-editable.
   const [typeKey, setTypeKey] = useState<string | null>(device?.typeKey ?? null)
+  // After a failed submit the action echoes the submitted strings back in
+  // state.values (React 19 resets uncontrolled forms after every action) —
+  // they win over the row snapshot so the user never retypes on an error.
+  const echo = (key: string, fallback: string | number | null | undefined) =>
+    state.values?.[key] ?? (fallback ?? undefined)
   const typeItems = typeConfigs.map((t) => ({ value: t.key, label: t.name }))
   const config = typeConfigs.find((t) => t.key === typeKey)
 
@@ -344,7 +349,7 @@ function DeviceDialogForm({
               autoComplete="off"
               maxLength={80}
               placeholder="MacBook Pro 14&quot;"
-              defaultValue={device?.model}
+              defaultValue={echo('model', device?.model)}
               className={CONTROL_CLASS}
               aria-invalid={state.fieldErrors?.model ? true : undefined}
             />
@@ -360,7 +365,7 @@ function DeviceDialogForm({
               type="text"
               autoComplete="off"
               maxLength={80}
-              defaultValue={device?.serialNumber}
+              defaultValue={echo('serialNumber', device?.serialNumber)}
               className={`${CONTROL_CLASS} font-mono`}
               aria-invalid={state.fieldErrors?.serialNumber ? true : undefined}
             />
@@ -384,7 +389,7 @@ function DeviceDialogForm({
               autoComplete="off"
               maxLength={80}
               placeholder="Из 1С, если присвоен"
-              defaultValue={device?.inventoryNumber ?? undefined}
+              defaultValue={echo('inventoryNumber', device?.inventoryNumber)}
               className={`${CONTROL_CLASS} font-mono`}
               aria-invalid={
                 state.fieldErrors?.inventoryNumber ? true : undefined
@@ -400,7 +405,7 @@ function DeviceDialogForm({
               id="device-notes"
               name="notes"
               maxLength={2000}
-              defaultValue={device?.notes ?? undefined}
+              defaultValue={echo('notes', device?.notes)}
               className="min-h-20 text-base md:text-base"
               aria-invalid={state.fieldErrors?.notes ? true : undefined}
             />
@@ -422,7 +427,7 @@ function DeviceDialogForm({
               <TypedField
                 key={field.key}
                 field={field}
-                initial={initialOf(device, field)}
+                initial={state.values?.[field.key] ?? initialOf(device, field)}
                 error={state.fieldErrors?.[field.key]}
               />
             ))}
@@ -437,7 +442,7 @@ function DeviceDialogForm({
               id="device-purchaseDate"
               name="purchaseDate"
               type="date"
-              defaultValue={device?.purchaseDate ?? undefined}
+              defaultValue={echo('purchaseDate', device?.purchaseDate)}
               className={CONTROL_CLASS}
               aria-invalid={state.fieldErrors?.purchaseDate ? true : undefined}
             />
@@ -475,7 +480,7 @@ function DeviceDialogForm({
               type="text"
               autoComplete="off"
               maxLength={80}
-              defaultValue={device?.supplier ?? undefined}
+              defaultValue={echo('supplier', device?.supplier)}
               className={CONTROL_CLASS}
               aria-invalid={state.fieldErrors?.supplier ? true : undefined}
             />
@@ -489,7 +494,7 @@ function DeviceDialogForm({
               id="device-warrantyUntil"
               name="warrantyUntil"
               type="date"
-              defaultValue={device?.warrantyUntil ?? undefined}
+              defaultValue={echo('warrantyUntil', device?.warrantyUntil)}
               className={CONTROL_CLASS}
               aria-invalid={state.fieldErrors?.warrantyUntil ? true : undefined}
             />
