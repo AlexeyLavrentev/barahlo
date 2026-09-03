@@ -1,7 +1,8 @@
 ---
 phase: 4
 slug: custody-photos
-status: draft
+status: approved
+reviewed_at: 2026-09-03
 shadcn_initialized: true
 preset: base-nova
 created: 2026-09-03
@@ -133,7 +134,9 @@ Vertical timeline (declared discretion: лента chosen over plain list — vi
 
 Missing name slots render «—» per the standing dash rule. A missing comment renders nothing (no empty row). Events are never editable or deletable in the UI — no affordance exists (MOVE-04; DB append-only triggers back this).
 
-### Photos («Фото» group — replaces placeholder; REG-05, E-05, E-06)
+### Photos
+
+Accessibility fallbacks: lightbox close `aria-label="Закрыть"`; thumbnail buttons alt/aria-label «Фото {n} из {всего}». («Фото» group — replaces placeholder; REG-05, E-05, E-06)
 
 Section header row: «Фото» (20/600) + counter right (14, secondary): «{n} из 8». Grid below (`mt-3`, `grid-cols-3 sm:grid-cols-4 gap-2`):
 - **Thumbnail tiles:** `aspect-square rounded-lg object-cover`, each a button opening the lightbox.
