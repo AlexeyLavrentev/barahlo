@@ -8,10 +8,10 @@ updated: 2026-09-02
 
 ## Current Test
 
-number: 3
-name: Длинные модель/серийник (backstop)
+number: 4
+name: Визуальная сверка с 03-UI-SPEC
 expected: |
-  модель 200 симв. + серийник 100 симв. — строка списка и диалог не ломаются, многоточие, title-атрибут
+  воздух, mono для серийника/инвентарника, акцент только CTA/фокус/checkmark, статус-пилюли нейтральные, dialog не выше ~85svh (замечен drift 75svh — оценить глазами)
 awaiting: user response
 
 ## Tests
@@ -27,7 +27,7 @@ note: "первый прогон поймал React-19 auto-reset (поля сб
 
 ### 3. Длинные модель/серийник (backstop)
 expected: модель 200 симв. + серийник 100 симв. — строка списка и диалог не ломаются, многоточие, title-атрибут
-result: [pending]
+result: pass
 
 ### 4. Визуальная сверка с 03-UI-SPEC
 expected: воздух, mono для серийника/инвентарника, акцент только CTA/фокус/checkmark, статус-пилюли нейтральные, dialog не выше ~85svh (замечен drift 75svh — оценить глазами)
@@ -36,9 +36,9 @@ result: [pending]
 ## Summary
 
 total: 4
-passed: 2
+passed: 3
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
