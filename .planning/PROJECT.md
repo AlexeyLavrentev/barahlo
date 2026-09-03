@@ -18,7 +18,7 @@
 
 ### Active
 
-- [ ] Реестр устройств с типами (ноутбук, монитор, док-станция, периферия) и набором полей на тип
+- ✓ Реестр устройств: 4 типа, keystone device_schema (формы+валидация+будущие фильтры), пагинированный список с фильтром, карточка — Phase 3 (REG-01, REG-02, REG-03)
 - [ ] Карточка устройства: модель, серийник, инвентарник, RAM, SSD + поля типа; фото, стоимость, закупка, гарантия, заметки
 - [ ] Полная история перемещений: кто, когда, от кого/кому — таймлайн по устройству
 - ✓ Карточка сотрудника: имя + отдел (список выданной техники — фаза 4) — Phase 2
@@ -66,6 +66,8 @@
 | Схема только через generate+migrate, никогда drizzle-kit push | push на SQLite тихо роняет UNIQUE (drizzle-kit #6060); подтверждено research и ревью | ✓ Good |
 | Base UI combobox — items на Root + ComboboxCollection, ввод как источник истины | контролируемый value=null стирал введённый текст (UAT-баг фазы 2, 7e400c9); ленивый db-синглтон заодно (69eb284) | ✓ Good |
 | shadcn-пресет base-nova остаётся (токены перекрывает globals.css) | чистый style=base отсутствует в реестре v4; отклонение задокументировано | ✓ Good |
+| React 19: echo values в state при ошибке формы | авто-сброс uncontrolled формы после action стирал ввод с ошибкой (UAT-баг фазы 3, 4886f6a); паттерн применить к employees-форме в фазе 4 | ✓ Good |
+| Сортировка списка устройств — по модели (RU-коллация), не newest-first | план победил дефолт UI-SPEC; спека поправлена (e577e40) | ✓ Good |
 
 ## Evolution
 
@@ -85,4 +87,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-02 after Phase 2*
+*Last updated: 2026-09-02 after Phase 3*

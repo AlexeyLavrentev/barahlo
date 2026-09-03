@@ -9,9 +9,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Типы и реестр
 
-- [ ] **REG-01**: User can view device registry filtered by type (ноутбук / монитор / док-станция / периферия) with server-side pagination
-- [ ] **REG-02**: User can create a device of one of 4 fixed types; the form shows that type's field set (ноутбук: модель, серийник, инвентарник, RAM ГБ, флаг «RAM апгрейдена», SSD, закупка, поставщик, стоимость, гарантия до, заметки)
-- [ ] **REG-03**: User can edit all device fields; per-type field set enforced by the app
+- [x] **REG-01**: User can view device registry filtered by type (ноутбук / монитор / док-станция / периферия) with server-side pagination
+- [x] **REG-02**: User can create a device of one of 4 fixed types; the form shows that type's field set (ноутбук: модель, серийник, инвентарник, RAM ГБ, флаг «RAM апгрейдена», SSD, закупка, поставщик, стоимость, гарантия до, заметки)
+- [x] **REG-03**: User can edit all device fields; per-type field set enforced by the app
 - [ ] **REG-04**: User can set device status: используется / на складе / в ремонте / списано; списанные устройства остаются в базе с историей
 - [ ] **REG-05**: User can attach photos to a device card; thumbnails visible in lists
 
@@ -104,9 +104,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EMP-03 | Phase 2 | Complete |
 | UI-01 | Phase 2 | Complete |
 | UI-02 | Phase 2 | Complete |
-| REG-01 | Phase 3 | Pending |
-| REG-02 | Phase 3 | Pending |
-| REG-03 | Phase 3 | Pending |
+| REG-01 | Phase 3 | Complete |
+| REG-02 | Phase 3 | Complete |
+| REG-03 | Phase 3 | Complete |
 | MOVE-01 | Phase 4 | Pending |
 | MOVE-02 | Phase 4 | Pending |
 | MOVE-03 | Phase 4 | Pending |

@@ -1,7 +1,7 @@
 ---
 phase: 03-device-registry
 verified: 2026-09-02T10:57:27Z
-status: human_needed
+status: passed
 score: 11/14 must-haves verified
 behavior_unverified: 3
 overrides_applied: 0
@@ -9,44 +9,56 @@ overrides: []
 re_verification: null
 gaps: []
 deferred:
+
   - truth: "Статус и держатель меняются только действиями выдачи/возврата/ремонта/списания (сейчас — только просмотр: пилюля/строка в списке и карточке)"
     addressed_in: "Phase 4"
     evidence: "ROADMAP SC4: «состояние меняется только действиями… (строятся в Фазе 4)»; REQUIREMENTS.md: REG-04, MOVE-01..05 → Phase 4"
+
   - truth: "Секция карточки «История перемещений» — placeholder «Здесь появится история выдач и возвратов.»"
     addressed_in: "Phase 4"
     evidence: "REQUIREMENTS.md: MOVE-04 (append-only timeline) → Phase 4; план 03-02 задачa 1 прямо назначает placeholder фазе 4"
+
   - truth: "Секция карточки «Фото» — placeholder «Здесь появятся фотографии устройства.»"
     addressed_in: "Phase 4"
     evidence: "REQUIREMENTS.md: REG-05 (фото на карточке) → Phase 4; план 03-02 — placeholder по UI-SPEC «Card placeholders»"
+
   - truth: "Поиска по списку устройств нет (ни клиентского, ни серверного)"
     addressed_in: "Phase 5"
     evidence: "REQUIREMENTS.md: FIND-01..04 → Phase 5; граница фазы 3 зафиксирована в CONTEXT deferred"
+
   - truth: "Гарантия до — без цветовой семантики (нейтральная строка карточки)"
     addressed_in: "Phase 5"
     evidence: "REQUIREMENTS.md: WAR-01 → Phase 5; комментарий в (card)/devices/[id]/page.tsx:267 и UI-SPEC"
 behavior_unverified_items:
+
   - truth: "SC1: пользователь создаёт устройство любого из 4 типов через диалог — форма показывает поля именно этого типа; смена типа меняет набор и сбрасывает значения"
     test: "В браузере: «Добавить устройство» → выбрать каждый из 4 типов → наблюдать пер-типовую секцию; сменить тип повторно → вернуть ноутбук, заполнить, сохранить"
     expected: "Секция «Характеристики типа» показывает поля выбранного типа (ноутбук: RAM/флаг/SSD; монитор: диагональ/матрица; док: порты; периферия: обязательный «Вид» + подсказка D-04 у серийника); после смены типа значения предыдущего типа не наследуются; после сохранения диалог закрывается, устройство в списке без F5, счётчик обновлён"
     why_human: "Клиентский раундтрип useActionState → Server Action → refresh() и динамический ре-рендер по key={typeKey} ни одним автотестом не проведены; smoke-зонд создаётся прямой DB-вставкой мимо диалога"
+
   - truth: "Диалог: интерактивное поведение пер-типовой секции (remount по key при смене типа, скрытые inputs select-значений, дважды-сабмит невозможен)"
     test: "В диалоге выбрать «Периферия» → выбрать «Вид» → сменить тип на «Монитор» и обратно → сохранить; попытаться двойным кликом отправить форму"
     expected: "Выбор «Вида» не теряется и не протекает в чужой тип; после смены типа select «Вид» пуст; кнопка disabled на «Сохранение…» — повторный сабмит невозможен"
     why_human: "Remount-семантика и состояние портала наблюдаются только в живом браузере; код присутствует и структурно верен, но интерактив не упражнен"
+
   - truth: "Длинные модель/серийник не ломают двухстрочную строку списка и диалог (long-text backstop — заявлен планом ручным UAT)"
     test: "Создать устройство с моделью 200 символов и серийником 100 символов; открыть список и диалог редактирования"
     expected: "Обе линии строки обрезаются с многоточием, высота строки не меняется, max-w-md диалога не ломается; полные данные в title-атрибуте и на карточке"
     why_human: "Held-out визуальный тест из UI Considerations; grep доказывает truncate+title, но не поведение при реальных 200+100 символах"
 human_verification:
+
   - test: "Интерактивный проход SC1: «Добавить устройство» → по очереди все 4 типа (проверить набор полей каждого), сменить тип повторно, создать ноутбук (RAM/флаг/SSD) → список"
     expected: "Пер-типовая секция следует за типом и сбрасывается при смене; подсказка «У периферии серийника может не быть…» только у периферии; после сохранения — устройство в списке без перезагрузки, счётчик «N устройств» отражает фильтр"
     why_human: "Клиентский раундтрип диалог → action → refresh автотестами не покрыт; smoke идёт мимо UI прямой DB-вставкой"
+
   - test: "Интерактивный проход SC2: карточка созданного устройства → «Редактировать» → проверить предзаполнение всех полей (включая select «Вид» и чекбокс RAM) и статичный (не select) тип → изменить модель и пер-типовое значение → «Сохранить изменения»; затем попытаться создать устройство с серийником существующего"
     expected: "Все поля предзаполнены; тип — статичный текст без поля ввода; карточка отражает правки без F5; дубль серийника — «Устройство с таким серийным номером уже есть» под полем, не 500 и не generic"
     why_human: "Edit-раундтрип и маппинг UNIQUE-кода в живом диалоге — интерактивные пути; updateDevice/schema-инварианты покрыты тестами, UI-проход — нет"
+
   - test: "Backstop длинного текста: модель 200 символов + серийник 100 символов в строке списка и в диалоге"
     expected: "Truncate с многоточием на обеих линиях, высота строки 44px+ стабильна, диалог не ломается; полные данные в title и на карточке"
     why_human: "Визуальный held-out тест UI Considerations, объявлен планом ручным"
+
   - test: "Визуальная сверка новых экранов с 03-UI-SPEC (список, фильтр, карточка, диалог create/edit, пустые состояния, скелетон)"
     expected: "Соответствие контракту: two-line rows с mono-номерами и пилюлей, dropdown-фильтр без акцента на триггере, группы карточки по рецепту, edit-кнопка — secondary, footer диалога прижат"
     why_human: "Субъективное визуальное свойство; автогрепы доказывают копи и классы, но не качество"
@@ -54,30 +66,35 @@ prohibitions:
   unverified_flagged_count: 5
   human_review_recommended: true
   items:
+
     - statement: "03-01 P1: MUST NOT быть поля статуса/держателя в zod-whitelist или форме (REG-04 — только custody-действия фазы 4)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — schema-тест «rejects custody columns — status/holder change only via phase 4 actions» зелёный (deviceUpdateSchema strictObject отвергает оба ключа); в device-dialog нет полей status/holder ни в одном режиме; grep status|currentEmployeeId по actions.ts — единственное попадание — строка-комментарий:230"
       enforcement: "модульный тест device-schema (прямой негативный); в CI вне vitest не проводан"
+
     - statement: "03-01 P2: MUST NOT использовать drizzle-kit push (новых миграций нет)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — package.json не содержит push; git log по db/ и drizzle/ после 7c1df40 — только queries/UI/tests; схема devices не менялась"
       enforcement: "нет выделенного теста"
+
     - statement: "03-01 P3: MUST NOT быть клиентской пагинации или клиентского поиска (D-05, серверные списки)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — listDevices: where/orderBy/limit/offset в SQL (тест 20-страничной нарезки + clamp зелёный); type-filter.tsx только router.push полного query string; поискового инпута на /devices нет"
       enforcement: "косвенно тестом пагинации; выделенного негативного теста нет"
+
     - statement: "03-02 P1: MUST NOT быть удаляющего пути устройства (архив-семантика — статус через фазу 4)"
       tier: test
       status: unverified
       flagged: true
       llm_verdict_non_authoritative: "satisfied — гейт воспроизведён верификатором: grep -rniE '\\bdelete\\b' по db/queries/devices.ts и app/(app)/devices = 0; модульный тест 'exposes no delete/remove capability at module level' зелёный; кнопки удаления нет"
       enforcement: "модульный тест + греп-гейт; в CI вне vitest не проводан"
+
     - statement: "03-02 P2: MUST NOT быть loading.tsx внутри (card) group (404-инвариант d0ceff8)"
       tier: test
       status: unverified
