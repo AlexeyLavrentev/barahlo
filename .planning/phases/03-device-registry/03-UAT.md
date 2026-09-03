@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 03-device-registry
 source: [03-VERIFICATION.md]
 started: 2026-09-02
@@ -8,11 +8,7 @@ updated: 2026-09-02
 
 ## Current Test
 
-number: 4
-name: Визуальная сверка с 03-UI-SPEC
-expected: |
-  воздух, mono для серийника/инвентарника, акцент только CTA/фокус/checkmark, статус-пилюли нейтральные, dialog не выше ~85svh (замечен drift 75svh — оценить глазами)
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -31,14 +27,14 @@ result: pass
 
 ### 4. Визуальная сверка с 03-UI-SPEC
 expected: воздух, mono для серийника/инвентарника, акцент только CTA/фокус/checkmark, статус-пилюли нейтральные, dialog не выше ~85svh (замечен drift 75svh — оценить глазами)
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 4
-passed: 3
+passed: 4
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
