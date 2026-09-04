@@ -39,14 +39,14 @@ created: 2026-09-03
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (movement T) | 04-xx | 1 | MOVE-01/03 | T-04-01 | guard rejects non-in_stock, no side effects | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'assign'` | ❌ W0 | ⬜ pending |
-| (return/transfer T) | 04-xx | 1 | MOVE-02/04 | T-04-02 | correct from/to; atomic; RAISE on UPDATE/DELETE | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return'` | ❌ W0 | ⬜ pending |
-| (timeline T) | 04-xx | 1 | MOVE-04/E-01 | T-04-03 | occurredAt DESC + id; backdated; alias names | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ W0 | ⬜ pending |
-| (return-all T) | 04-xx | 1 | MOVE-05/E-07 | T-04-04 | N events one tx; failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ W0 | ⬜ pending |
-| (issued T) | 04-xx | 1 | EMP-02 | — | assigned-only by holder, batched | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'issued'` | ❌ W0 | ⬜ pending |
-| (disposed T) | 04-xx | 1 | REG-04/E-03 | T-04-05 | all 7 transitions reject from disposed | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ W0 | ⬜ pending |
-| (attachments T) | 04-xx | 2 | REG-05/E-05/E-06 | T-04-06..08 | 8-cap; EXIF/GPS/ICC stripped; no enlargement; garbage rejected | unit/integration | `npx vitest run tests/attachments-queries.test.ts` | ❌ W0 | ⬜ pending |
-| (photo routes) | 04-xx | 2 | REG-05/ACC-02 | T-04-06 | no cookie → 401/redirect; with cookie → 200 | smoke | `node scripts/smoke-custody.mjs` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-01/03 | T-04-01 | guard rejects non-in_stock, no side effects | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'assign'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-02/04 | T-04-02 | correct from/to; atomic; RAISE on UPDATE/DELETE | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-04/E-01 | T-04-03 | occurredAt DESC + id; backdated; alias names | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-05/E-07 | T-04-04 | N events one tx; failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | EMP-02 | — | assigned-only by holder, batched | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'issued'` | ❌ W0 | ⬜ pending |
+| 04-02-T2 | 02 | 2 | REG-04/E-03 | T-04-05 | all 7 transitions reject from disposed | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ W0 | ⬜ pending |
+| 04-03-T1 | 03 | 3 | REG-05/E-05/E-06 | T-04-06..08 | 8-cap; EXIF/GPS/ICC stripped; no enlargement; garbage rejected | unit/integration | `npx vitest run tests/attachments-queries.test.ts` | ❌ W0 | ⬜ pending |
+| 04-03-T1 | 03 | 3 | REG-05/ACC-02 | T-04-06 | no cookie → 401/redirect; with cookie → 200 | smoke | `node scripts/smoke-custody.mjs` | ❌ W0 | ⬜ pending |
 
 *(Task IDs finalize when plans exist; planner maps rows to concrete task IDs.)*
 
