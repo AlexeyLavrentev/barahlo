@@ -159,6 +159,11 @@ None - no external service configuration required.
 - Phase 5 UAT is 5/6 green with G-5-1 fixed in code — closing the gap needs only the owner's «Manual retest (UAT Test 1)» above (item д is the mandatory Test-2 regression).
 - The reconciliation pattern (local priority + inFlight own-echo absorption + push-time anchors) is the reference for any future island that reconciles a controlled input against URL state.
 
+## Self-Check: PASSED
+
+- Files exist: `app/(app)/devices/search-box.tsx`, `05-06-SUMMARY.md`, `deferred-items.md`
+- Commits exist: `74eb0d9` (Task 1 fix), `8e7d718` (Task 2 docs), `97a7e38` (planning state docs)
+
 ---
 *Phase: 05-search-filters*
 *Completed: 2026-09-04*
