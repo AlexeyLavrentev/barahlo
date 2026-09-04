@@ -25,6 +25,7 @@ const {
   transferDevice,
   sendToRepair,
   returnFromRepair,
+  disposeDevice,
   returnAllDevices,
   listTimeline,
   listIssuedByEmployee,
@@ -37,6 +38,7 @@ const {
   acceptSchema,
   transferSchema,
   repairSchema,
+  disposeSchema,
   occurredAtFromDate,
   movementEventLabel,
 } = schemaModule
@@ -501,6 +503,126 @@ describe('repair schema — whitelist + D-01 bounds (plan 04-02)', () => {
   })
 })
 
+describe('disposeDevice — списание финально (D-03, plan 04-02)', () => {
+  it('from in_stock/assigned/repair writes the disposed event + projection', () => {
+    // in_stock: no holder slot
+    const dev1 = newDevice('Списание Склад')
+    disposeDevice(dev1, { comment: 'Сгорела после скачка' })
+    let row = rawDevice(dev1)
+    expect(row.status).toBe('disposed')
+    expect(row.current_employee_id).toBeNull()
+    let events = rawMovements(dev1)
+    expect(events).toHaveLength(1)
+    expect(events[0].event_type).toBe('disposed')
+    expect(events[0].from_employee_id).toBeNull()
+    expect(events[0].to_employee_id).toBeNull()
+    expect(events[0].comment).toBe('Сгорела после скачка')
+
+    // assigned: the holder rides in the event's from slot
+    const emp = newEmployee('Списание От Кого')
+    const dev2 = newDevice()
+    assignDevice(dev2, emp.id)
+    disposeDevice(dev2)
+    row = rawDevice(dev2)
+    expect(row.status).toBe('disposed')
+    expect(row.current_employee_id).toBeNull()
+    events = rawMovements(dev2)
+    expect(events[events.length - 1].event_type).toBe('disposed')
+    expect(events[events.length - 1].from_employee_id).toBe(emp.id)
+
+    // repair: disposal is reachable from repair too
+    const dev3 = newDevice()
+    sendToRepair(dev3)
+    disposeDevice(dev3)
+    expect(rawDevice(dev3).status).toBe('disposed')
+    expect(
+      rawMovements(dev3).some((e) => e.event_type === 'disposed'),
+    ).toBe(true)
+  })
+
+  it('disposed is terminal: the 6 direct transitions reject with zero effects', () => {
+    const emp = newEmployee('Финальность Свидетель')
+    const other = newEmployee('Финальность Получатель')
+    const dev = newDevice('Финальность Устройство')
+    disposeDevice(dev)
+    const before = movementsCount()
+    expect(captureThrown(() => assignDevice(dev, emp.id))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(captureThrown(() => acceptDevice(dev))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(captureThrown(() => transferDevice(dev, other.id))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(captureThrown(() => sendToRepair(dev))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(captureThrown(() => returnFromRepair(dev))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(captureThrown(() => disposeDevice(dev))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(rawDevice(dev).status).toBe('disposed')
+    expect(rawDevice(dev).current_employee_id).toBeNull()
+    expect(movementsCount()).toBe(before)
+  })
+
+  it('the 7th path — return-all — cannot touch a disposed device', () => {
+    const emp = newEmployee('Финальность Держатель')
+    const dev = newDevice()
+    assignDevice(dev, emp.id)
+    disposeDevice(dev)
+    // Disposal cleared the holder, so the device left the issued set: there
+    // is no code path from disposed back to anything (D-03 finality).
+    expect(returnAllDevices(emp.id)).toBe(0)
+    expect(rawDevice(dev).status).toBe('disposed')
+  })
+
+  it('the disposed device stays in the DB with its readable history', () => {
+    const dev = newDevice('Финальность История')
+    disposeDevice(dev, { comment: 'Причина сохранена' })
+    const events = listTimeline(dev)
+    expect(events).toHaveLength(1)
+    expect(events[0].eventType).toBe('disposed')
+    expect(events[0].comment).toBe('Причина сохранена')
+    // And the row itself is still there — view-only, not deleted.
+    expect(rawDevice(dev).status).toBe('disposed')
+  })
+})
+
+describe('dispose schema — причина обязательна (D-03)', () => {
+  it('an empty or missing reason is rejected; 500 ok, 501 rejected', () => {
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: 'Причина' }).success,
+    ).toBe(true)
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: '' }).success,
+    ).toBe(false)
+    expect(disposeSchema.safeParse({ deviceId: '1' }).success).toBe(false)
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: 'а'.repeat(500) })
+        .success,
+    ).toBe(true)
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: 'а'.repeat(501) })
+        .success,
+    ).toBe(false)
+  })
+
+  it('strictness: an injected employeeId is a tampering signal', () => {
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: 'Причина', employeeId: '2' })
+        .success,
+    ).toBe(false)
+    expect(
+      disposeSchema.safeParse({ deviceId: '1', comment: 'Причина', status: 'disposed' })
+        .success,
+    ).toBe(false)
+  })
+})
+
 describe('returnAllDevices — one tx, N events (D-07, RESEARCH C3)', () => {
   it('returns every held device with one returned event each', () => {
     const emp = newEmployee('Возврат Всё')
@@ -743,5 +865,43 @@ describe('source gates (plan 04-01 acceptance)', () => {
     // «В ремонт» is offered from BOTH in_stock and assigned; «Из ремонта»
     // belongs to the repair status only.
     expect(src.match(/<RepairDialog/g)?.length).toBe(3)
+  })
+
+  it('dispose is wired: card row hidden for disposed, «Списать» last elsewhere (plan 04-02)', () => {
+    const actionsSrc = readFileSync(
+      join(process.cwd(), 'app/(app)/devices/device-actions.tsx'),
+      'utf8',
+    )
+    expect(actionsSrc).toContain('<DisposeDialog')
+    // in_stock, assigned and repair rows all end with the dispose step
+    expect(actionsSrc.match(/<DisposeDialog/g)?.length).toBe(3)
+    const pageSrc = readFileSync(
+      join(process.cwd(), 'app/(app)/(card)/devices/[id]/page.tsx'),
+      'utf8',
+    )
+    // D-03 view-only: the ENTIRE actions row (Редактировать included) is
+    // rendered only for non-disposed devices.
+    expect(pageSrc).toContain("device.status !== 'disposed'")
+  })
+
+  it('red fills stay scoped: dispose primary + «Списано» pill only (grep-gate)', () => {
+    const dialogsSrc = readFileSync(
+      join(process.cwd(), 'app/(app)/devices/movement-dialogs.tsx'),
+      'utf8',
+    )
+    // Every bg-destructive fill lives on ONE line — the solid «Списать»
+    // primary (base + hover); inline #D70015 ERROR_CLASS text is standing
+    // error semantics, not a fill.
+    const dialogFillLines = dialogsSrc.match(/.*bg-destructive.*$/gm) ?? []
+    expect(dialogFillLines).toHaveLength(1)
+    expect(dialogFillLines[0]).toContain('hover:bg-destructive/90')
+    const pageSrc = readFileSync(
+      join(process.cwd(), 'app/(app)/(card)/devices/[id]/page.tsx'),
+      'utf8',
+    )
+    // The only red fill on the card is the tinted «Списано» status pill.
+    const pageFillLines = pageSrc.match(/.*bg-destructive.*$/gm) ?? []
+    expect(pageFillLines).toHaveLength(1)
+    expect(pageFillLines[0]).toContain('bg-destructive/10')
   })
 })
