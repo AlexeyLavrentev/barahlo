@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 5
 current_phase_name: Search & Filters
 status: verifying
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-09-04T19:59:35.478Z"
+stopped_at: Completed 05-06-PLAN.md — G-5-1 fixed in code, owner manual retest of UAT Test 1 pending (see 05-06-SUMMARY.md)
+last_updated: "2026-09-04T22:39:47.993Z"
 last_activity: 2026-09-04
 last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # Project State
@@ -73,6 +73,7 @@ Progress: [██████████] 100%
 | Phase 5 P03 | 15 min | 2 tasks | 8 files |
 | Phase 05 P05 | 11min | 2 tasks | 2 files |
 | Phase 05 P04 | 13 min | 2 tasks | 5 files |
+| Phase 05 P06 | 12 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,7 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 5/План 5: seed масштабирован до 400 устройств (200/80/50/70), единственный нудж — ~5% NULL-гарантии («без гарантии», edge 9); все 4 состояния верифицированы live (175/20/180/25), mulberry32-детерминизм и двойной guard подтверждены; dev-база держит 80 устройств до ручного reseed в end-of-phase
 - [Phase ?]: Фаза 5/План 4: CSV-экспорт — один парсер (parseDevicesSearchParams) и один предикат (deviceWhere, факторизован из listDevices) на страницу и выгрузку; exportDevices = полный отфильтрованный скан без limit/offset, дрейф не представим
 - [Phase ?]: Фаза 5/План 4: CSV-письменник хенд-ролл в lib/csv.ts (запрет зависимостей T-05-SC): esc() с TAB-префикс-гвардом CWE-1236 (все ячейки проходят), BOM + «;» + CRLF, csvResponseHeaders — pure-хелпер с RFC 5987 двойным именем, nosniff, no-store
+- [Phase ?]: Фаза 5/План 6: G-5-1 фикс — реконсиляция с локальным приоритетом: adopt q только при value === lastSynced.current; lastSynced штампуется в момент пуша (не при взводе); inFlight-реф (cap 4) абсорбирует собственные эхо (точное/trim-совпадение); commitNow регистрирует пуш так же; инвариант: return с value !== q без таймера запрещён
 
 ### Pending Todos
 
@@ -133,6 +135,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-04T19:59:35.471Z
-Stopped at: Completed 05-04-PLAN.md
-Resume file: None
+Last session: 2026-09-04T22:39:47.986Z
+Stopped at: Completed 05-06-PLAN.md — G-5-1 fixed in code, owner manual retest of UAT Test 1 pending (see 05-06-SUMMARY.md)
+Resume file: .planning/phases/05-search-filters/05-06-SUMMARY.md

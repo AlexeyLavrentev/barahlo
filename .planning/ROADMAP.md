@@ -146,7 +146,7 @@ Plans note: фото (REG-05) — объявленная линия отреза
   4. Состояние гарантии подсвечено в карточке и списках: зелёный / жёлтый «< 60 дней» / красный «истекла»
   5. На сотнях устройств поиск, фильтры и пагинация остаются мгновенными (серверные списки, индексированные колонки)
 
-**Plans**: 5/5 plans executed + 1 gap-closure plan (05-06, G-5-1)
+**Plans**: 6/6 plans executed
 
 Plans:
 **Wave 1**
@@ -170,7 +170,8 @@ Plans note: CSV-экспорт (D-18) подтверждён как часть �
 
 **Wave 5** *(gap closure — G-5-1 из 05-UAT.md)*
 
-- [ ] 05-06-PLAN.md — Gap closure G-5-1: локальный приоритет в реконсиляции SearchBox — быстрый ввод/удаление не теряет keystrokes (FIND-01)
+- [x] 05-06-PLAN.md — Gap closure G-5-1: локальный приоритет в реконсиляции SearchBox — быстрый ввод/удаление не теряет keystrokes (FIND-01)
+
 **UI hint**: yes
 
 ### Phase 6: Dashboard
@@ -219,5 +220,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Employees | 3/3 | Complete    | 2026-09-02 |
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
-| 5. Search & Filters | 5/5 | In Progress|  |
+| 5. Search & Filters | 6/6 | In Progress|  |
 | 6. Dashboard | 0/TBD | Not started | - |
