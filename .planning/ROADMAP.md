@@ -146,7 +146,7 @@ Plans note: фото (REG-05) — объявленная линия отреза
   4. Состояние гарантии подсвечено в карточке и списках: зелёный / жёлтый «< 60 дней» / красный «истекла»
   5. На сотнях устройств поиск, фильтры и пагинация остаются мгновенными (серверные списки, индексированные колонки)
 
-**Plans**: 1/5 plans executed
+**Plans**: 2/5 plans executed
 
 Plans:
 **Wave 1**
@@ -155,7 +155,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 05-02-PLAN.md — Комбинируемые фильтры: гарантийное окно + статус/отдел/RAM-чип, FilterBar одной строкой (FIND-02, FIND-03)
+- [x] 05-02-PLAN.md — Комбинируемые фильтры: гарантийное окно + статус/отдел/RAM-чип, FilterBar одной строкой (FIND-02, FIND-03)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -215,5 +215,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Employees | 3/3 | Complete    | 2026-09-02 |
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
-| 5. Search & Filters | 1/5 | In Progress|  |
+| 5. Search & Filters | 2/5 | In Progress|  |
 | 6. Dashboard | 0/TBD | Not started | - |

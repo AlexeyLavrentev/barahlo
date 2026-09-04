@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 5
 current_phase_name: Search & Filters
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-09-04T18:28:18.374Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-09-04T18:59:20.737Z"
 last_activity: 2026-09-04
 last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 18
-  completed_plans: 13
+  completed_plans: 15
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 ## Current Position
 
 Phase: 5 (Search & Filters) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-09-04 — Phase 5 execution started
 
-Progress: [███████░░░] 72%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [███████░░░] 72%
 | Phase 02 P02 | 14 min | 3 tasks | 5 files |
 | Phase 02 P03 | 14 min | 3 tasks | 6 files |
 | Phase 05 P01 | 17 min | 2 tasks | 10 files |
+| Phase 05 P02 | 21 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 5/План 1: свёртка поиска = write-side normalizeNumber через norm() UDF в openDb (deterministic); LIKE-паттерны экранированы (ESCAPE '\'), q обрезан до 100 символов на сервере
 - [Phase ?]: Фаза 5/План 1: query-params.ts — единственный парсер/билдер URL-фильтров /devices (D-08 связка ram/type живёт в билдере); db-слой получает undefined-for-inactive (сентинелы 'all'/null/false/'' стрипятся на странице)
 - [Phase ?]: Фаза 5/План 1: живой поиск — controlled input вне <form> (React 19 reset), 300 мс дебаунс → router.replace(scroll:false) в startTransition; Enter коммитит сразу; value===q guard против гонки со «Сбросить фильтры»
+- [Phase ?]: Фаза 5/План 2: единая инклюзивная граница гарантии WARRANTY_WARN_DAYS=60 — один константа для фильтра «≤ 60 дней» и будущей подсветки (попадание фильтра никогда не зелёное); displayTodayUtc — CR-01 рецепт (en-CA parts → Date.UTC)
+- [Phase ?]: Фаза 5/План 2: D-07 предикат точно (type=laptop) AND (ram_upgraded IS NULL OR != 1) — self-limiting на сервере, враждебные URL инертны (T-05-06); count-запрос несёт тот же leftJoin employees, что и rows (общий where, Pitfall 5)
 
 ### Pending Todos
 
@@ -121,6 +124,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-04T18:27:35.829Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-09-04T18:59:20.723Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
