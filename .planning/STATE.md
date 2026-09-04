@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 5
 current_phase_name: Search & Filters
-status: executing
-stopped_at: Completed 05-05-PLAN.md
-last_updated: "2026-09-04T19:38:08.082Z"
+status: verifying
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-09-04T19:59:35.478Z"
 last_activity: 2026-09-04
 last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 
 Phase: 5 (Search & Filters) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-04 — Phase 5 execution started
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [█████████░] 94%
 | Phase 05 P02 | 21 min | 3 tasks | 11 files |
 | Phase 5 P03 | 15 min | 2 tasks | 8 files |
 | Phase 05 P05 | 11min | 2 tasks | 2 files |
+| Phase 05 P04 | 13 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 5/План 3: movement-schema датные тесты переведены на DISPLAY_TZ wall clock (c9c87bc) — host-local геттеры ломались на UTC+5 хосте каждые 00:00–02:00 локального времени (CR-01 класс в тестовой инфраструктуре)
 - [Phase ?]: Фаза 5/План 5: UI-03 стал автоматическим трипваером — полный комбинированный фильтр (q+тип+статус+отдел+гарантия+RAM) на 600 строк в среднем 0.757 мс за 200 прогонов при щедром потолке 200 мс (A6); честность тайминга якорится raw SQL count по ТОЙ ЖЕ where-композиции + постраничный обход = total
 - [Phase ?]: Фаза 5/План 5: seed масштабирован до 400 устройств (200/80/50/70), единственный нудж — ~5% NULL-гарантии («без гарантии», edge 9); все 4 состояния верифицированы live (175/20/180/25), mulberry32-детерминизм и двойной guard подтверждены; dev-база держит 80 устройств до ручного reseed в end-of-phase
+- [Phase ?]: Фаза 5/План 4: CSV-экспорт — один парсер (parseDevicesSearchParams) и один предикат (deviceWhere, факторизован из listDevices) на страницу и выгрузку; exportDevices = полный отфильтрованный скан без limit/offset, дрейф не представим
+- [Phase ?]: Фаза 5/План 4: CSV-письменник хенд-ролл в lib/csv.ts (запрет зависимостей T-05-SC): esc() с TAB-префикс-гвардом CWE-1236 (все ячейки проходят), BOM + «;» + CRLF, csvResponseHeaders — pure-хелпер с RFC 5987 двойным именем, nosniff, no-store
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-04T19:37:46.415Z
-Stopped at: Completed 05-05-PLAN.md
+Last session: 2026-09-04T19:59:35.471Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None
