@@ -97,13 +97,18 @@ function makeInventory() {
 
 function buildDeviceSpec(typeKey) {
   const purchaseDate = randInt(MIN_PURCHASE, MAX_PURCHASE)
+  // Warranty spread (plan 05-05): ~5% carry NO warranty record (NULL —
+  // the «без гарантии» state, D-16/edge 9), the rest keep the 1–3 years
+  // spread. At ~400 rows the expired / warn / ok buckets all occur
+  // naturally relative to the seed day; the draw order stays deterministic.
+  const warrantyUntil = chance(0.05) ? null : purchaseDate + pick([1, 2, 3]) * YEAR
   const spec = {
     typeKey,
     model: '',
     purchaseDate,
     purchasePrice: 0,
     supplier: pick(SUPPLIERS),
-    warrantyUntil: purchaseDate + pick([1, 2, 3]) * YEAR,
+    warrantyUntil,
     notes: pick(NOTES),
     ramGb: null,
     ramUpgraded: null,
@@ -144,7 +149,11 @@ function buildDeviceSpec(typeKey) {
   return spec
 }
 
-const DEVICE_COUNTS = { laptop: 40, monitor: 15, dock: 10, peripheral: 15 }
+// Production-like scale for the /devices registry (UI-03: «сотни устройств»,
+// plan 05-05): human/UAT paging, filtering and search must feel the real
+// thing. Serials stay unique via the run number; departments/employees/
+// movements keep their existing multipliers.
+const DEVICE_COUNTS = { laptop: 200, monitor: 80, dock: 50, peripheral: 70 }
 const deviceSpecs = Object.entries(DEVICE_COUNTS).flatMap(([typeKey, count]) =>
   Array.from({ length: count }, () => buildDeviceSpec(typeKey)),
 )
