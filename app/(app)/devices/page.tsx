@@ -54,11 +54,25 @@ export default async function DevicesPage({
     pageSize: PAGE_SIZE,
     filters: listFilters,
   })
-  // D-05: any active dimension renames the counter to «Найдено: …»; without
-  // one the phase-3 counter is unchanged. Trigger set grows with the phase —
-  // search + warranty now, the remaining filters in plan-02 Task 3 (type-only
-  // already scoped the phase-3 count).
-  const searching = filters.q !== '' || filters.warranty !== 'all'
+  // D-05/UI-SPEC Default 6: «Найдено: …» fires when ANY dimension is active —
+  // type included (type-only counts; Default 6). Without an active dimension
+  // the phase-3 counter is unchanged.
+  const anyFilterActive =
+    filters.q !== '' ||
+    filters.type !== 'all' ||
+    filters.status !== 'all' ||
+    filters.departmentId !== null ||
+    filters.warranty !== 'all' ||
+    filters.ramNoUpgrade
+  // Empty-state precedence (edge 12/D-04/UI-SPEC Default 7): the search/filter
+  // empty state fires only for the NEW dimensions — type is deliberately NOT
+  // part of this set, so a type-only empty keeps the phase-3 copy verbatim.
+  const anySearchFilter =
+    filters.q !== '' ||
+    filters.status !== 'all' ||
+    filters.departmentId !== null ||
+    filters.warranty !== 'all' ||
+    filters.ramNoUpgrade
 
   return (
     <section>
@@ -68,7 +82,9 @@ export default async function DevicesPage({
             Устройства
           </h1>
           <p className="text-sm text-ink-secondary">
-            {searching ? `Найдено: ${pluralDevices(total)}` : pluralDevices(total)}
+            {anyFilterActive
+              ? `Найдено: ${pluralDevices(total)}`
+              : pluralDevices(total)}
           </p>
         </div>
         {/* Field configs ride as flat serialized props (D-02 + vercel
@@ -77,20 +93,20 @@ export default async function DevicesPage({
         <DeviceDialog label="Добавить устройство" typeConfigs={DEVICE_TYPES} />
       </div>
 
-      {/* Filter bar (D-12): one visible bar — the server composition lives
-          in FilterBar (search + type + warranty now; the remaining filters
-          join in plan-02 Task 3). The search island keeps the current list
-          mounted through the server swap (startTransition, no skeleton flash
-          per keystroke). */}
+      {/* Filter bar (D-12): one visible bar — поиск → тип → статус → отдел →
+          гарантия → RAM-чип, composed server-side in FilterBar (the CSV link
+          joins in plan 04). The search island keeps the current list mounted
+          through the server swap (startTransition, no skeleton flash per
+          keystroke). */}
       <FilterBar filters={filters} />
 
       {rows.length === 0 ? (
         /* Empty states, copy verbatim from the UI-SPEC copywriting contract,
-           precedence: zero under an active search or warranty filter explains
-           + resets (D-04); zero overall invites the first device; zero under
-           a type filter explains — it never resets. */
+           precedence (edge 12/D-04): zero rows with any of q/статус/отдел/
+           гарантия/RAM active explains + resets; zero overall invites the
+           first device; zero under a type filter explains — it never resets. */
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-hairline">
-          {searching ? (
+          {anySearchFilter ? (
             <>
               <h2 className="text-xl font-semibold tracking-tight text-ink">
                 Ничего не найдено
