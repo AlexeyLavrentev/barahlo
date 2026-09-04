@@ -94,7 +94,9 @@ function EmployeePicker({
     query === ''
       ? sorted
       : sorted.filter((e) => foldRu(e.name).includes(foldRu(query)))
-  const items = matches.map((e) => ({ value: String(e.id), label: e.name }))
+  // value = само имя (фазовые 2–3 урок: Base UI синхронизирует инпут с value,
+  // и id-строки «5» всплывали в поле); id маппится из выбранного объекта.
+  const items = matches.map((e) => ({ value: e.name, label: e.name }))
   return (
     <div className="space-y-2">
       <Label htmlFor={inputId}>{label}</Label>
@@ -106,7 +108,7 @@ function EmployeePicker({
         onInputValueChange={setInputValue}
         onValueChange={(value) => {
           if (typeof value !== 'string') return
-          const picked = sorted.find((e) => String(e.id) === value)
+          const picked = sorted.find((e) => e.name === value)
           if (picked) {
             setSelected(picked)
             setInputValue(picked.name)
