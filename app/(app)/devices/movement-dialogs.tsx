@@ -131,9 +131,21 @@ function EmployeePicker({
               )}
             </ComboboxCollection>
           </ComboboxList>
-          <ComboboxEmpty>
-            Нет активных сотрудников — добавьте их в разделе «Сотрудники».
-          </ComboboxEmpty>
+          {/* Two different zero states (UI-SPEC Default 20): the hiring hint
+              is tied to the SOURCE list being empty, while a query that
+              simply matches nothing gets a neutral fallback — ComboboxEmpty
+              fires for any zero-rendered items, so leaving the hiring hint
+              unconditional made a search typo claim «нет активных
+              сотрудников» (employee-dialog inline-paragraph precedent). */}
+          {employees.length === 0 ? (
+            <ComboboxEmpty>
+              Нет активных сотрудников — добавьте их в разделе «Сотрудники».
+            </ComboboxEmpty>
+          ) : matches.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-ink-secondary">
+              Никого не найдено
+            </p>
+          ) : null}
         </ComboboxContent>
         <input
           type="hidden"
