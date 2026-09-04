@@ -65,6 +65,10 @@
   --color-hairline: #D2D2D7; /* 1px borders */
   --color-accent: #0071E3; /* reserved: primary CTA, focus ring, combobox */
   --color-destructive: #D70015; /* reserved (Phase 4 «Списать») */
+  --color-warranty-ok: #248A3D; /* derived — contrast-safe Apple green, AA 4.5:1 on white (checker D3 rec 2026-09-04; resolution 2 — the darker text-safe green, not the system-green A1 draft) */
+  --color-warranty-warn: #FF9500; /* locked D-17 */
+  /* «истекла» deliberately has NO token — it reuses --color-destructive
+     (#D70015, D-17: один красный in the system). */
 }
 
 :root {

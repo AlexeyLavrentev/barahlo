@@ -10,6 +10,8 @@ import {
   deviceTypeName,
 } from '@/lib/device-schema'
 import { pluralDevices } from '@/lib/ru'
+import { displayTodayUtc } from '@/lib/warranty'
+import { WarrantyDate, formatWarrantyDate } from '@/lib/warranty-date'
 import { DeviceDialog } from './device-dialog'
 import { FilterBar } from './filter-bar'
 import { buildDevicesQuery, parseDevicesSearchParams } from './query-params'
@@ -73,6 +75,10 @@ export default async function DevicesPage({
     filters.departmentId !== null ||
     filters.warranty !== 'all' ||
     filters.ramNoUpgrade
+  // WAR-01 (D-16): ONE calculation for every render site — «today» is
+  // computed ONCE per page render (not per row) and passed down to each
+  // row's WarrantyDate; boundaries are identical to the filter's.
+  const today = displayTodayUtc()
 
   return (
     <section>
@@ -152,6 +158,9 @@ export default async function DevicesPage({
                     · инвентарник · держатель on line 2 — all six columns of the
                     column list. Both lines truncate with a full title (overflow
                     consideration); the numbers render mono (UI-SPEC Typography).
+                    Line 2 ends with the colored warranty segment (WAR-01 site
+                    1, D-16) — omitted entirely for «без гарантии» devices; the
+                    title carries the same segment only when it renders.
                     href targets the (card) route from plan 03-02 — until it
                     exists the not-found page answers, never a 500. */}
                 <Link
@@ -162,7 +171,12 @@ export default async function DevicesPage({
                     row.serialNumber,
                     row.inventoryNumber ?? '—',
                     row.holder ?? '—',
-                  ].join(' · ')}
+                    row.warrantyUntil
+                      ? `гар. до ${formatWarrantyDate(row.warrantyUntil)}`
+                      : null,
+                  ]
+                    .filter((part): part is string => part !== null)
+                    .join(' · ')}
                   className="flex min-h-11 items-center gap-3 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
                 >
                   {/* REG-05 «thumbnails in lists»: leading cover (first
@@ -197,6 +211,14 @@ export default async function DevicesPage({
                       </span>
                       {' · '}
                       {row.holder ?? '—'}
+                      {/* WAR-01 site 1: the colored «гар. до …» segment —
+                          one WarrantyDate, one warrantyState calculation;
+                          renders nothing when warrantyUntil is null. */}
+                      <WarrantyDate
+                        value={row.warrantyUntil}
+                        today={today}
+                        variant="list"
+                      />
                     </span>
                   </span>
                   <ChevronRight

@@ -69,7 +69,10 @@ export type DeviceRow = DeviceListItem & {
 // One registry row plus its photo cover (REG-05 «thumbnails in lists»): the
 // id of the device's FIRST photo attachment, or null when it has none — the
 // list renders a leading thumbnail only then (no placeholder box, UI-SPEC).
+// warrantyUntil rides along for the WAR-01 site-1 color segment (plan 05-03):
+// the component cannot color what the query does not select (Pitfall 9).
 export type DeviceListItemWithCover = DeviceListItem & {
+  warrantyUntil: Date | null
   coverAttachmentId: number | null
 }
 
@@ -245,6 +248,9 @@ export function listDevices({
       inventoryNumber: devices.inventoryNumber,
       status: devices.status,
       holder: employees.name,
+      // WAR-01 site 1 (plan 05-03): the registry row colors «гар. до …» via
+      // the shared warrantyState — the field must be selected here.
+      warrantyUntil: devices.warrantyUntil,
     })
     .from(devices)
     .leftJoin(employees, eq(devices.currentEmployeeId, employees.id))
