@@ -518,7 +518,7 @@ router.refresh()
 | A5 | Single `attachments.device_id`-less scan per page render stays milliseconds at hundreds of devices (no index addable) | Pattern C6 | Low: revisit only at ~10K devices (out of project lifetime) |
 | A6 | Return-all button visible for archived employees with issued devices (UI-SPEC gates on count only) | Pattern C3 | Low: narrower behavior would need a UI-SPEC change |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Display timezone for occurredAt (A1)**
    - What we know: existing formatters use `timeZone:'UTC'` for date-only columns; occurredAt carries a real time; container runs UTC unless `TZ` set.
