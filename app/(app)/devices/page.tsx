@@ -120,8 +120,9 @@ export default async function DevicesPage({
               <p className="mt-1 text-sm text-ink-secondary">
                 Проверьте раскладку: набранное кириллицей „С123“ найдёт „C123“.
               </p>
-              {/* Plain server Link — no island. On arrival q='' flows down
-                  and the island's value === q guard clears the input. */}
+              {/* Plain server Link — no island. On arrival q='' differs from
+                  the island's lastSynced ref, so its effect adopts the
+                  external q and clears the input (search-box.tsx, CR-01). */}
               <Link
                 href="/devices"
                 className="mt-4 inline-flex h-10 items-center rounded-lg bg-secondary px-3 text-sm text-secondary-foreground transition-all duration-100 ease-out hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] active:scale-[0.97]"

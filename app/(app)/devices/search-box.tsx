@@ -28,16 +28,33 @@ export function DeviceSearchBox({
   const [value, setValue] = useState(q)
   const [, startTransition] = useTransition()
   const mounted = useRef(false)
+  // The last q this island has seen or pushed (CR-01): the reconciliation
+  // anchor. An externally changed q («Сбросить фильтры», Back/Forward, the
+  // server's trimmed echo of a padded push) differs from it → adopt the URL
+  // into the input, never re-push.
+  const lastSynced = useRef(q)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!mounted.current) {
       mounted.current = true
+      lastSynced.current = q
       return
     }
-    // Our own navigation came back, or nothing changed — a no-op push is
-    // skipped so «Сбросить фильтры» cannot race a stale query (Pitfall 6).
+    // q changed behind our back («Сбросить фильтры», Back/Forward, or the
+    // server's trimmed echo of a padded push): adopt it — value===q after
+    // this, so the debounce below stays silent (CR-01).
+    if (q !== lastSynced.current) {
+      lastSynced.current = q
+      setValue(q)
+      return
+    }
+    // Nothing external changed and input matches the URL — no-op skip.
     if (value === q) return
+    // We are initiating: mark the value we are about to push so its echo
+    // (the server trims q — query-params.ts) lands on lastSynced instead of
+    // re-arming this timer forever (the CR-01 trailing-space nav loop).
+    lastSynced.current = value
     timer.current = setTimeout(() => {
       timer.current = null
       startTransition(() =>
@@ -63,6 +80,7 @@ export function DeviceSearchBox({
       timer.current = null
     }
     if (value === q) return
+    lastSynced.current = value // our own push — its echo must not re-push
     startTransition(() =>
       router.replace(buildDevicesQuery({ ...current, q: value }), {
         scroll: false,
