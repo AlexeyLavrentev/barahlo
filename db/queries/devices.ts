@@ -14,7 +14,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { db } from '@/db'
-import { attachments, devices, employees } from '@/db/schema'
+import { attachments, departments, devices, employees } from '@/db/schema'
 import { normalizeInventory, normalizeNumber, normalizeSerial } from '@/lib/normalize'
 import { addDaysUtc, displayTodayUtc, WARRANTY_WARN_DAYS } from '@/lib/warranty'
 import type { DeviceStatusKey, DeviceTypeKey } from '@/lib/device-schema'
@@ -74,6 +74,31 @@ export type DeviceRow = DeviceListItem & {
 export type DeviceListItemWithCover = DeviceListItem & {
   warrantyUntil: Date | null
   coverAttachmentId: number | null
+}
+
+// One row of the CSV export (D-18, plan 05-04): the registry's visible fields
+// as a SUPERSET of the six list columns — the export is a byproduct of the
+// registry, never a richer parallel schema. departmentName is the CURRENT
+// holder's department (D-09 semantics made visible in the file); id rides
+// along as the stable identity for parity assertions (export == union of
+// pages) and is not a CSV column.
+export type DeviceExportRow = {
+  id: number
+  typeKey: string
+  model: string
+  serialNumber: string
+  inventoryNumber: string | null
+  status: string
+  holder: string | null
+  departmentName: string | null
+  ramGb: number | null
+  ramUpgraded: number | null
+  ssdGb: number | null
+  purchaseDate: Date | null
+  purchasePrice: number | null
+  supplier: string | null
+  warrantyUntil: Date | null
+  notes: string | null
 }
 
 // Editable device fields. Deliberately EXCLUDES status, currentEmployeeId and
@@ -177,29 +202,19 @@ function warrantyPredicate(w: DeviceListFilters['warranty']) {
   )
 }
 
-export function listDevices({
-  type,
-  page,
-  pageSize,
-  filters,
-}: {
-  type: DeviceListType
-  page: number
-  pageSize: number
-  filters?: DeviceListFilters
-}): {
-  rows: DeviceListItemWithCover[]
-  total: number
-  page: number
-  pages: number
-} {
-  // One where shared by the count and the rows query (Pitfall 5 property) —
-  // every filter composes into this single and(...). Each term is guarded by
-  // the presence of its parsed filter so inactive filters contribute nothing
-  // (the page strips the URL sentinels into undefined). Sort stays the
-  // canonical RU-sort with the id tiebreaker: no relevance ranking anywhere
-  // in the search path (D-03).
-  const where = and(
+// The ONE filter predicate assembly of the registry (plan 05-04 factoring):
+// listDevices and exportDevices consume exactly this function — the export is
+// literally the same predicate, so «полный результат текущих фильтров» (D-18)
+// can never drift from what the page shows. Every filter composes into a
+// single and(...); each term is guarded by the presence of its parsed filter
+// so inactive filters contribute nothing (the page/route strip the URL
+// sentinels into undefined). Sort stays the canonical RU-sort with the id
+// tiebreaker: no relevance ranking anywhere in the search path (D-03).
+function deviceWhere(
+  type: DeviceListType,
+  filters: DeviceListFilters | undefined,
+) {
+  return and(
     type === 'all' ? undefined : eq(devices.typeKey, type),
     filters?.q ? searchPredicate(filters.q) : undefined,
     filters?.status ? eq(devices.status, filters.status) : undefined,
@@ -226,6 +241,26 @@ export function listDevices({
       : undefined,
     warrantyPredicate(filters?.warranty),
   )
+}
+
+export function listDevices({
+  type,
+  page,
+  pageSize,
+  filters,
+}: {
+  type: DeviceListType
+  page: number
+  pageSize: number
+  filters?: DeviceListFilters
+}): {
+  rows: DeviceListItemWithCover[]
+  total: number
+  page: number
+  pages: number
+} {
+  // One where shared by the count and the rows query (Pitfall 5 property).
+  const where = deviceWhere(type, filters)
   // The SAME where spans employees (department predicate), so the count query
   // carries the same leftJoin. employees is joined on its primary key — the
   // join cannot multiply rows, the total stays exact while count and rows
@@ -294,6 +329,48 @@ export function listDevices({
     page: current,
     pages,
   }
+}
+
+// The CSV export scan (D-18, plan 05-04): the FULL filtered result — the same
+// deviceWhere predicate as listDevices (one predicate, two callers), the same
+// canonical RU-sort + id order, but NO limit/offset: every page lands in the
+// file. Holder AND the holder's department are joined (a second leftJoin on
+// the pk sides — neither can multiply rows) so the «Отдел» column carries the
+// D-09 semantics the department filter matches on. The select mirrors the CSV
+// columns exactly (DeviceExportRow — a superset of the six list columns, never
+// a richer parallel schema).
+export function exportDevices({
+  type,
+  filters,
+}: {
+  type: DeviceListType
+  filters?: DeviceListFilters
+}): DeviceExportRow[] {
+  return db
+    .select({
+      id: devices.id,
+      typeKey: devices.typeKey,
+      model: devices.model,
+      serialNumber: devices.serialNumber,
+      inventoryNumber: devices.inventoryNumber,
+      status: devices.status,
+      holder: employees.name,
+      departmentName: departments.name,
+      ramGb: devices.ramGb,
+      ramUpgraded: devices.ramUpgraded,
+      ssdGb: devices.ssdGb,
+      purchaseDate: devices.purchaseDate,
+      purchasePrice: devices.purchasePrice,
+      supplier: devices.supplier,
+      warrantyUntil: devices.warrantyUntil,
+      notes: devices.notes,
+    })
+    .from(devices)
+    .leftJoin(employees, eq(devices.currentEmployeeId, employees.id))
+    .leftJoin(departments, eq(employees.departmentId, departments.id))
+    .where(deviceWhere(type, filters))
+    .orderBy(ruSortKey, asc(devices.id))
+    .all()
 }
 
 export function getDevice(id: number): DeviceRow | undefined {
