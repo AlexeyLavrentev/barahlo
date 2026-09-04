@@ -99,6 +99,15 @@ export const repairSchema = z.strictObject({
   comment: commentSchema.optional(),
 })
 
+// Списать (D-03) — the reason IS the comment and it is ОБЯЗАТЕЛЬНА: без
+// причины списания не существует. The event stays append-only and the
+// transition is terminal (no schema anywhere leads out of disposed).
+export const disposeSchema = z.strictObject({
+  deviceId: z.coerce.number().int().positive(),
+  occurredAt: occurredAtSchema.optional(),
+  comment: z.string().min(1).max(500),
+})
+
 // Передать — adjacency: получатель ≠ текущий держатель. The current holder id
 // arrives as an ARGUMENT read from the DB row (never from the payload); the
 // device-status guard itself lives in the transaction (C1) — this refine is
@@ -122,4 +131,5 @@ export const movementSchemas = {
   accept: acceptSchema,
   transfer: transferSchema,
   repair: repairSchema,
+  dispose: disposeSchema,
 }

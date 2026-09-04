@@ -12,6 +12,7 @@ import {
 import {
   acceptDevice,
   assignDevice,
+  disposeDevice,
   getDeviceHolder,
   returnFromRepair,
   sendToRepair,
@@ -307,10 +308,13 @@ const ACCEPT_ERROR = 'Не удалось принять. Попробуйте �
 const TRANSFER_ERROR = 'Не удалось передать. Попробуйте ещё раз.'
 const TO_REPAIR_ERROR = 'Не удалось отправить в ремонт. Попробуйте ещё раз.'
 const FROM_REPAIR_ERROR = 'Не удалось вернуть из ремонта. Попробуйте ещё раз.'
+const DISPOSE_ERROR = 'Не удалось списать. Попробуйте ещё раз.'
 
 export type MovementFieldErrors = {
   employeeId?: string
   occurredAt?: string
+  // The dispose reason lives in the comment field and is обязательна (D-03).
+  comment?: string
 }
 
 export type MovementFormState = {
@@ -351,10 +355,14 @@ function movementPayload(formData: FormData, withEmployee: boolean) {
 }
 
 // Map zod issues onto the UI-SPEC inline copy; an unmapped issue (garbage
-// deviceId, an overlong comment) falls back to the action's own error.
+// deviceId, an overlong comment) falls back to the action's own error. The
+// comment key only maps when the action owns a comment copy (dispose: the
+// обязательная причина) — elsewhere a tampered comment surfaces as the
+// generic action error, never as misplaced reason copy.
 function movementFieldErrorsOf(
   error: z.ZodError,
   fallback: string,
+  commentCopy?: string,
 ): MovementFormState {
   const fieldErrors: MovementFieldErrors = {}
   for (const issue of error.issues) {
@@ -367,6 +375,8 @@ function movementFieldErrorsOf(
         issue.code === 'custom'
           ? 'Дата не может быть в будущем'
           : 'Введите корректную дату'
+    } else if (key === 'comment' && commentCopy) {
+      fieldErrors.comment = commentCopy
     } else {
       return { error: fallback }
     }
@@ -496,6 +506,39 @@ export async function returnFromRepairDeviceAction(
     })
   } catch {
     return { error: FROM_REPAIR_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// Списать (D-03): the terminal action — причина обязательна (it IS the
+// comment), the guard-UPDATE only ever matches a non-disposed status, so no
+// payload can resurrect or double-dispose a device. The reason flows through
+// the schema as a required field: an empty textarea fails zod with the
+// inline «Укажите причину списания», never a generic error.
+export async function disposeDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.dispose.safeParse(
+    movementPayload(formData, false),
+  )
+  if (!parsed.success) {
+    return {
+      ...movementFieldErrorsOf(parsed.error, DISPOSE_ERROR, 'Укажите причину списания'),
+      values,
+    }
+  }
+  try {
+    disposeDevice(parsed.data.deviceId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment,
+    })
+  } catch {
+    // ILLEGAL_TRANSITION — disposed is terminal and the guard says so.
+    return { error: DISPOSE_ERROR, values }
   }
   refresh()
   return { ok: true }

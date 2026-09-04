@@ -149,6 +149,25 @@ function Value({ value, mono }: { value: string | null; mono?: boolean }) {
   return <span className={mono ? 'font-mono text-sm' : undefined}>{value}</span>
 }
 
+// Status pill (04-UI-SPEC color table): the three working statuses stay
+// neutral bg-black/5; the terminal «Списано» is the ONE tinted pill —
+// destructive 10% fill with destructive text, the red family of the
+// «Списать» action that caused it. Red is reserved to exactly these two
+// fills in the UI (the other being the dispose dialog's primary button).
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span
+      className={`rounded-full px-2 py-1 text-sm ${
+        status === 'disposed'
+          ? 'bg-destructive/10 text-destructive'
+          : 'bg-black/5 text-ink-secondary'
+      }`}
+    >
+      {deviceStatusLabel(status)}
+    </span>
+  )
+}
+
 // Notes wrap BELOW the label, full width — the one row that breaks the
 // label/value split on purpose (UI-SPEC «Основное»).
 function NotesRow({ value }: { value: string | null }) {
@@ -202,41 +221,41 @@ export default async function DeviceCardPage({
         </h1>
         {/* Meta line: тип · серийник (mono). The pill sits beside it only
             while the device is NOT stocked — absence IS the default state
-            (UI-SPEC); neutral styling either way, color arrives in phase 5. */}
+            (UI-SPEC); «Списано» tints red (StatusPill), the rest neutral. */}
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <p className="text-sm text-ink-secondary">
             {deviceTypeName(device.typeKey)} ·{' '}
             <span className="font-mono">{device.serialNumber}</span>
           </p>
           {device.status !== 'in_stock' ? (
-            <span className="rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary">
-              {deviceStatusLabel(device.status)}
-            </span>
+            <StatusPill status={device.status} />
           ) : null}
         </div>
       </div>
 
-      {/* Edit island (REG-03, D-06): the same dialog the list creates with,
-          in edit mode — type read-only, every field of the row's own type
-          editable; status/holder have no fields anywhere. */}
-      {/* Custody actions (MOVE-01..03, D-08): «Редактировать» first, then the
-          status matrix (in_stock → Выдать accent; assigned → Принять ·
-          Передать; «Выдать» is hidden on assigned and the server guard
-          re-validates every transition). flex-wrap — up to five buttons wrap
-          on narrow screens (04-UI-SPEC spacing). */}
-      <div className="mt-6 flex flex-wrap gap-2">
-        <DeviceDialog
-          label="Редактировать"
-          typeConfigs={DEVICE_TYPES}
-          device={dialogDeviceOf(device)}
-        />
-        <DeviceActions
-          deviceId={device.id}
-          status={device.status}
-          holderName={device.holder}
-          employees={listActiveEmployees()}
-        />
-      </div>
+      {/* Custody actions (MOVE-01..03, D-03, D-04, D-08): «Редактировать»
+          first, then the status matrix (in_stock → Выдать accent · В ремонт ·
+          Списать; assigned → Принять · Передать · В ремонт · Списать; repair
+          → Из ремонта accent · Списать; «Выдать» is hidden on assigned and
+          the server guard re-validates every transition). For a disposed
+          device the ENTIRE row stays hidden — D-03 view-only: the card keeps
+          only its timeline and fields. flex-wrap — up to five buttons wrap on
+          narrow screens (04-UI-SPEC spacing). */}
+      {device.status !== 'disposed' ? (
+        <div className="mt-6 flex flex-wrap gap-2">
+          <DeviceDialog
+            label="Редактировать"
+            typeConfigs={DEVICE_TYPES}
+            device={dialogDeviceOf(device)}
+          />
+          <DeviceActions
+            deviceId={device.id}
+            status={device.status}
+            holderName={device.holder}
+            employees={listActiveEmployees()}
+          />
+        </div>
+      ) : null}
 
       <FieldGroup title="Основное">
         <FieldRow label="Тип">{deviceTypeName(device.typeKey)}</FieldRow>
@@ -249,9 +268,7 @@ export default async function DeviceCardPage({
           <Value value={device.inventoryNumber} mono />
         </FieldRow>
         <FieldRow label="Статус">
-          <span className="rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary">
-            {deviceStatusLabel(device.status)}
-          </span>
+          <StatusPill status={device.status} />
         </FieldRow>
         <FieldRow label="Держатель">
           <Value value={device.holder} />

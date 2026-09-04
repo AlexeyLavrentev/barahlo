@@ -261,6 +261,48 @@ export function returnFromRepair(
   })
 }
 
+// Списать (D-03): in_stock|assigned|repair → disposed — ФИНАЛЬНО. The guard
+// precondition enumerates every non-disposed status, so from disposed the
+// .changes===0 branch rejects with zero writes forever: no code path leads
+// back (an erroneous record is corrected by registering a new device, never
+// by editing this one). The reason rides in the event comment; a holder, if
+// there was one, lands in the from slot.
+export function disposeDevice(deviceId: number, event: EventInput = {}): void {
+  db.transaction((tx) => {
+    const row = tx
+      .select({ currentEmployeeId: devices.currentEmployeeId })
+      .from(devices)
+      .where(eq(devices.id, deviceId))
+      .get()
+    const upd = tx
+      .update(devices)
+      .set({
+        status: 'disposed',
+        currentEmployeeId: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(devices.id, deviceId),
+          inArray(devices.status, ['in_stock', 'assigned', 'repair']),
+        ),
+      )
+      .run()
+    if (upd.changes === 0) throw { code: 'ILLEGAL_TRANSITION' }
+    tx
+      .insert(movements)
+      .values({
+        deviceId,
+        eventType: 'disposed',
+        fromEmployeeId: row?.currentEmployeeId ?? null,
+        toEmployeeId: null,
+        comment: commentOf(event),
+        occurredAt: occurredOf(event),
+      })
+      .run()
+  })
+}
+
 // Вернуть всю технику (D-07, RESEARCH C3): one transaction, one returned
 // event PER device. Any mid-flight failure rolls back every event and every
 // projection — the action's error copy promises exactly that. Works for

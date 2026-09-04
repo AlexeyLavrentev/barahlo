@@ -1,25 +1,33 @@
 #!/usr/bin/env node
-// End-to-end smoke for the custody tracer slice (04-01).
-// Proves the auth perimeter AND the custody render path on a production build:
+// End-to-end smoke for the custody tracer slice (04-01) + repair/dispose
+// matrix (04-02). Proves the auth perimeter AND the custody render path on a
+// production build:
 //   1. temp SQLite DB ← full migration 0000 ← probe employees + devices:
 //      in_stock device (empty timeline), assigned device (one seeded
-//      «Выдача» event), a second empty employee (empty «Техника»)
+//      «Выдача» event), repair device (seeded «В ремонт» event), disposed
+//      device (seeded «Списание» event with the reason), a second empty
+//      employee (empty «Техника»)
 //   2. `next start` on :3116 with DATABASE_PATH + AUTH_SECRET
 //   3. GET /devices/{id} WITHOUT cookie → 307, Location /login (perimeter)
 //   4. mint a session cookie (same jose HS256 scheme as lib/session.ts)
-//   5. in_stock card  → 200: «Выдать» + data-device-assign-id; NO «Принять»/
-//      «Передать»; timeline empty state (04-UI-SPEC copy)
-//   6. assigned card  → 200: «Принять»/«Передать» + data-attrs; «Выдать»
-//      ABSENT (D-08); timeline renders «Выдача» with the holder's name
-//   7. employee cards → issued list (model, mono serial, «выдано», count,
-//      «Вернуть всю технику») and the empty variant («Пока ничего не выдано»,
-//      no return-all button)
-//   8. 404 matrix on garbage device ids (unchanged (card) contract)
+//   5. in_stock card  → 200: «Выдать»+«В ремонт»+«Списать» + data-attrs; NO
+//      «Принять»/«Передать»/«Из ремонта»; timeline empty state
+//   6. assigned card  → 200: «Принять»/«Передать»/«В ремонт»/«Списать»;
+//      «Выдать» ABSENT (D-08); timeline renders «Выдача» with holder's name
+//   7. repair card    → 200: «Из ремонта» (accent) + «Списать»; no other
+//      custody buttons; timeline renders the «В ремонт» event
+//   8. disposed card  → 200 VIEW-ONLY: no custody buttons, no
+//      «Редактировать»; «Списано» pill (bg-destructive/10); timeline shows
+//      «Списание» with the reason (D-03)
+//   9. employee cards → issued list (model, mono serial, «выдано», count,
+//      «Вернуть всю технику») and the empty variant («Пока ничего не
+//      выдано», no return-all button)
+//  10. 404 matrix on garbage device ids (unchanged (card) contract)
 // Custody state transitions themselves are covered by the vitest suite
-// (tests/movements-queries.test.ts: guards, atomicity, timeline order) and by
-// UAT (interactive dialogs); the smoke pins the rendered matrix and routes.
-// Any assertion failure exits 1 with a readable message; the server process
-// and the temp directory are always cleaned up.
+// (tests/movements-queries.test.ts: guards, atomicity, timeline order,
+// disposed finality) and by UAT (interactive dialogs); the smoke pins the
+// rendered matrix and routes. Any assertion failure exits 1 with a readable
+// message; the server process and the temp directory are always cleaned up.
 
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
@@ -94,6 +102,12 @@ try {
   const heldId = Number(
     insertDevice.run('Смок Ноут Рука', 'SMOKE-CUST-2', 'SMOKE-CUST-2').lastInsertRowid,
   )
+  const repairId = Number(
+    insertDevice.run('Смок Ноут Ремонт', 'SMOKE-CUST-3', 'SMOKE-CUST-3').lastInsertRowid,
+  )
+  const disposedId = Number(
+    insertDevice.run('Смок Ноут Списан', 'SMOKE-CUST-4', 'SMOKE-CUST-4').lastInsertRowid,
+  )
 
   // Assign the second device to the holder the way the assign action's
   // transaction would: projection + one «Выдача» event, backdated a day.
@@ -108,6 +122,25 @@ try {
        VALUES (?, 'assigned', NULL, ?, 'Смок акт', unixepoch() - 86400, unixepoch())`,
     )
     .run(heldId, holder.id)
+
+  // Repair device (04-02): status repair + one seeded «В ремонт» event.
+  sqlite.prepare("UPDATE devices SET status = 'repair' WHERE id = ?").run(repairId)
+  sqlite
+    .prepare(
+      `INSERT INTO movements (device_id, event_type, from_employee_id, to_employee_id, comment, occurred_at, created_at)
+       VALUES (?, 'to_repair', NULL, NULL, 'Смок в ремонт', unixepoch() - 3600, unixepoch())`,
+    )
+    .run(repairId)
+
+  // Disposed device (04-02): terminal status + a «Списание» event whose
+  // comment IS the обязательная причина (D-03).
+  sqlite.prepare("UPDATE devices SET status = 'disposed' WHERE id = ?").run(disposedId)
+  sqlite
+    .prepare(
+      `INSERT INTO movements (device_id, event_type, from_employee_id, to_employee_id, comment, occurred_at, created_at)
+       VALUES (?, 'disposed', NULL, NULL, 'Смок причина списания', unixepoch() - 1800, unixepoch())`,
+    )
+    .run(disposedId)
   sqlite.close()
 
   const holderId = Number(holder.id)
@@ -184,6 +217,10 @@ try {
     'История появится после первого действия с устройством.',
     'Выдать',
     'data-device-assign-id=',
+    'В ремонт',
+    'data-device-to-repair-id=',
+    'Списать',
+    'data-device-dispose-id=',
   ]
   for (const needle of stockNeedles) {
     if (!stockHtml.includes(needle)) {
@@ -192,6 +229,14 @@ try {
   }
   if (stockHtml.includes('Принять') || stockHtml.includes('Передать')) {
     throw new Error(`/devices/${stockId} (in_stock): лишние «Принять»/«Передать» в HTML`)
+  }
+  if (stockHtml.includes('Из ремонта') || stockHtml.includes('data-device-from-repair-id=')) {
+    throw new Error(`/devices/${stockId} (in_stock): лишняя кнопка «Из ремонта» в HTML`)
+  }
+  // Red is spent only on the disposed view (and the closed dispose dialog):
+  // a live in_stock card carries no destructive fill at all.
+  if (stockHtml.includes('bg-destructive')) {
+    throw new Error(`/devices/${stockId} (in_stock): красная заливка bg-destructive вне контекста списания`)
   }
   if (stockHtml.includes('Вернуть всю технику')) {
     throw new Error(`/devices/${stockId} (in_stock): кнопка «Вернуть всю технику» не на карточке сотрудника`)
@@ -208,6 +253,10 @@ try {
     'Смок Ноут Рука',
     'data-device-accept-id=',
     'data-device-transfer-id=',
+    'В ремонт',
+    'data-device-to-repair-id=',
+    'Списать',
+    'data-device-dispose-id=',
     'История перемещений',
     'Выдача',
     'Смок Хранитель',
@@ -220,6 +269,80 @@ try {
   }
   if (heldHtml.includes('Выдать') || heldHtml.includes('data-device-assign-id=')) {
     throw new Error(`/devices/${heldId} (assigned): D-08 нарушен — «Выдать» присутствует в HTML`)
+  }
+  if (heldHtml.includes('Из ремонта') || heldHtml.includes('data-device-from-repair-id=')) {
+    throw new Error(`/devices/${heldId} (assigned): лишняя кнопка «Из ремонта» в HTML`)
+  }
+
+  // 8b. repair card (04-02): «Из ремонта» (the ONE accent button of the
+  //     status) + «Списать»; no Выдать/Принять/Передать/В ремонт buttons;
+  //     the seeded «В ремонт» event renders on the timeline.
+  const repairCard = await fetch(`${BASE}/devices/${repairId}`, { headers: cookieHeaders })
+  if (repairCard.status !== 200) {
+    throw new Error(`/devices/${repairId} с cookie: ожидался 200, получен ${repairCard.status}`)
+  }
+  const repairHtml = await repairCard.text()
+  const repairNeedles = [
+    'Смок Ноут Ремонт',
+    'Из ремонта',
+    'data-device-from-repair-id=',
+    'Списать',
+    'data-device-dispose-id=',
+    'История перемещений',
+    'В ремонт',
+    'Смок в ремонт',
+  ]
+  for (const needle of repairNeedles) {
+    if (!repairHtml.includes(needle)) {
+      throw new Error(`/devices/${repairId} (repair): «${needle}» нет в HTML`)
+    }
+  }
+  for (const absent of [
+    'data-device-assign-id=',
+    'data-device-accept-id=',
+    'data-device-transfer-id=',
+    'data-device-to-repair-id=',
+  ]) {
+    if (repairHtml.includes(absent)) {
+      throw new Error(`/devices/${repairId} (repair): лишняя кнопка ${absent} в HTML`)
+    }
+  }
+
+  // 8c. disposed card (04-02, D-03): VIEW-ONLY — 200 without any action
+  //     buttons («Редактировать» included), «Списано» pill tinted red, the
+  //     «Списание» event with its причина stays readable.
+  const disposedCard = await fetch(`${BASE}/devices/${disposedId}`, { headers: cookieHeaders })
+  if (disposedCard.status !== 200) {
+    throw new Error(`/devices/${disposedId} с cookie: ожидался 200, получен ${disposedCard.status}`)
+  }
+  const disposedHtml = await disposedCard.text()
+  const disposedNeedles = [
+    'Смок Ноут Списан',
+    'Списано',
+    'bg-destructive/10',
+    'История перемещений',
+    'Списание',
+    'Смок причина списания',
+    'Закупка',
+  ]
+  for (const needle of disposedNeedles) {
+    if (!disposedHtml.includes(needle)) {
+      throw new Error(`/devices/${disposedId} (disposed): «${needle}» нет в HTML`)
+    }
+  }
+  for (const absent of [
+    'data-device-assign-id=',
+    'data-device-accept-id=',
+    'data-device-transfer-id=',
+    'data-device-to-repair-id=',
+    'data-device-from-repair-id=',
+    'data-device-dispose-id=',
+    'Редактировать',
+    'Списать',
+  ]) {
+    if (disposedHtml.includes(absent)) {
+      throw new Error(`/devices/${disposedId} (disposed): D-03 нарушен — «${absent}» присутствует в HTML`)
+    }
   }
 
   // 9. Employee cards: holder sees the issued list + return-all; the empty
@@ -265,7 +388,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; in_stock-карточка: «Выдать» + пустой таймлайн, без «Принять»/«Передать»; assigned-карточка: «Принять»/«Передать» + событие «Выдача», D-08 («Выдать» нет); карточка сотрудника: выданный список + «выдано» + «1 устройство» + «Вернуть всю технику»; пустая карточка: «Пока ничего не выдано» без кнопки; 404 на /devices/abc',
+    'SMOKE OK: 307 → /login без cookie; in_stock: «Выдать»·«В ремонт»·«Списать» + пустой таймлайн; assigned: «Принять»·«Передать»·«В ремонт»·«Списать» + «Выдача», D-08; repair: «Из ремонта»·«Списать» + событие «В ремонт»; disposed view-only: без кнопок и «Редактировать», «Списано»-пилюля bg-destructive/10, «Списание» с причиной; карточка сотрудника: выданный список + «Вернуть всю технику»; пустая карточка без кнопки; 404 на /devices/abc',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

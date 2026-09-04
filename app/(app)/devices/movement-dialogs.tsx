@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Combobox,
   ComboboxCollection,
@@ -27,6 +28,7 @@ import type { EmployeeOption } from '@/db/queries/movements'
 import {
   acceptDeviceAction,
   assignDeviceAction,
+  disposeDeviceAction,
   returnFromRepairDeviceAction,
   sendToRepairDeviceAction,
   transferDeviceAction,
@@ -498,6 +500,93 @@ export function RepairDialog({
           primaryLabel={toRepair ? 'В ремонт' : 'Из ремонта'}
           onDone={close}
         />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Списать (→ disposed, ФИНАЛЬНО — D-03) ──────────────────────────────────
+
+function DisposeDialogForm({
+  deviceId,
+  onDone,
+}: {
+  deviceId: number
+  onDone: () => void
+}) {
+  const [state, formAction, pending] = useActionState(disposeDeviceAction, {})
+  useCloseOnOk(state, onDone)
+  const reasonError = state.fieldErrors?.comment
+  return (
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="deviceId" value={deviceId} />
+      {/* Finality warning (14, secondary) above the fields — copy table. */}
+      <p className={HINT_CLASS}>
+        Списание финально: устройство останется в базе только для просмотра,
+        история сохранится.
+      </p>
+      {/* Причина списания IS the event comment — обязательна (D-03). */}
+      <div className="space-y-2">
+        <Label htmlFor="dispose-comment">Причина списания</Label>
+        <Textarea
+          id="dispose-comment"
+          name="comment"
+          required
+          maxLength={500}
+          rows={3}
+          placeholder="Например: сгорела после скачка питания"
+          defaultValue={state.values?.comment}
+          className="px-3 text-base md:text-base"
+          aria-invalid={reasonError ? true : undefined}
+        />
+        {reasonError ? <p className={ERROR_CLASS}>{reasonError}</p> : null}
+      </div>
+      <OccurredAtField
+        id="dispose-occurredAt"
+        echoValue={state.values?.occurredAt}
+        error={state.fieldErrors?.occurredAt}
+      />
+      {state.error ? (
+        <p className={ERROR_CLASS} role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      <DialogFooter>
+        {/* Mirrored negative on purpose: the irreversible action gets the
+            deliberate dismissal (04-UI-SPEC dialogs table). */}
+        <DialogClose render={<Button variant="secondary" />}>
+          Не списывать
+        </DialogClose>
+        {/* The ONE red solid fill in the entire UI (D-03, color table):
+            solid #D70015, white 14/600 text, slightly darker on hover. */}
+        <Button
+          type="submit"
+          disabled={pending}
+          className="bg-destructive font-semibold text-white hover:bg-destructive/90"
+        >
+          {pending ? 'Списываем…' : 'Списать'}
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+export function DisposeDialog({ deviceId }: { deviceId: number }) {
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      {/* Secondary trigger — the red fill itself lives INSIDE the dialog;
+          the card row keeps its neutral discipline (04-UI-SPEC matrix). */}
+      <DialogTrigger render={<Button variant="secondary" size="xl" data-device-dispose-id={deviceId} />}>
+        Списать
+      </DialogTrigger>
+      <DialogContent className="max-w-md p-6">
+        <DialogHeader>
+          <DialogTitle>Списать устройство</DialogTitle>
+        </DialogHeader>
+        {/* Portal-mounted: WR-01 clean state per dialog session. */}
+        <DisposeDialogForm deviceId={deviceId} onDone={close} />
       </DialogContent>
     </Dialog>
   )
