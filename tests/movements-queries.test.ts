@@ -281,15 +281,17 @@ describe('sendToRepair — в ремонт (D-04, plan 04-02)', () => {
     expect(row.status).toBe('repair')
     expect(row.current_employee_id).toBeNull()
     const events = rawMovements(dev)
-    expect(events).toHaveLength(2)
+    // [assigned, returned (auto-accept), to_repair]
+    expect(events).toHaveLength(3)
     // The auto-accept is a real returned event; the to_repair event follows
     // it and records the handover «от держателя» in its from slot.
-    expect(events[0].event_type).toBe('returned')
-    expect(events[0].from_employee_id).toBe(emp.id)
-    expect(events[0].to_employee_id).toBeNull()
-    expect(events[1].event_type).toBe('to_repair')
+    expect(events[0].event_type).toBe('assigned')
+    expect(events[1].event_type).toBe('returned')
     expect(events[1].from_employee_id).toBe(emp.id)
     expect(events[1].to_employee_id).toBeNull()
+    expect(events[2].event_type).toBe('to_repair')
+    expect(events[2].from_employee_id).toBe(emp.id)
+    expect(events[2].to_employee_id).toBeNull()
   })
 
   it('rejects repair→repair and disposed→repair with ZERO side effects', () => {
@@ -313,7 +315,13 @@ describe('sendToRepair — в ремонт (D-04, plan 04-02)', () => {
     assignDevice(dev, emp.id)
     const yesterday = daysAgo(1)
     sendToRepair(dev, { occurredAt: yesterday, comment: 'Акт 9' })
-    for (const event of rawMovements(dev)) {
+    // The repair-path events (returned + to_repair) carry the backdated date;
+    // the initial assigned event keeps its own «now».
+    const repairEvents = rawMovements(dev).filter((e) =>
+      ['returned', 'to_repair'].includes(e.event_type),
+    )
+    expect(repairEvents).toHaveLength(2)
+    for (const event of repairEvents) {
       expect(event.occurred_at).toBe(Math.floor(yesterday.getTime() / 1000))
       expect(event.comment).toBe('Акт 9')
     }
@@ -451,8 +459,10 @@ describe('movement schemas — whitelist + D-01 bounds', () => {
     // Time-of-day is «now» (±1h tolerance against an hour-boundary race)
     expect(Math.abs(back.getHours() - after.getHours())).toBeLessThanOrEqual(1)
     expect(back.getTime()).toBeLessThan(before.getTime())
-    expect(occurredAtFromDate(undefined).getTime()).toBeLessThanOrEqual(
-      after.getTime(),
+    // No date at all = now (≥ the captured `before`; comparing against a
+    // fresh capture would race the millisecond clock).
+    expect(occurredAtFromDate(undefined).getTime()).toBeGreaterThanOrEqual(
+      before.getTime(),
     )
   })
 })

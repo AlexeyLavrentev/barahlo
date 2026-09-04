@@ -90,6 +90,15 @@ export const acceptSchema = z.strictObject({
   comment: commentSchema.optional(),
 })
 
+// В ремонт / Из ремонта (D-04) — no person fields either: the holder of an
+// assigned device is auto-accepted by the transaction itself (returned
+// event), never chosen in a form. Strictness rejects an injected employeeId.
+export const repairSchema = z.strictObject({
+  deviceId: z.coerce.number().int().positive(),
+  occurredAt: occurredAtSchema.optional(),
+  comment: commentSchema.optional(),
+})
+
 // Передать — adjacency: получатель ≠ текущий держатель. The current holder id
 // arrives as an ARGUMENT read from the DB row (never from the payload); the
 // device-status guard itself lives in the transaction (C1) — this refine is
@@ -112,4 +121,5 @@ export const movementSchemas = {
   assign: assignSchema,
   accept: acceptSchema,
   transfer: transferSchema,
+  repair: repairSchema,
 }

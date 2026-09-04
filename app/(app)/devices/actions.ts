@@ -13,6 +13,8 @@ import {
   acceptDevice,
   assignDevice,
   getDeviceHolder,
+  returnFromRepair,
+  sendToRepair,
   transferDevice,
 } from '@/db/queries/movements'
 import {
@@ -303,6 +305,8 @@ export async function updateDeviceAction(
 const ASSIGN_ERROR = 'Не удалось выдать. Попробуйте ещё раз.'
 const ACCEPT_ERROR = 'Не удалось принять. Попробуйте ещё раз.'
 const TRANSFER_ERROR = 'Не удалось передать. Попробуйте ещё раз.'
+const TO_REPAIR_ERROR = 'Не удалось отправить в ремонт. Попробуйте ещё раз.'
+const FROM_REPAIR_ERROR = 'Не удалось вернуть из ремонта. Попробуйте ещё раз.'
 
 export type MovementFieldErrors = {
   employeeId?: string
@@ -442,6 +446,56 @@ export async function transferDeviceAction(
     })
   } catch {
     return { error: TRANSFER_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// В ремонт (D-04): the holder of an assigned device is auto-accepted inside
+// the transaction (returned + to_repair in one tx) — the form carries no
+// person field, so a crafted employeeId dies on the strict whitelist.
+export async function sendToRepairDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.repair.safeParse(movementPayload(formData, false))
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, TO_REPAIR_ERROR), values }
+  }
+  try {
+    sendToRepair(parsed.data.deviceId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    // ILLEGAL_TRANSITION — a stale UI or a crafted POST; the per-action copy
+    // of the UI-SPEC table, never the internal detail (V7).
+    return { error: TO_REPAIR_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// Из ремонта (D-04): repair → in_stock, one from_repair event.
+export async function returnFromRepairDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.repair.safeParse(movementPayload(formData, false))
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, FROM_REPAIR_ERROR), values }
+  }
+  try {
+    returnFromRepair(parsed.data.deviceId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    return { error: FROM_REPAIR_ERROR, values }
   }
   refresh()
   return { ok: true }

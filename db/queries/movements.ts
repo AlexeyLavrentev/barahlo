@@ -183,6 +183,84 @@ export function transferDevice(
   })
 }
 
+// В ремонт (D-04, RESEARCH C2): in_stock|assigned → repair, holder cleared.
+// A holder is auto-ACCEPTED inside the same tx — a real returned event — and
+// the to_repair event records the handover «от держателя» in its from slot.
+// The conditional UPDATE with the two-status precondition is the guard: from
+// repair/disposed nothing is written at all (RESEARCH C1 — .changes decides).
+export function sendToRepair(deviceId: number, event: EventInput = {}): void {
+  db.transaction((tx) => {
+    const row = tx
+      .select({ currentEmployeeId: devices.currentEmployeeId })
+      .from(devices)
+      .where(eq(devices.id, deviceId))
+      .get()
+    const upd = tx
+      .update(devices)
+      .set({ status: 'repair', currentEmployeeId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(devices.id, deviceId),
+          inArray(devices.status, ['in_stock', 'assigned']),
+        ),
+      )
+      .run()
+    if (upd.changes === 0) throw { code: 'ILLEGAL_TRANSITION' }
+    const holderId = row?.currentEmployeeId ?? null
+    if (holderId !== null) {
+      tx
+        .insert(movements)
+        .values({
+          deviceId,
+          eventType: 'returned',
+          fromEmployeeId: holderId,
+          toEmployeeId: null,
+          comment: commentOf(event),
+          occurredAt: occurredOf(event),
+        })
+        .run()
+    }
+    tx
+      .insert(movements)
+      .values({
+        deviceId,
+        eventType: 'to_repair',
+        fromEmployeeId: holderId,
+        toEmployeeId: null,
+        comment: commentOf(event),
+        occurredAt: occurredOf(event),
+      })
+      .run()
+  })
+}
+
+// Из ремонта (D-04): repair → in_stock. Nobody hands the device over, so the
+// from_repair event carries no person slots (04-UI-SPEC timeline vocabulary).
+export function returnFromRepair(
+  deviceId: number,
+  event: EventInput = {},
+): void {
+  db.transaction((tx) => {
+    const upd = tx
+      .update(devices)
+      .set({ status: 'in_stock', currentEmployeeId: null, updatedAt: new Date() })
+      .where(and(eq(devices.id, deviceId), eq(devices.status, 'repair')))
+      .run()
+    if (upd.changes === 0) throw { code: 'ILLEGAL_TRANSITION' }
+    tx
+      .insert(movements)
+      .values({
+        deviceId,
+        eventType: 'from_repair',
+        fromEmployeeId: null,
+        toEmployeeId: null,
+        comment: commentOf(event),
+        occurredAt: occurredOf(event),
+      })
+      .run()
+  })
+}
+
 // Вернуть всю технику (D-07, RESEARCH C3): one transaction, one returned
 // event PER device. Any mid-flight failure rolls back every event and every
 // projection — the action's error copy promises exactly that. Works for

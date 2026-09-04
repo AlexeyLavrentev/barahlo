@@ -27,6 +27,8 @@ import type { EmployeeOption } from '@/db/queries/movements'
 import {
   acceptDeviceAction,
   assignDeviceAction,
+  returnFromRepairDeviceAction,
+  sendToRepairDeviceAction,
   transferDeviceAction,
   type MovementFormState,
 } from './actions'
@@ -393,6 +395,109 @@ export function TransferDialog({
           Сейчас у: {holderName ?? '—'}
         </p>
         <TransferDialogForm deviceId={deviceId} employees={employees} onDone={close} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── В ремонт / Из ремонта (D-04) ───────────────────────────────────────────
+
+// Shared form of both repair directions: the only difference is the server
+// action, the hint and the pending copy (04-UI-SPEC dialogs table).
+function RepairDialogForm({
+  deviceId,
+  idPrefix,
+  action,
+  hint,
+  pendingCopy,
+  primaryLabel,
+  onDone,
+}: {
+  deviceId: number
+  idPrefix: string
+  action: (prev: unknown, formData: FormData) => Promise<MovementFormState>
+  hint: string | null
+  pendingCopy: string
+  primaryLabel: string
+  onDone: () => void
+}) {
+  const [state, formAction, pending] = useActionState(action, {})
+  useCloseOnOk(state, onDone)
+  return (
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="deviceId" value={deviceId} />
+      {hint ? <p className={HINT_CLASS}>{hint}</p> : null}
+      <OccurredAtField
+        id={`${idPrefix}-occurredAt`}
+        echoValue={state.values?.occurredAt}
+        error={state.fieldErrors?.occurredAt}
+      />
+      <CommentField id={`${idPrefix}-comment`} echoValue={state.values?.comment} />
+      {state.error ? (
+        <p className={ERROR_CLASS} role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      <DialogActions
+        pendingCopy={pendingCopy}
+        label={primaryLabel}
+        pending={pending}
+      />
+    </form>
+  )
+}
+
+export function RepairDialog({
+  deviceId,
+  direction,
+  holderName,
+}: {
+  deviceId: number
+  direction: 'to_repair' | 'from_repair'
+  holderName?: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  // «В ремонт» is a secondary trigger everywhere it appears; «Из ремонта» is
+  // the repair card's ONE accent button — the forward action of the status
+  // (04-UI-SPEC accent rule #2).
+  const toRepair = direction === 'to_repair'
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <Button
+            variant={toRepair ? 'secondary' : 'default'}
+            size="xl"
+            data-device-to-repair-id={toRepair ? deviceId : undefined}
+            data-device-from-repair-id={toRepair ? undefined : deviceId}
+          />
+        }
+      >
+        {toRepair ? 'В ремонт' : 'Из ремонта'}
+      </DialogTrigger>
+      <DialogContent className="max-w-md p-6">
+        <DialogHeader>
+          <DialogTitle>
+            {toRepair ? 'Отправить в ремонт' : 'Вернуть из ремонта'}
+          </DialogTitle>
+        </DialogHeader>
+        {/* Portal-mounted: WR-01 clean state per dialog session. */}
+        <RepairDialogForm
+          deviceId={deviceId}
+          idPrefix={toRepair ? 'to-repair' : 'from-repair'}
+          action={toRepair ? sendToRepairDeviceAction : returnFromRepairDeviceAction}
+          hint={
+            toRepair
+              ? holderName
+                ? `Устройство будет автоматически принято у ${holderName}.`
+                : null
+              : 'Устройство вернётся на склад.'
+          }
+          pendingCopy={toRepair ? 'Отправляем…' : 'Возвращаем…'}
+          primaryLabel={toRepair ? 'В ремонт' : 'Из ремонта'}
+          onDone={close}
+        />
       </DialogContent>
     </Dialog>
   )
