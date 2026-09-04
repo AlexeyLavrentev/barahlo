@@ -18,6 +18,7 @@ const queries = await import('@/db/queries/devices')
 const employeeQueries = await import('@/db/queries/employees')
 const { createDevice, updateDevice, getDevice, listDevices } = queries
 const { createEmployee } = employeeQueries
+const { addDaysUtc, displayTodayUtc } = await import('@/lib/warranty')
 
 afterAll(() => {
   db.$client.close()
@@ -258,6 +259,90 @@ describe('listDevices — filter, clamp, RU sort (D-05, REG-01)', () => {
       .filter((r) => r.model.endsWith('Экран'))
       .map((r) => r.model)
     expect(names).toEqual(['Анна Экран', 'Анна Экран', 'Ежов Экран', 'Ёлка Экран'])
+  })
+})
+
+describe('listDevices — warranty filters (WAR-01, edge 9 filter side)', () => {
+  // The queries module computes «today» internally (displayTodayUtc against
+  // the real clock), so fixtures seed RELATIVE to that same computed day.
+  const today = displayTodayUtc()
+  const W_MODEL = 'Гарантийник Окно'
+
+  function seedWarranty(serial: string, warrantyUntil: Date | null): number {
+    return createDevice({
+      typeKey: 'laptop',
+      ...base,
+      model: W_MODEL,
+      serialNumber: serial,
+      warrantyUntil,
+    })
+  }
+
+  const wToday = seedWarranty('war-today', today)
+  const wIn30 = seedWarranty('war-in30', addDaysUtc(today, 30))
+  const wIn60 = seedWarranty('war-in60', addDaysUtc(today, 60))
+  const wIn61 = seedWarranty('war-in61', addDaysUtc(today, 61))
+  const wPast = seedWarranty('war-past', addDaysUtc(today, -1))
+  const wNone = seedWarranty('war-none', null)
+
+  function serialsOf(warranty: 'w30' | 'w60' | 'expired'): string[] {
+    return listDevices({
+      type: 'all',
+      page: 1,
+      pageSize: 1000,
+      filters: { warranty },
+    })
+      .rows.filter((r) => r.model === W_MODEL)
+      .map((r) => r.serialNumber)
+      .sort()
+  }
+
+  it('«Истекает ≤ 60 дней» returns exactly the inclusive warn band (day 0/30/60)', () => {
+    expect(serialsOf('w60')).toEqual(['war-in30', 'war-in60', 'war-today'])
+  })
+
+  it('«Истекает ≤ 30 дней» is the active subset of the 60-day window', () => {
+    expect(serialsOf('w30')).toEqual(['war-in30', 'war-today'])
+  })
+
+  it('«Истекла» returns only the past, non-null rows (wu < today)', () => {
+    expect(serialsOf('expired')).toEqual(['war-past'])
+  })
+
+  it('null warranty matches NO warranty filter (edge 9)', () => {
+    for (const w of ['w30', 'w60', 'expired'] as const) {
+      expect(serialsOf(w)).not.toContain('war-none')
+    }
+    expect(wNone).toBeGreaterThan(0)
+    expect(wIn61).toBeGreaterThan(0) // fixtures exist; day 61 sits outside both windows
+  })
+
+  it('warranty composes with the search predicate (edge 6)', () => {
+    const rows = listDevices({
+      type: 'all',
+      page: 1,
+      pageSize: 1000,
+      filters: { q: 'war-in60', warranty: 'w60' },
+    }).rows
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.serialNumber).toBe('war-in60')
+  })
+
+  it('the warranty term rides the ONE shared where — count matches rows', () => {
+    const result = listDevices({
+      type: 'all',
+      page: 1,
+      pageSize: 2,
+      filters: { warranty: 'w60' },
+    })
+    const walked = new Set<string>()
+    for (let p = 1; p <= result.pages; p++) {
+      for (const row of listDevices({ type: 'all', page: p, pageSize: 2, filters: { warranty: 'w60' } }).rows) {
+        walked.add(`${row.model}/${row.serialNumber}`)
+      }
+    }
+    expect(walked.size).toBe(result.total)
+    expect(wToday).toBeGreaterThan(0)
   })
 })
 

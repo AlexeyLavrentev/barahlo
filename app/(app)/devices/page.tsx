@@ -11,8 +11,7 @@ import {
 } from '@/lib/device-schema'
 import { pluralDevices } from '@/lib/ru'
 import { DeviceDialog } from './device-dialog'
-import { DeviceTypeFilter } from './type-filter'
-import { DeviceSearchBox } from './search-box'
+import { FilterBar } from './filter-bar'
 import { buildDevicesQuery, parseDevicesSearchParams } from './query-params'
 
 export const metadata: Metadata = {
@@ -55,9 +54,11 @@ export default async function DevicesPage({
     pageSize: PAGE_SIZE,
     filters: listFilters,
   })
-  // D-05: an active search renames the counter to «Найдено: …»; without it
-  // the phase-3 counter is unchanged (plan 02 widens this to all filters).
-  const searching = filters.q !== ''
+  // D-05: any active dimension renames the counter to «Найдено: …»; without
+  // one the phase-3 counter is unchanged. Trigger set grows with the phase —
+  // search + warranty now, the remaining filters in plan-02 Task 3 (type-only
+  // already scoped the phase-3 count).
+  const searching = filters.q !== '' || filters.warranty !== 'all'
 
   return (
     <section>
@@ -76,20 +77,18 @@ export default async function DevicesPage({
         <DeviceDialog label="Добавить устройство" typeConfigs={DEVICE_TYPES} />
       </div>
 
-      {/* Filter row (D-12): one visible bar — plan 02 grows it into
-          FilterBar. The search island keeps the current list mounted through
-          the server swap (startTransition, no skeleton flash per keystroke);
-          the type filter keeps its full-query-string push beside it. */}
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        <DeviceSearchBox q={filters.q} current={filters} />
-        <DeviceTypeFilter current={filters.type} />
-      </div>
+      {/* Filter bar (D-12): one visible bar — the server composition lives
+          in FilterBar (search + type + warranty now; the remaining filters
+          join in plan-02 Task 3). The search island keeps the current list
+          mounted through the server swap (startTransition, no skeleton flash
+          per keystroke). */}
+      <FilterBar filters={filters} />
 
       {rows.length === 0 ? (
         /* Empty states, copy verbatim from the UI-SPEC copywriting contract,
-           precedence: zero under an active search explains + resets (D-04);
-           zero overall invites the first device; zero under a type filter
-           explains — it never resets. */
+           precedence: zero under an active search or warranty filter explains
+           + resets (D-04); zero overall invites the first device; zero under
+           a type filter explains — it never resets. */
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-hairline">
           {searching ? (
             <>

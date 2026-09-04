@@ -1,7 +1,20 @@
-import { and, asc, count, eq, inArray, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { db } from '@/db'
 import { attachments, devices, employees } from '@/db/schema'
 import { normalizeInventory, normalizeNumber, normalizeSerial } from '@/lib/normalize'
+import { addDaysUtc, displayTodayUtc, WARRANTY_WARN_DAYS } from '@/lib/warranty'
 import type { DeviceStatusKey, DeviceTypeKey } from '@/lib/device-schema'
 
 // Device data-access (REG-01/REG-02). Pure sync functions over the module-level
@@ -136,6 +149,29 @@ function searchPredicate(rawQ: string | undefined) {
   )
 }
 
+// Warranty-window predicate (WAR-01, D-15): boundaries are computed in JS on
+// the DISPLAY_TZ wall clock (displayTodayUtc — the CR-01 recipe) and bound as
+// Date operands on the timestamp-mode column (binds unix seconds,
+// probe-verified). «Истекает ≤ N» is an ACTIVE-ONLY window (today ≤ wu ≤
+// today+N, D-15 separates «истекает» from «истекла»); «Истекла» is wu < today
+// with wu non-null; NULL warranty matches NO warranty filter (null is not
+// «expired» — three-valued SQL would drop it anyway, the isNotNull makes the
+// intent explicit). The ≤ 60 window shares WARRANTY_WARN_DAYS with the future
+// color state — a filter hit can never render green (edge 8).
+function warrantyPredicate(w: DeviceListFilters['warranty']) {
+  if (!w) return undefined
+  const today = displayTodayUtc()
+  if (w === 'expired') {
+    return and(isNotNull(devices.warrantyUntil), lt(devices.warrantyUntil, today))
+  }
+  const days = w === 'w30' ? 30 : WARRANTY_WARN_DAYS
+  return and(
+    isNotNull(devices.warrantyUntil),
+    gte(devices.warrantyUntil, today),
+    lte(devices.warrantyUntil, addDaysUtc(today, days)),
+  )
+}
+
 export function listDevices({
   type,
   page,
@@ -159,6 +195,7 @@ export function listDevices({
   const where = and(
     type === 'all' ? undefined : eq(devices.typeKey, type),
     filters?.q ? searchPredicate(filters.q) : undefined,
+    warrantyPredicate(filters?.warranty),
   )
   const total = db
     .select({ value: count() })
