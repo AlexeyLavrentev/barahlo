@@ -12,21 +12,21 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **REG-01**: User can view device registry filtered by type (ноутбук / монитор / док-станция / периферия) with server-side pagination
 - [x] **REG-02**: User can create a device of one of 4 fixed types; the form shows that type's field set (ноутбук: модель, серийник, инвентарник, RAM ГБ, флаг «RAM апгрейдена», SSD, закупка, поставщик, стоимость, гарантия до, заметки)
 - [x] **REG-03**: User can edit all device fields; per-type field set enforced by the app
-- [ ] **REG-04**: User can set device status: используется / на складе / в ремонте / списано; списанные устройства остаются в базе с историей
-- [ ] **REG-05**: User can attach photos to a device card; thumbnails visible in lists
+- [x] **REG-04**: User can set device status: используется / на складе / в ремонте / списано; списанные устройства остаются в базе с историей
+- [x] **REG-05**: User can attach photos to a device card; thumbnails visible in lists
 
 ### Перемещения
 
-- [ ] **MOVE-01**: User can assign a device to an employee («выдать»)
-- [ ] **MOVE-02**: User can return a device from an employee to stock («принять»)
-- [ ] **MOVE-03**: User can transfer a device from one employee to another («передать»)
-- [ ] **MOVE-04**: Every assign/transfer/return automatically writes an append-only movement event; device timeline shows who, when, from/to — events are not editable or deletable
-- [ ] **MOVE-05**: Device card and employee card always show current holder; status updates in the same action (одна транзакция)
+- [x] **MOVE-01**: User can assign a device to an employee («выдать»)
+- [x] **MOVE-02**: User can return a device from an employee to stock («принять»)
+- [x] **MOVE-03**: User can transfer a device from one employee to another («передать»)
+- [x] **MOVE-04**: Every assign/transfer/return automatically writes an append-only movement event; device timeline shows who, when, from/to — events are not editable or deletable
+- [x] **MOVE-05**: Device card and employee card always show current holder; status updates in the same action (одна транзакция)
 
 ### Сотрудники
 
 - [x] **EMP-01**: User can create and edit employees: имя + отдел
-- [ ] **EMP-02**: User can view an employee card with the list of currently issued devices
+- [x] **EMP-02**: User can view an employee card with the list of currently issued devices
 - [x] **EMP-03**: User can archive an employee (уволен); archived employees keep their movement history
 
 ### Поиск и фильтры
@@ -107,14 +107,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REG-01 | Phase 3 | Complete |
 | REG-02 | Phase 3 | Complete |
 | REG-03 | Phase 3 | Complete |
-| MOVE-01 | Phase 4 | Pending |
-| MOVE-02 | Phase 4 | Pending |
-| MOVE-03 | Phase 4 | Pending |
-| MOVE-04 | Phase 4 | Pending |
-| MOVE-05 | Phase 4 | Pending |
-| REG-04 | Phase 4 | Pending |
-| EMP-02 | Phase 4 | Pending |
-| REG-05 | Phase 4 | Pending |
+| MOVE-01 | Phase 4 | Complete |
+| MOVE-02 | Phase 4 | Complete |
+| MOVE-03 | Phase 4 | Complete |
+| MOVE-04 | Phase 4 | Complete |
+| MOVE-05 | Phase 4 | Complete |
+| REG-04 | Phase 4 | Complete |
+| EMP-02 | Phase 4 | Complete |
+| REG-05 | Phase 4 | Complete |
 | FIND-01 | Phase 5 | Pending |
 | FIND-02 | Phase 5 | Pending |
 | FIND-03 | Phase 5 | Pending |
