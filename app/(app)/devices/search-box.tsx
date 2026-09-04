@@ -17,6 +17,12 @@ import type { DeviceFilters } from './query-params'
 // NOT a <form action> and no server action: React 19 resets uncontrolled
 // forms after EVERY action (4886f6a) — this controlled input lives outside
 // any form, so focus and value survive the server swap.
+//
+// Reconciliation priority (G-5-1): pending local edits win over the URL.
+// The URL is adopted into the input only when the input is clean
+// (value === lastSynced.current); the island's own pushes are recognized by
+// their echo via the inFlight ref and absorbed without clobbering fresher
+// keystrokes.
 export function DeviceSearchBox({
   q,
   current,
@@ -28,11 +34,18 @@ export function DeviceSearchBox({
   const [value, setValue] = useState(q)
   const [, startTransition] = useTransition()
   const mounted = useRef(false)
-  // The last q this island has seen or pushed (CR-01): the reconciliation
-  // anchor. An externally changed q («Сбросить фильтры», Back/Forward, the
-  // server's trimmed echo of a padded push) differs from it → adopt the URL
-  // into the input, never re-push.
+  // The last q the server actually holds (CR-01 reconciliation anchor).
+  // Stamped when a push LEAVES (inside the debounce callback / commitNow),
+  // not when the debounce arms — stamping at arm time kept q !== lastSynced
+  // for the whole arm→echo window (≥300 ms by design), so every keystroke
+  // there looked like an external q change and the old adopt branch
+  // clobbered it (the G-5-1 keystroke loss).
   const lastSynced = useRef(q)
+  // Values we pushed whose echo has not returned yet (G-5-1): a q prop
+  // matching an entry — or its trim, the server normalizes q in
+  // query-params.ts — is our OWN echo and is absorbed silently instead of
+  // being adopted over fresher input. shift-capped to bound stuck entries.
+  const inFlight = useRef<string[]>([])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -41,22 +54,48 @@ export function DeviceSearchBox({
       lastSynced.current = q
       return
     }
-    // q changed behind our back («Сбросить фильтры», Back/Forward, or the
-    // server's trimmed echo of a padded push): adopt it — value===q after
-    // this, so the debounce below stays silent (CR-01).
-    if (q !== lastSynced.current) {
+    // Own echo: q answers a push still tracked by inFlight (exact or
+    // trimmed — the server trims q, query-params.ts; maxLength 100 keeps
+    // the server cap unreachable from the input). Absorb it: drop the
+    // entry, advance lastSynced, and rewrite the input ONLY if it was
+    // untouched since the push — that keeps the trimmed-echo normalization
+    // (push «abc » → input «abc», the CR-01 trailing-space loop stays
+    // dead) while text typed during the flight survives untouched.
+    const echoIdx = inFlight.current.findIndex((p) => q === p || q === p.trim())
+    if (echoIdx !== -1) {
+      const pushed = inFlight.current[echoIdx]
+      inFlight.current.splice(echoIdx, 1)
+      lastSynced.current = q
+      if (value === pushed) setValue(q)
+      if (value === q) return
+      // Input differs from the echo (edited in flight): fall through and
+      // re-arm below so the newer text still pushes. Invariant: this
+      // effect never returns with value !== q and no timer armed — that
+      // is exactly how the old adopt branch lost text forever.
+    } else if (value === lastSynced.current && q !== lastSynced.current) {
+      // Externally changed q with a CLEAN input («Сбросить фильтры»,
+      // Back/Forward): adopt the URL into the input (CR-01) — value===q
+      // after the state update, so the debounce stays silent. A dirty
+      // input (pending local edits) NEVER adopts: a user typing through a
+      // foreign navigation keeps their text — it re-arms below and pushes
+      // (G-5-1). `current` in the push comes fresh from props, so a reset
+      // of OTHER filters still lands.
       lastSynced.current = q
       setValue(q)
       return
     }
-    // Nothing external changed and input matches the URL — no-op skip.
+    // Input already matches the URL — no-op skip (Pitfall 6).
     if (value === q) return
-    // We are initiating: mark the value we are about to push so its echo
-    // (the server trims q — query-params.ts) lands on lastSynced instead of
-    // re-arming this timer forever (the CR-01 trailing-space nav loop).
-    lastSynced.current = value
+    // We are initiating: arm the push. lastSynced and inFlight are stamped
+    // INSIDE the callback — at push time, not arm time — so an older
+    // push's echo landing during a newer arm window is classified as our
+    // own (the branch above) instead of looking external and clobbering
+    // fresher input (the G-5-1 keystroke loss).
     timer.current = setTimeout(() => {
       timer.current = null
+      inFlight.current.push(value)
+      if (inFlight.current.length > 4) inFlight.current.shift()
+      lastSynced.current = value
       startTransition(() =>
         router.replace(buildDevicesQuery({ ...current, q: value }), {
           scroll: false,
@@ -80,6 +119,11 @@ export function DeviceSearchBox({
       timer.current = null
     }
     if (value === q) return
+    // Same push-time stamping as the debounce callback: the echo of this
+    // Enter-push is classified via inFlight as our own and must not roll
+    // back text typed while the navigation is in flight (G-5-1).
+    inFlight.current.push(value)
+    if (inFlight.current.length > 4) inFlight.current.shift()
     lastSynced.current = value // our own push — its echo must not re-push
     startTransition(() =>
       router.replace(buildDevicesQuery({ ...current, q: value }), {
