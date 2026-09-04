@@ -794,6 +794,37 @@ describe('listIssuedByEmployee — issued list (EMP-02, RESEARCH C6)', () => {
   })
 })
 
+describe('listIssuedByEmployee — warrantyUntil widening (WAR-01 site 3, plan 05-03)', () => {
+  it('returns warrantyUntil as a Date per issued row, null when «без гарантии»', () => {
+    const emp = newEmployee('Гарантия Выдана')
+    // A device WITH a warranty: UTC-midnight 12.03.2027 (the stored shape).
+    serialCounter += 1
+    const warranted = createDevice({
+      typeKey: 'laptop',
+      model: 'Гарантия Сроком',
+      serialNumber: `WTY-${String(serialCounter).padStart(5, '0')}`,
+      inventoryNumber: null,
+      purchaseDate: null,
+      purchasePrice: null,
+      supplier: null,
+      warrantyUntil: new Date(Date.UTC(2027, 2, 12)),
+      notes: null,
+    })
+    const bare = newDevice() // newDevice seeds warrantyUntil: null
+    assignDevice(warranted, emp.id)
+    assignDevice(bare, emp.id)
+    const issued = listIssuedByEmployee(emp.id)
+    expect(issued).toHaveLength(2)
+    // The field the D-16 site 3 depends on: the select-widening contract.
+    // A Date round-trips the timestamp column; null stays null (never 0).
+    const withWarranty = issued.find((d) => d.id === warranted)
+    expect(withWarranty?.warrantyUntil).toBeInstanceOf(Date)
+    expect(withWarranty?.warrantyUntil).toEqual(new Date(Date.UTC(2027, 2, 12)))
+    const without = issued.find((d) => d.id === bare)
+    expect(without?.warrantyUntil).toBeNull()
+  })
+})
+
 describe('listActiveEmployees — picker source', () => {
   it('lists active employees only, {id, name} shape', () => {
     const keep = listActiveEmployees().length

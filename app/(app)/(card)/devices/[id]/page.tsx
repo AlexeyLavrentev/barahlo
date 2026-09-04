@@ -22,6 +22,8 @@ import {
   type DeviceDialogDevice,
 } from '@/app/(app)/devices/device-dialog'
 import { DeviceActions } from '@/app/(app)/devices/device-actions'
+import { displayTodayUtc } from '@/lib/warranty'
+import { WarrantyDate } from '@/lib/warranty-date'
 import { PhotoGrid } from './photo-grid'
 import { Timeline } from './timeline'
 // This page lives in the (card) route group: a segment loading.tsx on the
@@ -295,9 +297,16 @@ export default async function DeviceCardPage({
         <FieldRow label="Поставщик">
           <Value value={device.supplier} />
         </FieldRow>
-        {/* No warranty coloring — semantics are WAR-01/Phase 5 (UI-SPEC). */}
+        {/* WAR-01 site 2 (phase 5, D-16): the colored «Гарантия до» value —
+            the label is untouched, the date inherits the card-value role
+            (16/400); «—» (no color) when «без гарантии». The card variant of
+            the ONE WarrantyDate component; today is computed once per render. */}
         <FieldRow label="Гарантия до">
-          <Value value={dateValue(device.warrantyUntil)} />
+          <WarrantyDate
+            value={device.warrantyUntil}
+            today={displayTodayUtc()}
+            variant="card"
+          />
         </FieldRow>
       </FieldGroup>
 

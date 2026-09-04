@@ -31,10 +31,14 @@ export type MovementEventView = {
 
 // One row of the employee card's «Техника» list (EMP-02): the device plus the
 // date of its latest assigned event («выдано {дата}», 04-UI-SPEC Default 14).
+// warrantyUntil rides along for the WAR-01 site-3 color segment (plan 05-03,
+// orchestrator resolution 3) — the component cannot color what the query does
+// not select (Pitfall 9).
 export type IssuedDeviceView = {
   id: number
   model: string
   serialNumber: string
+  warrantyUntil: Date | null
   issuedAt: Date | null
 }
 
@@ -392,6 +396,9 @@ export function listIssuedByEmployee(employeeId: number): IssuedDeviceView[] {
       id: devices.id,
       model: devices.model,
       serialNumber: devices.serialNumber,
+      // WAR-01 site 3 (plan 05-03): the employee card's issued rows carry the
+      // colored «гар. до …» segment — one added select field, no join change.
+      warrantyUntil: devices.warrantyUntil,
     })
     .from(devices)
     .where(

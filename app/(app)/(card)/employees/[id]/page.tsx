@@ -15,6 +15,8 @@ import { EmployeeDialog } from '@/app/(app)/employees/employee-dialog'
 import { ArchiveConfirmDialog } from '@/app/(app)/employees/archive-confirm-dialog'
 import { ReturnAllDialog } from '@/app/(app)/devices/movement-dialogs'
 import { occurredDateFormat, pluralDevices } from '@/lib/ru'
+import { displayTodayUtc } from '@/lib/warranty'
+import { WarrantyDate } from '@/lib/warranty-date'
 
 // The URL id is untyped user input that reaches SQL (T-02-07): it must pass
 // a positive-integer zod check BEFORE any database access — garbage ids 404
@@ -38,6 +40,9 @@ async function unarchiveEmployee(formData: FormData): Promise<void> {
 // (MOVE-05).
 function IssuedSection({ employeeId }: { employeeId: number }) {
   const issued = listIssuedByEmployee(employeeId)
+  // WAR-01 (D-16): ONE calculation for every render site — «today» computed
+  // ONCE per render and passed to each row's WarrantyDate (not per row).
+  const today = displayTodayUtc()
   return (
     <section className="mt-8">
       <div className="flex items-center justify-between">
@@ -79,6 +84,15 @@ function IssuedSection({ employeeId }: { employeeId: number }) {
                         {occurredDateFormat.format(device.issuedAt)}
                       </>
                     ) : null}
+                    {/* WAR-01 site 3: the colored «гар. до …» segment after
+                        «выдано {дата}» — one WarrantyDate; the whole segment
+                        (separator included) disappears when warrantyUntil is
+                        null. Not mono: a date, not an identifier. */}
+                    <WarrantyDate
+                      value={device.warrantyUntil}
+                      today={today}
+                      variant="list"
+                    />
                   </span>
                 </span>
                 <ChevronRight
