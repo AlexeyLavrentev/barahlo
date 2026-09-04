@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 04-custody-photos
 source: [04-VERIFICATION.md]
 started: 2026-09-04
@@ -8,11 +8,7 @@ updated: 2026-09-04
 
 ## Current Test
 
-number: 5
-name: Русский копи-контракт (backstop)
-expected: |
-  все диалоги/таймлайн/фото — русский, формулировки по 04-UI-SPEC
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -35,14 +31,14 @@ result: pass
 
 ### 5. Русский копи-контракт (backstop)
 expected: все диалоги/таймлайн/фото — русский, формулировки по 04-UI-SPEC
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 5
-passed: 4
+passed: 5
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
