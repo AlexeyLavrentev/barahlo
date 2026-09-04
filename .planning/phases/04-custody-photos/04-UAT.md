@@ -8,10 +8,10 @@ updated: 2026-09-04
 
 ## Current Test
 
-number: 4
-name: Фото с телефона (REG-05)
+number: 5
+name: Русский копи-контракт (backstop)
 expected: |
-  с телефона приложить 1–3 фото к устройству — загрузка, миниатюры, лайтбокс, удаление; 9-е фото отвергается русской ошибкой
+  все диалоги/таймлайн/фото — русский, формулировки по 04-UI-SPEC
 awaiting: user response
 
 ## Tests
@@ -31,7 +31,7 @@ result: pass
 
 ### 4. Фото с телефона (REG-05)
 expected: с телефона приложить 1–3 фото к устройству — загрузка, миниатюры, лайтбокс, удаление; 9-е фото отвергается русской ошибкой
-result: [pending]
+result: pass
 
 ### 5. Русский копи-контракт (backstop)
 expected: все диалоги/таймлайн/фото — русский, формулировки по 04-UI-SPEC
@@ -40,9 +40,9 @@ result: [pending]
 ## Summary
 
 total: 5
-passed: 3
+passed: 4
 issues: 0
-pending: 2
+pending: 1
 skipped: 0
 blocked: 0
 
