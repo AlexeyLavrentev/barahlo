@@ -200,8 +200,10 @@ try {
   // 10. Card route (03-02): the probe's card renders 200 with the model and
   //     the field groups of the UI-SPEC card recipe (D-06). Plan 04-01
   //     replaced the history placeholder with the live timeline — the probe
-  //     has no movement events, so the honest empty state renders (the photo
-  //     section stays a placeholder until plan 04-03).
+  //     has no movement events, so the honest empty state renders. Plan 04-03
+  //     replaced the photo placeholder with the photo-grid island — the probe
+  //     has no photos, so the empty grid renders (counter «0 из 8», add tile,
+  //     no lightbox tiles and no «Удалить фото»).
   const card = await fetch(`${BASE}/devices/${probeId}`, {
     headers: cookieHeaders,
     redirect: 'manual',
@@ -219,7 +221,10 @@ try {
     'История перемещений',
     'История появится после первого действия с устройством.',
     'Фото',
-    'Здесь появятся фотографии устройства.',
+    'Фотографий пока нет',
+    'Добавьте до 8 фото — подойдут снимки с телефона.',
+    '0 из 8',
+    'Добавить',
     // Custody matrix on an in_stock card: «Выдать» (accent) is present,
     // «Принять»/«Передать» belong to assigned devices only (D-08).
     'Выдать',
@@ -232,6 +237,14 @@ try {
     if (!cardHtml.includes(needle)) {
       throw new Error(`/devices/${probeId}: «${needle}» нет в HTML карточки`)
     }
+  }
+  // Empty grid: no thumbnails (nothing to open/delete), the placeholder is
+  // gone for good.
+  if (cardHtml.includes('Здесь появятся фотографии устройства.')) {
+    throw new Error(`/devices/${probeId}: старый фото-плейсхолдер всё ещё в HTML`)
+  }
+  if (cardHtml.includes('Удалить фото') || cardHtml.includes('/api/attachments/')) {
+    throw new Error(`/devices/${probeId}: пустая сетка не должна содержать фото-тайлов и запросов к /api/attachments/`)
   }
   // Edit island: the card hands the device (flat snapshot) to the client edit
   // dialog so it opens prefilled (REG-03 edit flow).
@@ -259,7 +272,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + таймлайн-пустое + «Выдать» (D-08) + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + таймлайн-пустое + фото-сетка «Фотографий пока нет»/«0 из 8»/«Добавить» + «Выдать» (D-08) + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

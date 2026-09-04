@@ -140,15 +140,18 @@ export function PhotoGrid({
   const lightboxIndex = photos.findIndex((p) => p.id === lightboxId)
   const lightboxPhoto = lightboxIndex >= 0 ? photos[lightboxIndex] : null
 
+  // Precomputed whole strings: React SSR splits interpolated text nodes with
+  // <!-- --> markers — the smoke asserts these copies byte-exact.
+  const counter = `${photos.length} из ${maxPhotos}`
+  const emptyBody = `Добавьте до ${maxPhotos} фото — подойдут снимки с телефона.`
+
   return (
     <section className="mt-8">
       {/* Header row: «Фото» + counter right (UI-SPEC) — the counter renders
           «0 из 8» on empty cards too. */}
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-semibold tracking-tight text-ink">Фото</h2>
-        <span className="text-sm text-ink-secondary">
-          {photos.length} из {maxPhotos}
-        </span>
+        <span className="text-sm text-ink-secondary">{counter}</span>
       </div>
 
       {/* Grid: 3 cols, 4 from sm; tiles aspect-square object-cover (UI-SPEC
@@ -157,9 +160,7 @@ export function PhotoGrid({
         {photos.length === 0 ? (
           <div className="col-span-2 flex flex-col justify-center">
             <p className="text-base text-ink">Фотографий пока нет</p>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Добавьте до {maxPhotos} фото — подойдут снимки с телефона.
-            </p>
+            <p className="mt-1 text-sm text-ink-secondary">{emptyBody}</p>
           </div>
         ) : (
           photos.map((photo, index) => (

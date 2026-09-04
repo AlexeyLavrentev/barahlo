@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // End-to-end smoke for the custody tracer slice (04-01) + repair/dispose
-// matrix (04-02). Proves the auth perimeter AND the custody render path on a
-// production build:
+// matrix (04-02) + the photo pipeline (04-03). Proves the auth perimeter AND
+// the custody/photo render+route paths on a production build:
 //   1. temp SQLite DB ← full migration 0000 ← probe employees + devices:
 //      in_stock device (empty timeline), assigned device (one seeded
 //      «Выдача» event), repair device (seeded «В ремонт» event), disposed
 //      device (seeded «Списание» event with the reason), a second empty
 //      employee (empty «Техника»)
-//   2. `next start` on :3116 with DATABASE_PATH + AUTH_SECRET
+//   2. `next start` on :3116 with DATABASE_PATH + AUTH_SECRET + UPLOADS_DIR
+//      (inside the temp dir, so disk assertions are possible)
 //   3. GET /devices/{id} WITHOUT cookie → 307, Location /login (perimeter)
 //   4. mint a session cookie (same jose HS256 scheme as lib/session.ts)
 //   5. in_stock card  → 200: «Выдать»+«В ремонт»+«Списать» + data-attrs; NO
@@ -22,7 +23,15 @@
 //   9. employee cards → issued list (model, mono serial, «выдано», count,
 //      «Вернуть всю технику») and the empty variant («Пока ничего не
 //      выдано», no return-all button)
-//  10. 404 matrix on garbage device ids (unchanged (card) contract)
+//  10. photo pipeline (04-03): POST/GET without cookie → 307 perimeter;
+//      upload (sharp-synthesized JPEG via FormData) → 200; thumb/full GET
+//      200 with cookie, image/jpeg + private immutable cache, real image
+//      bytes (sharp re-probe: thumb ≤400px, full 900×700 no-enlargement);
+//      IDOR чужая пара/без ?device → 404; garbage → 415 BAD_IMAGE; 9-е фото
+//      → 409 {code:'CAP'} без файлов; upload на disposed → 409 DISPOSED;
+//      DELETE на disposed-вложении → 409 DISPOSED; DELETE живого фото → 200
+//      и строка/оба файла исчезли
+//  11. 404 matrix on garbage device ids (unchanged (card) contract)
 // Custody state transitions themselves are covered by the vitest suite
 // (tests/movements-queries.test.ts: guards, atomicity, timeline order,
 // disposed finality) and by UAT (interactive dialogs); the smoke pins the
@@ -31,11 +40,20 @@
 
 import { spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { SignJWT } from 'jose'
+import sharp from 'sharp'
 
 const PORT = 3116
 const BASE = `http://127.0.0.1:${PORT}`
@@ -158,7 +176,12 @@ try {
     [join('node_modules', 'next', 'dist', 'bin', 'next'), 'start', '-p', String(PORT)],
     {
       cwd: process.cwd(),
-      env: { ...process.env, DATABASE_PATH: dbPath, AUTH_SECRET: authSecret },
+      env: {
+        ...process.env,
+        DATABASE_PATH: dbPath,
+        AUTH_SECRET: authSecret,
+        UPLOADS_DIR: join(dir, 'uploads'),
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   )
@@ -380,7 +403,206 @@ try {
     throw new Error(`/employees/${emptyId}: кнопка «Вернуть всю технику» видна при нуле выданного`)
   }
 
-  // 10. 404 invariant: garbage device id answers through notFound() with the
+  // 10. Photo pipeline (04-03, D-05/D-06, T-04-08..T-04-11). UPLOADS_DIR
+  //     lives inside the temp dir, so rows AND files are asserted. JPEG
+  //     probes are synthesized with the same sharp the server uses.
+  const uploadsRoot = join(dir, 'uploads')
+  const probeJpeg = await sharp({
+    create: {
+      width: 900,
+      height: 700,
+      channels: 3,
+      background: { r: 40, g: 120, b: 200 },
+    },
+  })
+    .jpeg()
+    .toBuffer()
+
+  const attachmentUrl = (dev, att, variant) =>
+    `${BASE}/api/attachments/${att}?device=${dev}${variant ? `&variant=${variant}` : ''}`
+  const jpegForm = () => {
+    const f = new FormData()
+    f.append('file', new Blob([probeJpeg], { type: 'image/jpeg' }), 'smoke.jpg')
+    return f
+  }
+  const uploadPhoto = (dev) =>
+    fetch(`${BASE}/api/devices/${dev}/photos`, {
+      method: 'POST',
+      headers: cookieHeaders,
+      body: jpegForm(),
+    })
+  const uploadFileCount = (dev) => {
+    try {
+      return readdirSync(join(uploadsRoot, String(dev))).length
+    } catch {
+      return 0
+    }
+  }
+
+  // 10a. Perimeter first: NO cookie → 307 to /login, never a binary answer.
+  const noCookiePost = await fetch(`${BASE}/api/devices/${stockId}/photos`, {
+    method: 'POST',
+    body: jpegForm(),
+    redirect: 'manual',
+  })
+  if (noCookiePost.status !== 307) {
+    throw new Error(`POST фото без cookie: ожидался 307, получен ${noCookiePost.status}`)
+  }
+  const noCookieGet = await fetch(attachmentUrl(stockId, 1), { redirect: 'manual' })
+  if (noCookieGet.status !== 307) {
+    throw new Error(`GET фото без cookie: ожидался 307, получен ${noCookieGet.status}`)
+  }
+
+  // 10b. Upload with cookie → 200 {ok, id}.
+  const up1 = await uploadPhoto(stockId)
+  if (up1.status !== 200) {
+    throw new Error(`POST фото с cookie: ожидался 200, получен ${up1.status}`)
+  }
+  const att1 = Number((await up1.json()).id)
+  if (!Number.isInteger(att1) || att1 <= 0) {
+    throw new Error(`POST фото: в ответе нет id вхождения (${JSON.stringify(await up1.text().catch(() => ''))})`)
+  }
+
+  // 10c. Authorized serving: thumb + full are real JPEGs with the private
+  //      immutable cache; the thumb is ≤400px, the full is 900×700 (no
+  //      enlargement); IDOR — чужая пара и пропавший ?device отвечают 404.
+  const thumbRes = await fetch(attachmentUrl(stockId, att1, 'thumb'), {
+    headers: cookieHeaders,
+  })
+  if (thumbRes.status !== 200) {
+    throw new Error(`GET thumb с cookie: ожидался 200, получен ${thumbRes.status}`)
+  }
+  if (thumbRes.headers.get('content-type') !== 'image/jpeg') {
+    throw new Error('GET thumb: Content-Type не image/jpeg')
+  }
+  const cacheControl = thumbRes.headers.get('cache-control') || ''
+  if (!cacheControl.includes('private') || !cacheControl.includes('immutable')) {
+    throw new Error(`GET thumb: Cache-Control «${cacheControl}» не private+immutable`)
+  }
+  const thumbMeta = await sharp(Buffer.from(await thumbRes.arrayBuffer())).metadata()
+  if (!thumbMeta.width || thumbMeta.width > 400 || !thumbMeta.height) {
+    throw new Error(`GET thumb: миниатюра ${thumbMeta.width}×${thumbMeta.height} — ожидалась ≤400px`)
+  }
+  const fullRes = await fetch(attachmentUrl(stockId, att1, 'full'), {
+    headers: cookieHeaders,
+  })
+  if (fullRes.status !== 200) {
+    throw new Error(`GET full с cookie: ожидался 200, получен ${fullRes.status}`)
+  }
+  const fullMeta = await sharp(Buffer.from(await fullRes.arrayBuffer())).metadata()
+  if (fullMeta.width !== 900 || fullMeta.height !== 700) {
+    throw new Error(`GET full: ${fullMeta.width}×${fullMeta.height} — ожидалось 900×700 (без enlargement)`)
+  }
+  const idorRes = await fetch(attachmentUrl(heldId, att1), { headers: cookieHeaders })
+  if (idorRes.status !== 404) {
+    throw new Error(`IDOR GET (чужая пара): ожидался 404, получен ${idorRes.status}`)
+  }
+  const noDeviceRes = await fetch(`${BASE}/api/attachments/${att1}`, {
+    headers: cookieHeaders,
+  })
+  if (noDeviceRes.status !== 404) {
+    throw new Error(`GET без ?device: ожидался 404, получен ${noDeviceRes.status}`)
+  }
+
+  // 10d. Garbage bytes → 415 BAD_IMAGE (magic-byte gate, not a 500).
+  const badForm = new FormData()
+  badForm.append('file', new Blob([Buffer.from('это не изображение')], { type: 'image/jpeg' }), 'bad.jpg')
+  const badRes = await fetch(`${BASE}/api/devices/${heldId}/photos`, {
+    method: 'POST',
+    headers: cookieHeaders,
+    body: badForm,
+  })
+  if (badRes.status !== 415) {
+    throw new Error(`POST мусора: ожидался 415, получен ${badRes.status}`)
+  }
+  if ((await badRes.json()).code !== 'BAD_IMAGE') {
+    throw new Error('POST мусора: код не BAD_IMAGE')
+  }
+
+  // 10e. Cap (Pitfall 7): the 9th photo → 409 {code:'CAP'} and leaves NO
+  //      files behind; the Russian copy rides the client, the code the wire.
+  let lastAtt = att1
+  for (let i = 0; i < 7; i += 1) {
+    const up = await uploadPhoto(stockId)
+    if (up.status !== 200) {
+      throw new Error(`POST фото №${i + 2} из 8: ожидался 200, получен ${up.status}`)
+    }
+    lastAtt = Number((await up.json()).id)
+  }
+  const filesAtCap = uploadFileCount(stockId) // 8 × (full + thumb) = 16
+  const ninth = await uploadPhoto(stockId)
+  if (ninth.status !== 409) {
+    throw new Error(`9-е фото: ожидался 409, получен ${ninth.status}`)
+  }
+  if ((await ninth.json()).code !== 'CAP') {
+    throw new Error('9-е фото: код не CAP')
+  }
+  if (uploadFileCount(stockId) !== filesAtCap) {
+    throw new Error('9-е фото: отклонённая загрузка оставила файлы на диске')
+  }
+
+  // 10f. Disposed refusals (D-03, T-04-11): upload → 409 DISPOSED; DELETE of
+  //      an attachment that DOES belong to the disposed device → 409
+  //      DISPOSED (the row is seeded directly — uploads can never create it).
+  const disposedUp = await uploadPhoto(disposedId)
+  if (disposedUp.status !== 409 || (await disposedUp.json()).code !== 'DISPOSED') {
+    throw new Error(`POST фото на disposed: ожидался 409 DISPOSED, получен ${disposedUp.status}`)
+  }
+  const seededDir = join(uploadsRoot, String(disposedId))
+  mkdirSync(seededDir, { recursive: true })
+  writeFileSync(join(seededDir, 'disposed.jpg'), Buffer.from('fffff'))
+  writeFileSync(join(seededDir, 'disposed.thumb.jpg'), Buffer.from('fffff'))
+  const seedSqlite = new Database(dbPath)
+  const disposedAttId = Number(
+    seedSqlite
+      .prepare(
+        "INSERT INTO attachments (device_id, file_name, mime_type, byte_size, kind, storage_key, created_at) VALUES (?, 'disposed.jpg', 'image/jpeg', 5, 'photo', ?, unixepoch()) RETURNING id",
+      )
+      .get(disposedId, `${disposedId}/disposed.jpg`).id,
+  )
+  seedSqlite.close()
+  const disposedDel = await fetch(attachmentUrl(disposedId, disposedAttId), {
+    method: 'DELETE',
+    headers: cookieHeaders,
+  })
+  if (disposedDel.status !== 409) {
+    throw new Error(`DELETE фото disposed-устройства: ожидался 409, получен ${disposedDel.status}`)
+  }
+  if ((await disposedDel.json()).code !== 'DISPOSED') {
+    throw new Error('DELETE фото disposed-устройства: код не DISPOSED')
+  }
+  if (!existsSync(join(seededDir, 'disposed.jpg')) || !existsSync(join(seededDir, 'disposed.thumb.jpg'))) {
+    throw new Error('DELETE фото disposed-устройства: файлы удалены вопреки отказу')
+  }
+
+  // 10g. Delete of a live photo → 200, row AND both files are gone.
+  const filesBeforeDelete = uploadFileCount(stockId)
+  const delRes = await fetch(attachmentUrl(stockId, lastAtt), {
+    method: 'DELETE',
+    headers: cookieHeaders,
+  })
+  if (delRes.status !== 200) {
+    throw new Error(`DELETE фото: ожидался 200, получен ${delRes.status}`)
+  }
+  const goneRes = await fetch(attachmentUrl(stockId, lastAtt, 'thumb'), {
+    headers: cookieHeaders,
+  })
+  if (goneRes.status !== 404) {
+    throw new Error(`GET удалённого thumb: ожидался 404, получен ${goneRes.status}`)
+  }
+  if (uploadFileCount(stockId) !== filesBeforeDelete - 2) {
+    throw new Error('DELETE фото: на диске остались full/thumb файлы')
+  }
+  const countSqlite = new Database(dbPath)
+  const stockRows = countSqlite
+    .prepare('SELECT count(*) AS c FROM attachments WHERE device_id = ?')
+    .get(stockId).c
+  countSqlite.close()
+  if (stockRows !== 7) {
+    throw new Error(`DELETE фото: в БД ${stockRows} строк вместо 7`)
+  }
+
+  // 11. 404 invariant: garbage device id answers through notFound() with the
   //     Russian boundary (the (card) contract is untouched by this plan).
   const bad = await fetch(`${BASE}/devices/abc`, { headers: cookieHeaders, redirect: 'manual' })
   if (bad.status !== 404) {
@@ -388,7 +610,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; in_stock: «Выдать»·«В ремонт»·«Списать» + пустой таймлайн; assigned: «Принять»·«Передать»·«В ремонт»·«Списать» + «Выдача», D-08; repair: «Из ремонта»·«Списать» + событие «В ремонт»; disposed view-only: без кнопок и «Редактировать», «Списано»-пилюля bg-destructive/10, «Списание» с причиной; карточка сотрудника: выданный список + «Вернуть всю технику»; пустая карточка без кнопки; 404 на /devices/abc',
+    'SMOKE OK: 307 → /login без cookie; in_stock: «Выдать»·«В ремонт»·«Списать» + пустой таймлайн; assigned: «Принять»·«Передать»·«В ремонт»·«Списать» + «Выдача», D-08; repair: «Из ремонта»·«Списать» + событие «В ремонт»; disposed view-only: без кнопок и «Редактировать», «Списано»-пилюля bg-destructive/10, «Списание» с причиной; карточка сотрудника: выданный список + «Вернуть всю технику»; пустая карточка без кнопки; фото: 307-периметр POST/GET, upload 200 → thumb/full 200 (image/jpeg, private+immutable, thumb ≤400, 900×700 без enlargement), IDOR/без device → 404, мусор → 415 BAD_IMAGE, 9-е фото → 409 CAP без файлов, disposed upload/delete → 409 DISPOSED, delete → 200 и строка+файлы исчезли; 404 на /devices/abc',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
