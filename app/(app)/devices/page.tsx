@@ -118,8 +118,21 @@ export default async function DevicesPage({
                     row.inventoryNumber ?? '—',
                     row.holder ?? '—',
                   ].join(' · ')}
-                  className="flex min-h-11 items-center gap-2 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
+                  className="flex min-h-11 items-center gap-3 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
                 >
+                  {/* REG-05 «thumbnails in lists»: leading cover (first
+                      photo, served by the authorized route) — devices
+                      without photos render no placeholder box, the text
+                      position varies by row (UI-SPEC Defaults #9). */}
+                  {row.coverAttachmentId ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- pre-sized thumb from the auth'd route; no optimizer hop (04-RESEARCH)
+                    <img
+                      src={`/api/attachments/${row.coverAttachmentId}?device=${row.id}&variant=thumb`}
+                      alt=""
+                      loading="lazy"
+                      className="size-10 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : null}
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-base text-ink">

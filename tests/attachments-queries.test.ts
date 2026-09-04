@@ -60,6 +60,11 @@ function newDevice(): number {
     model: 'Фото Тестовая модель',
     serialNumber: `PH-${String(serialCounter).padStart(5, '0')}`,
     inventoryNumber: null,
+    purchaseDate: null,
+    purchasePrice: null,
+    supplier: null,
+    warrantyUntil: null,
+    notes: null,
   })
 }
 
@@ -81,7 +86,7 @@ function captureThrown(fn: () => void): unknown {
 
 // processPhoto is async — its { code } rejections surface on the promise, not
 // synchronously; this async twin captures them the same way.
-async function captureThrownAsync(fn: () => Promise<void>): Promise<unknown> {
+async function captureThrownAsync(fn: () => Promise<unknown>): Promise<unknown> {
   try {
     await fn()
   } catch (e) {

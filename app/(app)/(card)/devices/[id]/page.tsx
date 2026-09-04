@@ -3,7 +3,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
+import { MAX_PHOTOS } from '@/lib/photos'
 import { getDevice, type DeviceRow } from '@/db/queries/devices'
+import { listByDevice } from '@/db/queries/attachments'
 import {
   listActiveEmployees,
   listTimeline,
@@ -20,6 +22,7 @@ import {
   type DeviceDialogDevice,
 } from '@/app/(app)/devices/device-dialog'
 import { DeviceActions } from '@/app/(app)/devices/device-actions'
+import { PhotoGrid } from './photo-grid'
 import { Timeline } from './timeline'
 // This page lives in the (card) route group: a segment loading.tsx on the
 // list branch streams its whole subtree (child segments included) and flushes
@@ -183,12 +186,6 @@ function NotesRow({ value }: { value: string | null }) {
   )
 }
 
-// Phase 4 land: content placeholders inside the normal card recipe — no
-// skeleton, no controls (UI-SPEC «Card placeholders»).
-function PlaceholderRow({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-2 text-sm text-ink-secondary">{children}</p>
-}
-
 export default async function DeviceCardPage({
   params,
 }: {
@@ -310,9 +307,20 @@ export default async function DeviceCardPage({
       <FieldGroup title="История перемещений">
         <Timeline events={listTimeline(device.id)} />
       </FieldGroup>
-      <FieldGroup title="Фото">
-        <PlaceholderRow>Здесь появятся фотографии устройства.</PlaceholderRow>
-      </FieldGroup>
+
+      {/* Photos (REG-05, D-05, D-06): grid + lightbox + authorized upload/
+          serve/delete, newest first. Disposed devices render read-only —
+          add tile and delete hidden (D-03 view-only; the routes and the
+          queries double-guard server-side). */}
+      <PhotoGrid
+        deviceId={device.id}
+        photos={listByDevice(device.id).map((attachment) => ({
+          id: attachment.id,
+          fileName: attachment.fileName,
+        }))}
+        canMutate={device.status !== 'disposed'}
+        maxPhotos={MAX_PHOTOS}
+      />
     </section>
   )
 }

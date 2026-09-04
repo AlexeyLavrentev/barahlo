@@ -1,6 +1,6 @@
-import { asc, count, eq, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { devices, employees } from '@/db/schema'
+import { attachments, devices, employees } from '@/db/schema'
 import { normalizeInventory, normalizeSerial } from '@/lib/normalize'
 import type { DeviceTypeKey } from '@/lib/device-schema'
 
@@ -35,6 +35,13 @@ export type DeviceRow = DeviceListItem & {
   panelType: string | null
   portCount: number | null
   peripheralKind: string | null
+}
+
+// One registry row plus its photo cover (REG-05 «thumbnails in lists»): the
+// id of the device's FIRST photo attachment, or null when it has none — the
+// list renders a leading thumbnail only then (no placeholder box, UI-SPEC).
+export type DeviceListItemWithCover = DeviceListItem & {
+  coverAttachmentId: number | null
 }
 
 // Editable device fields. Deliberately EXCLUDES status, currentEmployeeId and
@@ -102,7 +109,12 @@ export function listDevices({
   type: DeviceListType
   page: number
   pageSize: number
-}): { rows: DeviceListItem[]; total: number; page: number; pages: number } {
+}): {
+  rows: DeviceListItemWithCover[]
+  total: number
+  page: number
+  pages: number
+} {
   const where = type === 'all' ? undefined : eq(devices.typeKey, type)
   const total = db
     .select({ value: count() })
@@ -129,7 +141,41 @@ export function listDevices({
     .limit(pageSize)
     .offset((current - 1) * pageSize)
     .all()
-  return { rows, total, page: current, pages }
+  // Photo covers (REG-05 «thumbnails in lists», RESEARCH C6): ONE batched
+  // scan over the ≤20 page ids — attachments has no device_id index (none
+  // addable, frozen migration) and one per-page scan stays milliseconds.
+  // First attachment per device by id; grouped in JS (≤20 rows).
+  const coverByDevice = new Map<number, number>()
+  if (rows.length > 0) {
+    const covers = db
+      .select({ id: attachments.id, deviceId: attachments.deviceId })
+      .from(attachments)
+      .where(
+        and(
+          inArray(
+            attachments.deviceId,
+            rows.map((row) => row.id),
+          ),
+          eq(attachments.kind, 'photo'),
+        ),
+      )
+      .orderBy(asc(attachments.id))
+      .all()
+    for (const cover of covers) {
+      if (!coverByDevice.has(cover.deviceId)) {
+        coverByDevice.set(cover.deviceId, cover.id)
+      }
+    }
+  }
+  return {
+    rows: rows.map((row) => ({
+      ...row,
+      coverAttachmentId: coverByDevice.get(row.id) ?? null,
+    })),
+    total,
+    page: current,
+    pages,
+  }
 }
 
 export function getDevice(id: number): DeviceRow | undefined {
