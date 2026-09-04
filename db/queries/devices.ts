@@ -1,8 +1,8 @@
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { attachments, devices, employees } from '@/db/schema'
-import { normalizeInventory, normalizeSerial } from '@/lib/normalize'
-import type { DeviceTypeKey } from '@/lib/device-schema'
+import { normalizeInventory, normalizeNumber, normalizeSerial } from '@/lib/normalize'
+import type { DeviceStatusKey, DeviceTypeKey } from '@/lib/device-schema'
 
 // Device data-access (REG-01/REG-02). Pure sync functions over the module-level
 // db — no framework imports at all: Server Actions add session + zod on top,
@@ -11,6 +11,20 @@ import type { DeviceTypeKey } from '@/lib/device-schema'
 // The list type of the registry. 'all' is the unfiltered view behind the type
 // filter's «Все типы» option; the 4 keys mirror lib/device-schema.
 export type DeviceListType = DeviceTypeKey | 'all'
+
+// db-layer filter contract (phase 5, FIND-01/02/03): undefined means INACTIVE
+// for every field. The page strips the URL-layer sentinels ('all'/null/false/''
+// from query-params.ts DeviceFilters) into undefined before calling — the
+// plan-02 presence guards assume undefined, a leaked sentinel would corrupt
+// every composed filter. This task wires only the q consumer; plan 02 fills
+// the remaining predicates.
+export type DeviceListFilters = {
+  q?: string
+  status?: DeviceStatusKey
+  departmentId?: number
+  warranty?: 'w30' | 'w60' | 'expired'
+  ramNoUpgrade?: boolean
+}
 
 export type DeviceListItem = {
   id: number
@@ -101,21 +115,51 @@ function inventoryPair(inventoryNumber: string | null) {
   }
 }
 
+// FIND-01 search predicate (05-RESEARCH Pattern 1): the query folds through
+// the SAME normalizeNumber the write path uses — serial/inventory compare
+// their stored *_normalized columns, the model folds via the norm() UDF
+// registered in openDb (SQLite LIKE/upper fold ASCII only). An empty folded
+// query means NO predicate (the full list). The folded query is capped at
+// 100 chars server-side (A4, mirrors the serial bound); LIKE wildcards are
+// escaped with an ESCAPE '\' clause so '%', '_' match literals only
+// (Pitfall 3) — drizzle binds the pattern, user text never enters SQL text
+// (T-05-01). D-02: exactly serial/inventory/model — the employees join stays
+// out of the predicate.
+function searchPredicate(rawQ: string | undefined) {
+  const q = normalizeNumber(rawQ ?? '').slice(0, 100)
+  if (q === '') return undefined
+  const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
+  return or(
+    sql`${devices.serialNormalized} like ${pattern} escape '\\'`,
+    sql`${devices.inventoryNormalized} like ${pattern} escape '\\'`,
+    sql`norm(${devices.model}) like ${pattern} escape '\\'`,
+  )
+}
+
 export function listDevices({
   type,
   page,
   pageSize,
+  filters,
 }: {
   type: DeviceListType
   page: number
   pageSize: number
+  filters?: DeviceListFilters
 }): {
   rows: DeviceListItemWithCover[]
   total: number
   page: number
   pages: number
 } {
-  const where = type === 'all' ? undefined : eq(devices.typeKey, type)
+  // One where shared by the count and the rows query (Pitfall 5 property) —
+  // every filter composes into this single and(...). Sort stays the canonical
+  // RU-sort with the id tiebreaker: no relevance ranking anywhere in the
+  // search path (D-03).
+  const where = and(
+    type === 'all' ? undefined : eq(devices.typeKey, type),
+    filters?.q ? searchPredicate(filters.q) : undefined,
+  )
   const total = db
     .select({ value: count() })
     .from(devices)

@@ -116,6 +116,22 @@ export function deviceStatusLabel(status: string): string {
   return DEVICE_STATUS_LABELS[status as keyof typeof DEVICE_STATUS_LABELS] ?? status
 }
 
+// Status filter vocabulary (phase 5, FIND-03): derived from the label map so
+// the keystone stays the single source (D-02) — status filters read these,
+// never a parallel list.
+export type DeviceStatusKey = keyof typeof DEVICE_STATUS_LABELS
+
+export const DEVICE_STATUS_KEYS: readonly DeviceStatusKey[] = Object.keys(
+  DEVICE_STATUS_LABELS,
+) as DeviceStatusKey[]
+
+export function isDeviceStatusKey(value: unknown): value is DeviceStatusKey {
+  return (
+    typeof value === 'string' &&
+    (DEVICE_STATUS_KEYS as readonly string[]).includes(value)
+  )
+}
+
 // Per-type fields of one device type; an unknown key has no fields.
 export function typeFields(typeKey: string): readonly DeviceField[] {
   return isDeviceTypeKey(typeKey) ? PER_TYPE_FIELDS[typeKey] : []

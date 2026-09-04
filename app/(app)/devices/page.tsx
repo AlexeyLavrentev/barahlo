@@ -3,15 +3,17 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import { listDevices } from '@/db/queries/devices'
+import type { DeviceListFilters } from '@/db/queries/devices'
 import {
   DEVICE_TYPES,
   deviceStatusLabel,
   deviceTypeName,
-  isDeviceTypeKey,
 } from '@/lib/device-schema'
 import { pluralDevices } from '@/lib/ru'
 import { DeviceDialog } from './device-dialog'
 import { DeviceTypeFilter } from './type-filter'
+import { DeviceSearchBox } from './search-box'
+import { buildDevicesQuery, parseDevicesSearchParams } from './query-params'
 
 export const metadata: Metadata = {
   title: 'Устройства',
@@ -23,15 +25,6 @@ type DevicesSearchParams = {
   [key: string]: string | string[] | undefined
 }
 
-// Links always rebuild the FULL query string — a bare `?page=2` would drop
-// the active filter (Pitfall 3); switching the filter resets to page 1.
-function buildQuery(type: string, page: number): string {
-  const params = new URLSearchParams()
-  if (type !== 'all') params.set('type', type)
-  params.set('page', String(page))
-  return `?${params.toString()}`
-}
-
 export default async function DevicesPage({
   searchParams,
 }: {
@@ -39,18 +32,32 @@ export default async function DevicesPage({
 }) {
   await requireSession() // defense-in-depth: proxy + in-app guard
   const sp = await searchParams
-  // searchParams is untyped user input — validate, never trust (T-03-04):
-  // type via the 4-key enum (anything else = all), page via Number +
-  // integer guard (a fractional ?page= would bind a non-integer OFFSET
-  // and crash the query — WR-01); the query still clamps into [1, pages].
-  const type = isDeviceTypeKey(sp.type) ? sp.type : 'all'
+  // The ONE parser (query-params.ts): every param validated server-side —
+  // invalid values degrade to the inactive sentinel, never a 500 (T-03-04).
+  const filters = parseDevicesSearchParams(sp)
+  // Page is pagination state, not a filter: Number + integer guard (a
+  // fractional ?page= would bind a non-integer OFFSET and crash the query —
+  // WR-01); the query still clamps into [1, pages].
   const parsedPage = Number(sp.page)
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
+  // Strip the URL-layer sentinels into the db-layer contract: undefined
+  // means INACTIVE (plan-02 presence guards assume undefined — never leak
+  // 'all'/null/false/''). listDevices composes only the active predicates.
+  const listFilters: DeviceListFilters = {}
+  if (filters.q !== '') listFilters.q = filters.q
+  if (filters.status !== 'all') listFilters.status = filters.status
+  if (filters.departmentId !== null) listFilters.departmentId = filters.departmentId
+  if (filters.warranty !== 'all') listFilters.warranty = filters.warranty
+  if (filters.ramNoUpgrade) listFilters.ramNoUpgrade = true
   const { rows, total, page: current, pages } = listDevices({
-    type,
+    type: filters.type,
     page,
     pageSize: PAGE_SIZE,
+    filters: listFilters,
   })
+  // D-05: an active search renames the counter to «Найдено: …»; without it
+  // the phase-3 counter is unchanged (plan 02 widens this to all filters).
+  const searching = filters.q !== ''
 
   return (
     <section>
@@ -59,7 +66,9 @@ export default async function DevicesPage({
           <h1 className="text-xl font-semibold tracking-tight text-ink">
             Устройства
           </h1>
-          <p className="text-sm text-ink-secondary">{pluralDevices(total)}</p>
+          <p className="text-sm text-ink-secondary">
+            {searching ? `Найдено: ${pluralDevices(total)}` : pluralDevices(total)}
+          </p>
         </div>
         {/* Field configs ride as flat serialized props (D-02 + vercel
             server-serialization): the dialog renders per-type fields from the
@@ -67,18 +76,39 @@ export default async function DevicesPage({
         <DeviceDialog label="Добавить устройство" typeConfigs={DEVICE_TYPES} />
       </div>
 
-      {/* Type filter (D-05): dropdown island, full-query-string push, page
-          reset to 1. The trigger shows the active choice, never an accent. */}
-      <div className="mt-6">
-        <DeviceTypeFilter current={type} />
+      {/* Filter row (D-12): one visible bar — plan 02 grows it into
+          FilterBar. The search island keeps the current list mounted through
+          the server swap (startTransition, no skeleton flash per keystroke);
+          the type filter keeps its full-query-string push beside it. */}
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <DeviceSearchBox q={filters.q} current={filters} />
+        <DeviceTypeFilter current={filters.type} />
       </div>
 
       {rows.length === 0 ? (
-        /* Empty states, copy verbatim from the UI-SPEC copywriting contract:
-           zero overall invites the first device (the CTA above stays
-           visible); zero under a filter explains — it never resets. */
+        /* Empty states, copy verbatim from the UI-SPEC copywriting contract,
+           precedence: zero under an active search explains + resets (D-04);
+           zero overall invites the first device; zero under a type filter
+           explains — it never resets. */
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-hairline">
-          {type === 'all' ? (
+          {searching ? (
+            <>
+              <h2 className="text-xl font-semibold tracking-tight text-ink">
+                Ничего не найдено
+              </h2>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Проверьте раскладку: набранное кириллицей „С123“ найдёт „C123“.
+              </p>
+              {/* Plain server Link — no island. On arrival q='' flows down
+                  and the island's value === q guard clears the input. */}
+              <Link
+                href="/devices"
+                className="mt-4 inline-flex h-10 items-center rounded-lg bg-secondary px-3 text-sm text-secondary-foreground transition-all duration-100 ease-out hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] active:scale-[0.97]"
+              >
+                Сбросить фильтры
+              </Link>
+            </>
+          ) : filters.type === 'all' ? (
             <>
               <h2 className="text-xl font-semibold tracking-tight text-ink">
                 Пока нет устройств
@@ -165,7 +195,8 @@ export default async function DevicesPage({
           </ul>
 
           {/* Quiet prev/next (opacity-40, no href at the boundary) + N-of-M
-              label; links rebuild the whole query string via buildQuery. A
+              label; links rebuild the whole query string via the ONE builder
+              (buildDevicesQuery — filters preserved, page swapped). A
               zero-page is impossible: listDevices clamps the page. */}
           <nav
             aria-label="Страницы списка"
@@ -173,7 +204,7 @@ export default async function DevicesPage({
           >
             {current > 1 ? (
               <Link
-                href={buildQuery(type, current - 1)}
+                href={buildDevicesQuery(filters, current - 1)}
                 className="text-sm text-ink transition-colors hover:text-ink-secondary"
               >
                 Назад
@@ -186,7 +217,7 @@ export default async function DevicesPage({
             </span>
             {current < pages ? (
               <Link
-                href={buildQuery(type, current + 1)}
+                href={buildDevicesQuery(filters, current + 1)}
                 className="text-sm text-ink transition-colors hover:text-ink-secondary"
               >
                 Далее
