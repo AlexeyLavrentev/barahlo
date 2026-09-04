@@ -198,8 +198,10 @@ try {
   }
 
   // 10. Card route (03-02): the probe's card renders 200 with the model and
-  //     the field groups of the UI-SPEC card recipe (D-06), including the
-  //     phase 4 placeholders for history and photos.
+  //     the field groups of the UI-SPEC card recipe (D-06). Plan 04-01
+  //     replaced the history placeholder with the live timeline — the probe
+  //     has no movement events, so the honest empty state renders (the photo
+  //     section stays a placeholder until plan 04-03).
   const card = await fetch(`${BASE}/devices/${probeId}`, {
     headers: cookieHeaders,
     redirect: 'manual',
@@ -215,10 +217,17 @@ try {
     'Характеристики типа',
     'Закупка',
     'История перемещений',
-    'Здесь появится история выдач и возвратов.',
+    'История появится после первого действия с устройством.',
     'Фото',
     'Здесь появятся фотографии устройства.',
+    // Custody matrix on an in_stock card: «Выдать» (accent) is present,
+    // «Принять»/«Передать» belong to assigned devices only (D-08).
+    'Выдать',
+    'data-device-assign-id=',
   ]
+  if (cardHtml.includes('Принять') || cardHtml.includes('Передать')) {
+    throw new Error(`/devices/${probeId}: у in_stock-карточки не должно быть «Принять»/«Передать»`)
+  }
   for (const needle of cardNeedles) {
     if (!cardHtml.includes(needle)) {
       throw new Error(`/devices/${probeId}: «${needle}» нет в HTML карточки`)
@@ -250,7 +259,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + плейсхолдеры фазы 4 + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + таймлайн-пустое + «Выдать» (D-08) + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

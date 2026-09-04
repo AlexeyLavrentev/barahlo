@@ -154,7 +154,7 @@ describe('assignDevice — guard + atomic event/projection (MOVE-01, RESEARCH C1
         .prepare(
           'UPDATE devices SET status = ?, current_employee_id = ? WHERE id = ?',
         )
-        .run(status, status === 'assigned' ? emp.id : null, dev.id)
+        .run(status, status === 'assigned' ? emp.id : null, dev)
       const before = movementsCount()
       const thrown = captureThrown(() => assignDevice(dev, emp.id))
       expect(thrown).toEqual({ code: 'ILLEGAL_TRANSITION' })
@@ -352,6 +352,7 @@ describe('returnAllDevices — one tx, N events (D-07, RESEARCH C3)', () => {
     // dev3 stays in_stock — not the employee's
     const n = returnAllDevices(emp.id)
     expect(n).toBe(2)
+    expect(rawDevice(dev3).status).toBe('in_stock')
     for (const dev of [dev1, dev2]) {
       const row = rawDevice(dev)
       expect(row.status).toBe('in_stock')
@@ -457,7 +458,9 @@ describe('listIssuedByEmployee — issued list (EMP-02, RESEARCH C6)', () => {
     assignDevice(dev4, other.id)
     const issued = listIssuedByEmployee(emp.id)
     expect(issued.map((d) => d.id).sort()).toEqual([dev1, dev2].sort())
-    // dev3 (in_stock) is absent — implicitly covered by the length check above
+    // dev3 (in_stock) and dev4 (other holder's) are explicitly absent
+    expect(issued.some((d) => d.id === dev3)).toBe(false)
+    expect(issued.some((d) => d.id === dev4)).toBe(false)
   })
 
   it('issuedAt is the LATEST assigned event, not the creation time', () => {
