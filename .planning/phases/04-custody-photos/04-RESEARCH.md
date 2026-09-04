@@ -8,14 +8,14 @@
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
-- **E-01:** Каждое перемещение несёт опциональную дату события (задним числом: «закупил вчера, выдал вчера») и опциональный комментарий (номер акта, примечание) — оба видны в таймлайне. Дефолт даты — «сейчас»; дата не может быть в будущем (валидация). [user: выбрано явно]
-- **E-02:** Схема готова: `movements` (deviceId, eventType: received/assigned/transferred/returned/to_repair/from_repair/disposed, from/toEmployeeId, comment, occurredAt) + append-only триггеры уже в миграции 0000 — новых миграций нет.
-- **E-03:** Списание ФИНАЛЬНО: подтверждение с обязательной причиной (комментарий), после — устройство только просматривается (статус disposed, история целая). Ошибка данных исправляется заводом нового устройства, не правкой. Кнопка красная (единственный destructive-контраст — #D70015 именно сюда). [user: выбрано явно]
-- **E-04:** Два действия: «В ремонт» (устройство уходит от держателя — если был, автоматически «принимается» — и получает статус repair) → «Из ремонта» (на склад). Комментарии к обоим. Без событийного оформления — запрещено (дыра в истории). [user: выбрано явно]
-- **E-05:** До 8 фото на устройство; удаление фото доступно (вложения — не история; случайное фото убирается). [user: выбрано явно]
-- **E-06:** Пайплайн: клиентский ресайз до ~1600px → sharp re-encode (JPEG/WebP) → EXIF-strip → диск `data/uploads/<deviceId>/…` с DB-метаданными (attachments.storageKey, никогда не BLOB); миниатюры; раздача только через авторизованный route (не статика из public). Принимаются фото с телефона (input capture). [user: выбрано явно; research-паттерн]
-- **E-07:** В карточке сотрудника действие «Вернуть всю технику»: одна операция, каждая единица — отдельное событие returned в одной транзакции (для увольнения/передачи дела). [user: выбрано явно]
-- **E-08:** У устройства со статусом assigned кнопка «Выдать» скрыта (видны «Передать»/«Принять»); guard дублируется в action (выдача возможна только от in_stock/repair-возврата). [user: выбрано явно]
+- **D-01:** Каждое перемещение несёт опциональную дату события (задним числом: «закупил вчера, выдал вчера») и опциональный комментарий (номер акта, примечание) — оба видны в таймлайне. Дефолт даты — «сейчас»; дата не может быть в будущем (валидация). [user: выбрано явно]
+- **D-02:** Схема готова: `movements` (deviceId, eventType: received/assigned/transferred/returned/to_repair/from_repair/disposed, from/toEmployeeId, comment, occurredAt) + append-only триггеры уже в миграции 0000 — новых миграций нет.
+- **D-03:** Списание ФИНАЛЬНО: подтверждение с обязательной причиной (комментарий), после — устройство только просматривается (статус disposed, история целая). Ошибка данных исправляется заводом нового устройства, не правкой. Кнопка красная (единственный destructive-контраст — #D70015 именно сюда). [user: выбрано явно]
+- **D-04:** Два действия: «В ремонт» (устройство уходит от держателя — если был, автоматически «принимается» — и получает статус repair) → «Из ремонта» (на склад). Комментарии к обоим. Без событийного оформления — запрещено (дыра в истории). [user: выбрано явно]
+- **D-05:** До 8 фото на устройство; удаление фото доступно (вложения — не история; случайное фото убирается). [user: выбрано явно]
+- **D-06:** Пайплайн: клиентский ресайз до ~1600px → sharp re-encode (JPEG/WebP) → EXIF-strip → диск `data/uploads/<deviceId>/…` с DB-метаданными (attachments.storageKey, никогда не BLOB); миниатюры; раздача только через авторизованный route (не статика из public). Принимаются фото с телефона (input capture). [user: выбрано явно; research-паттерн]
+- **D-07:** В карточке сотрудника действие «Вернуть всю технику»: одна операция, каждая единица — отдельное событие returned в одной транзакции (для увольнения/передачи дела). [user: выбрано явно]
+- **D-08:** У устройства со статусом assigned кнопка «Выдать» скрыта (видны «Передать»/«Принять»); guard дублируется в action (выдача возможна только от in_stock/repair-возврата). [user: выбрано явно]
 
 ### Claude's Discretion
 - Раскладка кнопок действий на карточке (по статусу устройства) — RESOLVED by approved 04-UI-SPEC matrix
@@ -52,7 +52,7 @@
 | Directive | Consequence for this phase |
 |-----------|---------------------------|
 | **Read `node_modules/next/dist/docs/` before writing Next code** (this Next differs from training data) | Done this session: route-handler `context.params` is a **Promise**; Server Actions have **1MB default bodySizeLimit**; `sharp` is in the **default `serverExternalPackages`** list; client refresh = `useRouter().refresh()` from `next/navigation` |
-| **Новых миграций НЕТ** (E-02) | `drizzle-kit push/generate` forbidden; attachments has a single `storageKey` (no thumbPath column) → thumbnail path MUST be derived from storageKey by convention |
+| **Новых миграций НЕТ** (D-02) | `drizzle-kit push/generate` forbidden; attachments has a single `storageKey` (no thumbPath column) → thumbnail path MUST be derived from storageKey by convention |
 | Server Actions: `requireSession()` first line + zod whitelist | All 6 custody actions; Route Handlers are also directly POST-able → same guard first line |
 | `refresh()` after every mutating action / `router.refresh()` after route-handler mutation | Without it the card/list stays stale (Next 16 behavior) |
 | Russian inline strings, no i18n; `Intl.*('ru')` | Copy table of 04-UI-SPEC is byte-exact; `pluralDevices` already in `lib/ru.ts` |
@@ -63,9 +63,9 @@
 
 Phase 4 is the transactional core: seven state-changing actions, each writing an append-only `movements` event and the `devices` projection **inside one `db.transaction`**, plus the photo subsystem (upload pipeline, authorized serving, deletion) and three read surfaces (timeline, issued-devices list, list thumbnails). The schema, append-only triggers, indexes (`movements_device_occurred_idx`), status CHECK, and UI placeholders all exist — this phase is pure feature code over a frozen migration.
 
-The custody mechanics were verified by executing a scratch vitest suite against the real stack this session: conditional-update guards (`UPDATE … WHERE id AND status=<precondition>` → `.changes` decides) reject illegal transitions with zero side effects; a mid-flight injected failure inside `db.transaction` rolls back **both** the events and the projections (E-07 atomicity proven); the append-only triggers RAISE(ABORT) on any UPDATE/DELETE; the timeline sorts correctly for backdated events via `ORDER BY occurredAt DESC, id DESC`; and the batched `max(occurred_at)` / thumbnail group-by queries run as single statements per page.
+The custody mechanics were verified by executing a scratch vitest suite against the real stack this session: conditional-update guards (`UPDATE … WHERE id AND status=<precondition>` → `.changes` decides) reject illegal transitions with zero side effects; a mid-flight injected failure inside `db.transaction` rolls back **both** the events and the projections (D-07 atomicity proven); the append-only triggers RAISE(ABORT) on any UPDATE/DELETE; the timeline sorts correctly for backdated events via `ORDER BY occurredAt DESC, id DESC`; and the batched `max(occurred_at)` / thumbnail group-by queries run as single statements per page.
 
-The photo pipeline was verified by executing sharp 0.35.4 in a sandbox: the default output of a re-encode strips **all** EXIF/GPS/ICC metadata (E-06 satisfied by construction — no explicit stripping code needed), `.rotate()` with no argument applies the EXIF Orientation to pixels and removes the tag (portrait 1000×2000 + orientation 6 → landscape 1600×800), `fit:'inside'` + `withoutEnlargement:true` never upscales, and garbage input is rejected with a catchable error. Uploads must go through a **Route Handler, not a Server Action**: Server Actions cap request bodies at 1MB by default (bundled `serverActions.md`), Route Handlers have no such limit, and `sharp` is auto-externalized by Next (no config change).
+The photo pipeline was verified by executing sharp 0.35.4 in a sandbox: the default output of a re-encode strips **all** EXIF/GPS/ICC metadata (D-06 satisfied by construction — no explicit stripping code needed), `.rotate()` with no argument applies the EXIF Orientation to pixels and removes the tag (portrait 1000×2000 + orientation 6 → landscape 1600×800), `fit:'inside'` + `withoutEnlargement:true` never upscales, and garbage input is rejected with a catchable error. Uploads must go through a **Route Handler, not a Server Action**: Server Actions cap request bodies at 1MB by default (bundled `serverActions.md`), Route Handlers have no such limit, and `sharp` is auto-externalized by Next (no config change).
 
 **Primary recommendation:** one `db/queries/movements.ts` + one `db/queries/attachments.ts` (pure, vitest-testable), six thin Server Actions in `app/(app)/devices/actions.ts` + return-all in employees' actions, photo logic in `lib/photos.ts` (sharp pipeline + path derivation) behind `app/api/devices/[id]/photos/route.ts` (POST) and `…/[attachmentId]/route.ts` (GET serve, DELETE), client resize island on the device card ending in `router.refresh()`.
 
@@ -76,9 +76,9 @@ The photo pipeline was verified by executing sharp 0.35.4 in a sandbox: the defa
 | Custody transitions (7 actions, guards, atomicity) | API/Backend (Server Actions) | Database (Drizzle tx) | Guards + event+projection must be one server-side transaction; client only opens dialogs |
 | Timeline render (newest-first, names from/to) | Frontend Server (RSC) | Database | Server Component reads movements on the card; plain text, no client state |
 | Issued-devices list + return-all trigger | Frontend Server (RSC) + API/Backend (action) | Database | RSC queries; return-all is a Server Action (atomic tx) |
-| Photo upload (resize, re-encode, EXIF strip, store) | Browser (canvas resize) + API/Backend (route handler + sharp) | Database (metadata), Disk (bytes) | Client resize saves bandwidth; server re-encode is the trust boundary; bytes on disk per E-06 |
-| Photo serving (auth, headers, cache) | API/Backend (Route Handler GET) | Disk | Never static files (E-06); per-request session check |
-| Photo delete | API/Backend (Route Handler DELETE) | Database + Disk | Row delete + file unlink; explicitly NOT a history event (E-05) |
+| Photo upload (resize, re-encode, EXIF strip, store) | Browser (canvas resize) + API/Backend (route handler + sharp) | Database (metadata), Disk (bytes) | Client resize saves bandwidth; server re-encode is the trust boundary; bytes on disk per D-06 |
+| Photo serving (auth, headers, cache) | API/Backend (Route Handler GET) | Disk | Never static files (D-06); per-request session check |
+| Photo delete | API/Backend (Route Handler DELETE) | Database + Disk | Row delete + file unlink; explicitly NOT a history event (D-05) |
 | Action dialogs (6), picker, lightbox, photo grid | Browser/Client (islands) | API/Backend | `useActionState` for the 6 dialogs; fetch + `router.refresh()` for photo operations |
 
 ## Standard Stack
@@ -164,7 +164,7 @@ npm install sharp@0.35.4
 │   under uploads root → readFile → 200 binary                           │
 │   Cache-Control: private, max-age=31536000, immutable                  │
 │ Photo DELETE: same guards → DELETE row → unlink both files             │
-│   (NOT a movement event — E-05)                                        │
+│   (NOT a movement event — D-05)                                        │
 │                                                                        │
 │ RSC reads: timeline (alias from/to join), attachments+count,           │
 │   issued devices + latest assigned dates, list page thumbnails         │
@@ -218,7 +218,7 @@ export function assignDevice(input: { deviceId: number; toEmployeeId: number;
       .set({ status: 'assigned', currentEmployeeId: input.toEmployeeId, updatedAt: new Date() })
       .where(and(eq(devices.id, input.deviceId), eq(devices.status, 'in_stock')))
       .run()
-    if (upd.changes === 0) throw new MovementGuardError() // E-08 server side
+    if (upd.changes === 0) throw new MovementGuardError() // D-08 server side
     tx.insert(movements).values({
       deviceId: input.deviceId, eventType: 'assigned',
       toEmployeeId: input.toEmployeeId, comment: input.comment,
@@ -233,17 +233,17 @@ A mid-flight `throw` inside `db.transaction` rolled back ALL inserts and updates
 
 | Action (event) | Precondition (status) | fromEmployeeId | toEmployeeId | Post projection | Notes |
 |---|---|---|---|---|---|
-| Выдать (`assigned`) | `in_stock` | NULL | employeeId — active | `assigned`, holder=to | E-08: hidden on assigned, guard re-checks |
+| Выдать (`assigned`) | `in_stock` | NULL | employeeId — active | `assigned`, holder=to | D-08: hidden on assigned, guard re-checks |
 | Принять (`returned`) | `assigned` | current holder | NULL | `in_stock`, holder=NULL | |
 | Передать (`transferred`) | `assigned` | current holder | new — active, ≠ current | `assigned`, holder=to | dialog shows «Сейчас у: {Имя}» |
-| В ремонт (`to_repair`) | `in_stock` OR `assigned` | holder (nullable) | NULL | `repair`, holder=NULL | E-04: auto-accept from holder |
+| В ремонт (`to_repair`) | `in_stock` OR `assigned` | holder (nullable) | NULL | `repair`, holder=NULL | D-04: auto-accept from holder |
 | Из ремонта (`from_repair`) | `repair` | NULL | NULL | `in_stock` | |
-| Списать (`disposed`) | `in_stock` OR `assigned` OR `repair` | holder (nullable) | NULL | `disposed`, holder=NULL | reason = movements.comment; terminal (E-03) |
+| Списать (`disposed`) | `in_stock` OR `assigned` OR `repair` | holder (nullable) | NULL | `disposed`, holder=NULL | reason = movements.comment; terminal (D-03) |
 | Вернуть всю технику (`returned` ×N) | per device `assigned` AND holder=this employee | employeeId | NULL | per device `in_stock`, holder=NULL | one tx (Pattern C3) |
 
 This matrix is exactly the 04-UI-SPEC button matrix; every status value written is inside `devices_status_ck`. `eventType` is NEVER read from the client — each action hardcodes its own.
 
-### Pattern C3: «Вернуть всю технику» — one transaction, N events (E-07)
+### Pattern C3: «Вернуть всю технику» — one transaction, N events (D-07)
 **VERIFIED executed:** with 2 assigned devices and an injected failure after the first unit, both devices stayed assigned and zero events survived.
 ```ts
 export function returnAllDevices(employeeId: number, occurredAt: Date): number {
@@ -285,7 +285,7 @@ export function listMovements(deviceId: number) {
 ```
 Backdated events sort by `occurredAt`, not insertion order — VERIFIED (assigned-yesterday inserted after received-today renders second). The newest item's dot gets `bg-ink-secondary` (first row of the result).
 
-### Pattern C5: Photo pipeline (E-05/E-06)
+### Pattern C5: Photo pipeline (D-05/D-06)
 
 **Client resize (photo-section island):**
 ```ts
@@ -327,7 +327,7 @@ export async function processPhoto(input: Buffer) {
 // (use sharp(input).metadata() up front as the magic-byte gate with a Russian 415 mapping).
 ```
 Execution order in the POST handler (no broken rows ever; orphan-file direction is the harmless one):
-1. `requireSession()` → parse `{id}` (positive int) → device exists AND `status !== 'disposed'` (E-03 server side)
+1. `requireSession()` → parse `{id}` (positive int) → device exists AND `status !== 'disposed'` (D-03 server side)
 2. `countAttachments(deviceId) >= 8` → reject («Не удалось загрузить фото…» or a dedicated copy if planner prefers; UI hides the tile at 8/8)
 3. read body via `request.formData()`; size sanity ≤ ~10MB; `sharp(file).metadata()` gate
 4. `processPhoto` → `mkdir uploads/<deviceId> recursive` → `writeFile(<uuid>.jpg, full)` + `<uuid>.thumb.jpg` (thumb) — `storageKey` stores the FULL path key; **thumb key = derive by suffix** (`<uuid>.thumb.jpg`) via one helper in `lib/photos.ts` (schema has a single `storageKey`, no migrations allowed)
@@ -346,7 +346,7 @@ new Response(new Uint8Array(buf), { headers: {
 ```
 (`?variant=thumb` serves the derived thumb key; missing file → 404. TS nit: wrap the Node Buffer in `new Uint8Array(...)` for the `BodyInit` type.)
 
-**DELETE:** same guards (device not disposed, row matches deviceId) → DELETE row → `unlink` full + thumb (`ENOENT` tolerated, never fails the request). Writes nothing to `movements` (E-05). Client `router.refresh()`.
+**DELETE:** same guards (device not disposed, row matches deviceId) → DELETE row → `unlink` full + thumb (`ENOENT` tolerated, never fails the request). Writes nothing to `movements` (D-05). Client `router.refresh()`.
 
 ### Pattern C6: Employee card issued list (EMP-02) + list thumbnails (REG-05)
 **VERIFIED executed (batched, one query each):**
@@ -368,7 +368,7 @@ const latest = db.select({ deviceId: movements.deviceId,
 ```
 `attachments` has **no index on device_id** (and none can be added — no migrations). A grouped scan over a few thousand rows per page render is milliseconds at this scale; the batched-by-page pattern keeps it to one scan.
 
-### Pattern C7: occurredAt (E-01) — date-only input, real moment stored
+### Pattern C7: occurredAt (D-01) — date-only input, real moment stored
 - zod: `z.string().regex(/^\d{4}-\d{2}-\d{2}$/)` (same shape as `purchaseDate`) + a server-side refine `occurred ≤ now` → inline copy «Дата не может быть в будущем» (client `max` attr is bypassable — server is authoritative).
 - Construction: submitted today → `new Date()`; backdated → chosen y/m/d + **now's** h:m:s (`new Date(y, m-1, d, now.getHours(), …)`), so «выдано вчера» keeps a plausible time-of-day and ordering stays stable.
 - `movements.createdAt` stays `= now` always — the row records when the correction was made, `occurredAt` when it happened (append-only honesty).
@@ -380,12 +380,12 @@ Same `useActionState` machinery as device/employee dialogs: `(prev, formData) �
 
 ### Anti-Patterns to Avoid
 - **Server Action for photo upload:** 1MB default `bodySizeLimit` (bundled serverActions.md) — use the Route Handler.
-- **`ORDER BY id` on the timeline** (or trusting insertion order): backdating (E-01) makes `occurredAt` the only truth — `occurredAt DESC, id DESC`.
+- **`ORDER BY id` on the timeline** (or trusting insertion order): backdating (D-01) makes `occurredAt` the only truth — `occurredAt DESC, id DESC`.
 - **Writing the projection unconditionally then inserting the event:** the conditional UPDATE is the guard; an unconditional write corrupts state on any illegal invocation (direct POST).
 - **Keeping EXIF handling client-only:** client checks are bypassable and non-WebKit browsers can't decode HEIC — sharp re-encode is the trust boundary and the EXIF guarantee.
 - **`Cache-Control: public` on photo responses:** auth'd content — `private, immutable`.
-- **Serving photos from `public/`:** bypasses auth entirely (E-06, ARCHITECTURE Anti-Pattern 5).
-- **Photo delete writing a movement event:** attachments are not history (E-05).
+- **Serving photos from `public/`:** bypasses auth entirely (D-06, ARCHITECTURE Anti-Pattern 5).
+- **Photo delete writing a movement event:** attachments are not history (D-05).
 - **`toISOString().slice(0,10)` for the date-input prefill:** that is the UTC date — wrong after 00:00 UTC±offset; build the local `yyyy-mm-dd` from local parts.
 
 ## Don't Hand-Roll
@@ -406,7 +406,7 @@ Same `useActionState` machinery as device/employee dialogs: `(prev, formData) �
 
 ## Runtime State Inventory
 
-Omitted: greenfield feature phase — no rename/refactor/migration. Schema is frozen (E-02, verified: `drizzle/` = 0000 only; `movements`/`attachments`/triggers/indexes all present; `data/uploads/` exists, empty, and is already covered by `scripts/backup.mjs` and the compose volume comment).
+Omitted: greenfield feature phase — no rename/refactor/migration. Schema is frozen (D-02, verified: `drizzle/` = 0000 only; `movements`/`attachments`/triggers/indexes all present; `data/uploads/` exists, empty, and is already covered by `scripts/backup.mjs` and the compose volume comment).
 
 ## Common Pitfalls
 
@@ -427,7 +427,7 @@ Omitted: greenfield feature phase — no rename/refactor/migration. Schema is fr
 **Avoid:** the conditional UPDATE (Pattern C1) — `.changes === 0` rejects with zero writes; single SQL statement, no window.
 **Warning signs:** any `SELECT status` followed by an unconditional `UPDATE` in a transition function.
 
-### Pitfall 4: Timeline order breaks for backdated events (E-01)
+### Pitfall 4: Timeline order breaks for backdated events (D-01)
 **What goes wrong:** «Закупил вчера, выдал вчера» shows after today's events, or ties shuffle between renders.
 **Avoid:** `orderBy(desc(occurredAt), desc(id))` — VERIFIED; never `desc(id)` alone.
 **Warning signs:** timeline order differs from the dates printed on it.
@@ -459,7 +459,7 @@ Omitted: greenfield feature phase — no rename/refactor/migration. Schema is fr
 **Warning signs:** times that match nobody's wall clock in UAT.
 
 ### Pitfall 10: Disposed device accepts mutations
-**What goes wrong:** Photo upload/delete or a custody action on a `disposed` device via direct POST, breaking E-03 view-only.
+**What goes wrong:** Photo upload/delete or a custody action on a `disposed` device via direct POST, breaking D-03 view-only.
 **Avoid:** every photo handler and custody action first reads the row and rejects `disposed` (custody actions reject via status guards anyway); UI hides all affordances.
 **Warning signs:** any handler with no status awareness.
 
@@ -512,7 +512,7 @@ router.refresh()
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | Timeline/display times may render in host TZ (UTC in Docker); planner picks formatter `timeZone` or compose `TZ=Europe/Moscow` | Pattern C7, Pitfall 9 | Cosmetic-but-visible: wrong times in UAT; one-line fix either way |
-| A2 | Disposed devices reject photo upload/delete server-side (UI hides affordances; server guard assumed consistent with E-03 «только просматривается») | Pattern C5, Pitfall 10 | Low: extra rejection is defensive, never breaks legit flow |
+| A2 | Disposed devices reject photo upload/delete server-side (UI hides affordances; server guard assumed consistent with D-03 «только просматривается») | Pattern C5, Pitfall 10 | Low: extra rejection is defensive, never breaks legit flow |
 | A3 | `Buffer` → `new Uint8Array(buf)` needed for `Response` body typing (TS DOM lib nit; runtime accepts Buffer directly) | Pattern C5 serving | Trivial: type cast alternative |
 | A4 | Sequential per-file upload (no parallel Promise.all) is acceptable UX for ≤8 phone photos | Pattern C5 | Low: only affects upload duration |
 | A5 | Single `attachments.device_id`-less scan per page render stays milliseconds at hundreds of devices (no index addable) | Pattern C6 | Low: revisit only at ~10K devices (out of project lifetime) |
@@ -535,7 +535,7 @@ router.refresh()
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
 | Node.js | everything | ✓ | 22.23.0 (sharp 0.35.4 prebuilt loaded in sandbox on this Node) | — |
-| sharp | photo pipeline | ✗ not installed yet — Wave 0 task | 0.35.4 (latest, verified on registry) | none (core to E-06); checkpoint:human-verify first |
+| sharp | photo pipeline | ✗ not installed yet — Wave 0 task | 0.35.4 (latest, verified on registry) | none (core to D-06); checkpoint:human-verify first |
 | data/uploads/ | photo storage | ✓ (exists, empty; backup + compose volume already cover it) | — | — |
 | next / drizzle / better-sqlite3 / zod / vitest | framework | ✓ | 16.3.3 / 0.45.2 / 13.0.3 / 4.5.4 / 4.1.11 (installed) | — |
 | Web Canvas / createImageBitmap | client resize | ✓ (browser API; Chrome 81+/Safari 13.1+ per MDN) | — | error path (Pitfall 11) |
@@ -560,12 +560,12 @@ router.refresh()
 |--------|----------|-----------|-------------------|-------------|
 | MOVE-01/03 | assign: guard rejects non-in_stock (no event/projection); legal path writes event+projection | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'assign'` | ❌ Wave 0 |
 | MOVE-02/04 | return/transfer write correct from/to; event+projection atomic; movements UPDATE/DELETE RAISE | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return'` | ❌ Wave 0 (trigger test exists in schema.test.ts) |
-| MOVE-04/E-01 | timeline order: occurredAt DESC, id tiebreak, backdated sorts by date; alias names resolve; archived names render | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ Wave 0 |
-| MOVE-05/E-07 | return-all: N events in one tx; injected failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ Wave 0 |
+| MOVE-04/D-01 | timeline order: occurredAt DESC, id tiebreak, backdated sorts by date; alias names resolve; archived names render | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ Wave 0 |
+| MOVE-05/D-07 | return-all: N events in one tx; injected failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ Wave 0 |
 | EMP-02 | issued list: assigned-only by holder; latest assigned date per device (batched) | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'issued'` | ❌ Wave 0 |
-| REG-05/E-05/E-06 | attachments: 8-cap count guard; batched per-page thumbnail + count queries; processPhoto: EXIF/GPS/ICC stripped, auto-orient applied, no enlargement, thumb 400px, garbage rejected | unit/integration (sharp in node) | `npx vitest run tests/attachments-queries.test.ts` | ❌ Wave 0 |
-| REG-04/E-03 | disposed: all 7 transitions reject; upload/delete guard (queries-level precondition) | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ Wave 0 |
-| E-01 | occurredAt schema: future rejected, backdated accepted, comment ≤500 | unit | `npx vitest run tests/movements-queries.test.ts -t 'occurredAt'` (zod part) | ❌ Wave 0 |
+| REG-05/D-05/D-06 | attachments: 8-cap count guard; batched per-page thumbnail + count queries; processPhoto: EXIF/GPS/ICC stripped, auto-orient applied, no enlargement, thumb 400px, garbage rejected | unit/integration (sharp in node) | `npx vitest run tests/attachments-queries.test.ts` | ❌ Wave 0 |
+| REG-04/D-03 | disposed: all 7 transitions reject; upload/delete guard (queries-level precondition) | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ Wave 0 |
+| D-01 | occurredAt schema: future rejected, backdated accepted, comment ≤500 | unit | `npx vitest run tests/movements-queries.test.ts -t 'occurredAt'` (zod part) | ❌ Wave 0 |
 | ACC-02 | photo routes behind session: no cookie → redirect/401; with cookie → 200 jpeg | smoke (production build) | `node scripts/smoke-custody.mjs` (follows smoke-devices.mjs: temp DB, `next start`, minted cookie, curl asserts) | ❌ optional Wave 0 |
 | UI-01/UI-02 + dialogs | Russian copy, echo values, lightbox, matrix buttons, disposed view-only | manual-only | — | Justification: visual/interactive; smoke ≠ UI (standing rule); UAT against 04-UI-SPEC |
 

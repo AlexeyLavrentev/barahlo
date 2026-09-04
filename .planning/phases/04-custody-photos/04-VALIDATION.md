@@ -41,11 +41,11 @@ created: 2026-09-03
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 04-01-T1 | 01 | 1 | MOVE-01/03 | T-04-01 | guard rejects non-in_stock, no side effects | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'assign'` | ❌ W0 | ⬜ pending |
 | 04-01-T1 | 01 | 1 | MOVE-02/04 | T-04-02 | correct from/to; atomic; RAISE on UPDATE/DELETE | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return'` | ❌ W0 | ⬜ pending |
-| 04-01-T1 | 01 | 1 | MOVE-04/E-01 | T-04-03 | occurredAt DESC + id; backdated; alias names | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ W0 | ⬜ pending |
-| 04-01-T1 | 01 | 1 | MOVE-05/E-07 | T-04-04 | N events one tx; failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-04/D-01 | T-04-03 | occurredAt DESC + id; backdated; alias names | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'timeline'` | ❌ W0 | ⬜ pending |
+| 04-01-T1 | 01 | 1 | MOVE-05/D-07 | T-04-04 | N events one tx; failure rolls back ALL | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'return-all'` | ❌ W0 | ⬜ pending |
 | 04-01-T1 | 01 | 1 | EMP-02 | — | assigned-only by holder, batched | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'issued'` | ❌ W0 | ⬜ pending |
-| 04-02-T2 | 02 | 2 | REG-04/E-03 | T-04-05 | all 7 transitions reject from disposed | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ W0 | ⬜ pending |
-| 04-03-T1 | 03 | 3 | REG-05/E-05/E-06 | T-04-06..08 | 8-cap; EXIF/GPS/ICC stripped; no enlargement; garbage rejected | unit/integration | `npx vitest run tests/attachments-queries.test.ts` | ❌ W0 | ⬜ pending |
+| 04-02-T2 | 02 | 2 | REG-04/D-03 | T-04-05 | all 7 transitions reject from disposed | unit/integration | `npx vitest run tests/movements-queries.test.ts -t 'disposed'` | ❌ W0 | ⬜ pending |
+| 04-03-T1 | 03 | 3 | REG-05/D-05/D-06 | T-04-06..08 | 8-cap; EXIF/GPS/ICC stripped; no enlargement; garbage rejected | unit/integration | `npx vitest run tests/attachments-queries.test.ts` | ❌ W0 | ⬜ pending |
 | 04-03-T1 | 03 | 3 | REG-05/ACC-02 | T-04-06 | no cookie → 401/redirect; with cookie → 200 | smoke | `node scripts/smoke-custody.mjs` | ❌ W0 | ⬜ pending |
 
 *(Task IDs finalize when plans exist; planner maps rows to concrete task IDs.)*
@@ -65,7 +65,7 @@ created: 2026-09-03
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Диалоги выдачи/приёма/передачи/ремонта/списания: echo values, копи, порядок полей | MOVE-01..03/E-01 | Interactive/visual | UAT против 04-UI-SPEC |
+| Диалоги выдачи/приёма/передачи/ремонта/списания: echo values, копи, порядок полей | MOVE-01..03/D-01 | Interactive/visual | UAT против 04-UI-SPEC |
 | Таймлайн/фотогрид/лайтбокс визуал | MOVE-04/REG-05 | Visual | UAT + /gsd-ui-review 4 |
 | Фото с телефона (capture, HEIC→JPEG) | REG-05 | Нужен реальный телефон | Открыть карточку с телефона, приложить фото |
 
