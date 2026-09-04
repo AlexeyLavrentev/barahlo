@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DISPLAY_TZ } from '@/lib/ru'
 
 // Keystone module of the custody actions (D-01/D-02): the SINGLE source of the
 // movement event vocabulary, its Russian labels and the zod pieces shared by
@@ -33,44 +34,88 @@ export function movementEventLabel(eventType: string): string {
   return MOVEMENT_EVENT_LABELS[eventType as MovementEventType] ?? eventType
 }
 
+// Calendar-day helpers run on the OFFICE wall clock (CR-01): the deployment
+// container is UTC while the office is Moscow, so a server-local comparison
+// rejected the prefilled «today» during MSK 00:00–03:00 every night. Both
+// helpers take an injectable `now` so the day boundary is pinned by frozen-
+// clock regression tests (tests/movement-schema.test.ts).
+
+// Wall-clock parts of `date` in a named zone (hourCycle h23 → midnight is 0,
+// never 24).
+function zonedParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPart['type']): number =>
+    Number(parts.find((part) => part.type === type)!.value)
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    second: get('second'),
+  }
+}
+
 // D-01: a movement date may be backdated but never lies about the future.
-// The chosen CALENDAR DAY is compared against the start of tomorrow in the
-// server timezone — today is always legal (its time-of-day is supplied by
+// The chosen CALENDAR DAY is compared against TODAY IN DISPLAY_TZ (the office
+// wall clock — CR-01); both are yyyy-mm-dd, so lexicographic order IS
+// chronological order. Today is always legal (its time-of-day is supplied by
 // occurredAtFromDate below), any later day is rejected. The client `max`
 // attribute is convenience only; this check is the authority (RESEARCH C7).
-export function isNotFutureDate(iso: string): boolean {
-  const [y, m, d] = iso.split('-').map(Number)
-  const chosen = new Date(y, m - 1, d)
-  const now = new Date()
-  const startOfTomorrow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  )
-  return chosen.getTime() < startOfTomorrow.getTime()
+export function isNotFutureDate(iso: string, now: Date = new Date()): boolean {
+  const today = zonedParts(now, DISPLAY_TZ)
+  const todayIso =
+    `${String(today.year).padStart(4, '0')}` +
+    `-${String(today.month).padStart(2, '0')}` +
+    `-${String(today.day).padStart(2, '0')}`
+  return iso <= todayIso
 }
 
 // D-01 default «сейчас», made concrete (RESEARCH C7): a submitted day becomes
-// that day with NOW's time-of-day — «выдал вчера» keeps a plausible hour and
-// the timeline ordering stays stable. No date at all = now.
-export function occurredAtFromDate(iso: string | undefined): Date {
-  if (!iso) return new Date()
+// that day with NOW's DISPLAY_TZ time-of-day — «выдал вчера» keeps a
+// plausible hour, the timeline ordering stays stable, and the stored
+// instant's Moscow day equals the submitted one even on the UTC container
+// (CR-01). No date at all = now.
+export function occurredAtFromDate(
+  iso: string | undefined,
+  now: Date = new Date(),
+): Date {
+  if (!iso) return now
   const [y, m, d] = iso.split('-').map(Number)
-  const now = new Date()
-  return new Date(
-    y,
-    m - 1,
-    d,
-    now.getHours(),
-    now.getMinutes(),
-    now.getSeconds(),
-  )
+  const wall = zonedParts(now, DISPLAY_TZ)
+  // Interpret chosen day + wall-clock time AS DISPLAY_TZ: start from the
+  // naive-UTC guess and re-subtract the zone offset measured at the CURRENT
+  // guess from the ORIGINAL target (fixed-point; two steps are exact even
+  // across DST transitions — Moscow itself has been a fixed UTC+3 since
+  // 2014, so the first step already lands).
+  const target = Date.UTC(y, m - 1, d, wall.hour, wall.minute, wall.second)
+  const offsetMs = (t: number): number => {
+    const p = zonedParts(new Date(t), DISPLAY_TZ)
+    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - t
+  }
+  let guess = target
+  guess = target - offsetMs(guess)
+  guess = target - offsetMs(guess)
+  return new Date(guess)
 }
 
 const occurredAtSchema = z
   .string()
   .regex(DATE_PATTERN)
-  .refine(isNotFutureDate, { message: 'Дата не может быть в будущем' })
+  // Arrow wrapper: isNotFutureDate's second parameter is the injectable
+  // clock — a bare refine reference could forward a zod context into it.
+  .refine((iso) => isNotFutureDate(iso), {
+    message: 'Дата не может быть в будущем',
+  })
 
 const commentSchema = z.string().max(500)
 
