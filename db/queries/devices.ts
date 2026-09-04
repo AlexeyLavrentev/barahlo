@@ -6,8 +6,10 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   lt,
   lte,
+  ne,
   or,
   sql,
 } from 'drizzle-orm'
@@ -189,17 +191,46 @@ export function listDevices({
   pages: number
 } {
   // One where shared by the count and the rows query (Pitfall 5 property) —
-  // every filter composes into this single and(...). Sort stays the canonical
-  // RU-sort with the id tiebreaker: no relevance ranking anywhere in the
-  // search path (D-03).
+  // every filter composes into this single and(...). Each term is guarded by
+  // the presence of its parsed filter so inactive filters contribute nothing
+  // (the page strips the URL sentinels into undefined). Sort stays the
+  // canonical RU-sort with the id tiebreaker: no relevance ranking anywhere
+  // in the search path (D-03).
   const where = and(
     type === 'all' ? undefined : eq(devices.typeKey, type),
     filters?.q ? searchPredicate(filters.q) : undefined,
+    filters?.status ? eq(devices.status, filters.status) : undefined,
+    // D-09: the department predicate rides the EXISTING leftJoin — a device
+    // matches when its CURRENT holder belongs to the department. In-stock
+    // rows (NULL holder) drop out of the join for free; archived employees
+    // join normally (isActive is deliberately not filtered — приёмка
+    // единицы не теряется).
+    filters?.departmentId
+      ? eq(employees.departmentId, filters.departmentId)
+      : undefined,
+    // D-07 (edge 5, orchestrator resolution 5): the ramUpgraded flag is the
+    // ONLY semantics — NULL means not upgraded (the checkbox is set only by
+    // the upgrade fact). A plain `!= 1` silently drops NULL rows (SQL
+    // three-valued logic, probe-verified). The term is self-limiting to
+    // laptops server-side, so a hand-crafted ?type=monitor&ram=1 is inert —
+    // the client coupling (D-08 in buildDevicesQuery) is UX only, never the
+    // boundary (T-05-06).
+    filters?.ramNoUpgrade
+      ? and(
+          eq(devices.typeKey, 'laptop'),
+          or(isNull(devices.ramUpgraded), ne(devices.ramUpgraded, 1)),
+        )
+      : undefined,
     warrantyPredicate(filters?.warranty),
   )
+  // The SAME where spans employees (department predicate), so the count query
+  // carries the same leftJoin. employees is joined on its primary key — the
+  // join cannot multiply rows, the total stays exact while count and rows
+  // provably cannot drift (Pitfall 5).
   const total = db
     .select({ value: count() })
     .from(devices)
+    .leftJoin(employees, eq(devices.currentEmployeeId, employees.id))
     .where(where)
     .get()!.value
   const pages = Math.max(1, Math.ceil(total / pageSize))
