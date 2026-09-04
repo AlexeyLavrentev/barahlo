@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 5-search-filters
 source: [05-VERIFICATION.md]
 started: 2026-09-04T20:45:00Z
@@ -55,5 +55,12 @@ blocked: 0
   reason: "User reported: поле поиска в целом работает если вводить и удалять символы по одному с паузами. Если вводить символы или удалять их быстро то поле ведет себя странно, и либо не прописывает то что я пишу, либо не удаляет"
   severity: major
   test: 1
-  artifacts: []  # Filled by diagnosis
-  missing: []    # Filled by diagnosis
+  root_cause: "lastSynced.current = value пишется при взводе дебаунса (search-box.tsx:57), а не при получении эха; в окне взвод→эхо любое нажатие удовлетворяет q !== lastSynced и ветка адаптации (47–51) затирает более новый ввод setValue(q) и делает return без перевзвода (66–73). Регрессия от CR-01-фикса be80413."
+  artifacts:
+    - path: "app/(app)/devices/search-box.tsx"
+      issue: "adoption-ветка не различает внешнюю навигацию и эхо собственного push; lastSynced пишется на 300мс раньше эха"
+  missing:
+    - "Адаптировать q только когда value === lastSynced.current && q !== lastSynced.current (локальный приоритет)"
+    - "Иначе перевзводить debounce, чтобы более новый текст ушёл пушем"
+    - "commitNow (Enter) аналогично: эхо не должно откатывать ввод, сделанный в полёте"
+  debug_session: .planning/debug/search-input-keystroke-loss.md
