@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import { listDevices } from '@/db/queries/devices'
-import type { DeviceListFilters } from '@/db/queries/devices'
 import {
   DEVICE_TYPES,
   deviceStatusLabel,
@@ -14,7 +13,11 @@ import { displayTodayUtc } from '@/lib/warranty'
 import { WarrantyDate, formatWarrantyDate } from '@/lib/warranty-date'
 import { DeviceDialog } from './device-dialog'
 import { FilterBar } from './filter-bar'
-import { buildDevicesQuery, parseDevicesSearchParams } from './query-params'
+import {
+  buildDevicesQuery,
+  parseDevicesSearchParams,
+  toDeviceListFilters,
+} from './query-params'
 
 export const metadata: Metadata = {
   title: 'Устройства',
@@ -41,15 +44,11 @@ export default async function DevicesPage({
   // WR-01); the query still clamps into [1, pages].
   const parsedPage = Number(sp.page)
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
-  // Strip the URL-layer sentinels into the db-layer contract: undefined
-  // means INACTIVE (plan-02 presence guards assume undefined — never leak
-  // 'all'/null/false/''). listDevices composes only the active predicates.
-  const listFilters: DeviceListFilters = {}
-  if (filters.q !== '') listFilters.q = filters.q
-  if (filters.status !== 'all') listFilters.status = filters.status
-  if (filters.departmentId !== null) listFilters.departmentId = filters.departmentId
-  if (filters.warranty !== 'all') listFilters.warranty = filters.warranty
-  if (filters.ramNoUpgrade) listFilters.ramNoUpgrade = true
+  // Strip the URL-layer sentinels into the db-layer contract (undefined =
+  // INACTIVE) via the ONE shared mapping (WR-01) — the CSV route calls the
+  // same toDeviceListFilters, so the two call sites cannot drift. listDevices
+  // composes only the active predicates.
+  const listFilters = toDeviceListFilters(filters)
   const { rows, total, page: current, pages } = listDevices({
     type: filters.type,
     page,

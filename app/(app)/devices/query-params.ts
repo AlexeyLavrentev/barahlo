@@ -2,13 +2,13 @@ import { z } from 'zod'
 import { isDeviceStatusKey, isDeviceTypeKey } from '@/lib/device-schema'
 import type { DeviceStatusKey } from '@/lib/device-schema'
 // Type-only import — erased at compile time, the db module is never bundled.
-import type { DeviceListType } from '@/db/queries/devices'
+import type { DeviceListFilters, DeviceListType } from '@/db/queries/devices'
 
 // The ONE params module of /devices (phase 5): the single source of the URL
 // filter vocabulary, of the server-side parse and of the query-string
 // builder. Pagination links, every island and the CSV route (plan 04) call
-// buildDevicesQuery / parseDevicesSearchParams — no second parse path can
-// drift.
+// buildDevicesQuery / parseDevicesSearchParams / toDeviceListFilters — no
+// second parse or strip path can drift.
 //
 // Pure and immutable: no framework imports, no module-level mutable state
 // (vercel server-no-shared-module-state) — safe to import from RSC, client
@@ -17,8 +17,9 @@ import type { DeviceListType } from '@/db/queries/devices'
 // import this module's builder themselves.
 
 // URL-layer filter state. The sentinels live HERE: '' / 'all' / null / false
-// mean INACTIVE. The page strips them into the db-layer DeviceListFilters
-// (undefined-for-inactive) before querying.
+// mean INACTIVE. toDeviceListFilters below strips them into the db-layer
+// DeviceListFilters (undefined-for-inactive) — the ONE mapping for the list
+// page and the CSV route alike (WR-01).
 export type DeviceFilters = {
   q: string
   type: DeviceListType
@@ -68,6 +69,22 @@ export function parseDevicesSearchParams(
   // self-limits to laptops regardless; plan 02 wires the chip).
   const ramNoUpgrade = sp.ram === '1'
   return { q, type, status, departmentId, warranty, ramNoUpgrade }
+}
+
+// The ONE strip from the URL-layer sentinels to the db-layer contract
+// (WR-01): undefined means INACTIVE — the plan-02 presence guards and the
+// shared deviceWhere assume undefined, a leaked 'all'/null/false/'' would
+// corrupt every composed filter (db/queries/devices.ts). Mirrors the parser
+// above field-for-field: a new DeviceFilters field must be added here too —
+// in this single place, not per caller. Pure, like the rest of the module.
+export function toDeviceListFilters(f: DeviceFilters): DeviceListFilters {
+  const out: DeviceListFilters = {}
+  if (f.q !== '') out.q = f.q
+  if (f.status !== 'all') out.status = f.status
+  if (f.departmentId !== null) out.departmentId = f.departmentId
+  if (f.warranty !== 'all') out.warranty = f.warranty
+  if (f.ramNoUpgrade) out.ramNoUpgrade = true
+  return out
 }
 
 // The ONE builder pagination links, islands and the CSV link all call: FULL

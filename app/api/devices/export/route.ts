@@ -1,11 +1,13 @@
 import type { NextRequest } from 'next/server'
 import { requireSession } from '@/lib/auth'
 import { exportDevices } from '@/db/queries/devices'
-import type { DeviceListFilters } from '@/db/queries/devices'
 import { deviceStatusLabel, deviceTypeName } from '@/lib/device-schema'
 import { formatWarrantyDate } from '@/lib/warranty-date'
 import { buildCsv, csvResponseHeaders } from '@/lib/csv'
-import { parseDevicesSearchParams } from '@/app/(app)/devices/query-params'
+import {
+  parseDevicesSearchParams,
+  toDeviceListFilters,
+} from '@/app/(app)/devices/query-params'
 
 // CSV export of the FULL filtered registry (D-18, REG-01 byproduct; T-05-09..
 // T-05-12). GET only: the «Скачать CSV» link is a plain server-rendered <a>
@@ -13,8 +15,9 @@ import { parseDevicesSearchParams } from '@/app/(app)/devices/query-params'
 //
 // Zero-drift contract: this route calls parseDevicesSearchParams — the EXACT
 // parser the /devices page uses — and exportDevices, which composes the SAME
-// deviceWhere predicate as listDevices (one parser, one predicate, two
-// callers; any second parse path WILL drift — RESEARCH anti-pattern).
+// deviceWhere predicate as listDevices (one parser, one predicate, one
+// sentinel-strip — toDeviceListFilters — shared with the page; any second
+// parse or strip path WILL drift — RESEARCH anti-pattern, WR-01).
 //
 // Security shape (mirrors the attachments-route precedent): requireSession()
 // is the FIRST statement of the handler (V3 defense-in-depth on top of the
@@ -53,15 +56,11 @@ export async function GET(request: NextRequest) {
   await requireSession()
   const sp = Object.fromEntries(request.nextUrl.searchParams)
   const filters = parseDevicesSearchParams(sp)
-  // Strip the URL-layer sentinels into the db-layer contract — identical to
-  // the page's block: undefined means INACTIVE (the plan-02 presence guards
-  // and the shared deviceWhere assume undefined, never 'all'/null/false/'').
-  const listFilters: DeviceListFilters = {}
-  if (filters.q !== '') listFilters.q = filters.q
-  if (filters.status !== 'all') listFilters.status = filters.status
-  if (filters.departmentId !== null) listFilters.departmentId = filters.departmentId
-  if (filters.warranty !== 'all') listFilters.warranty = filters.warranty
-  if (filters.ramNoUpgrade) listFilters.ramNoUpgrade = true
+  // Strip the URL-layer sentinels into the db-layer contract via the ONE
+  // shared toDeviceListFilters (WR-01) — the exact mapping the page runs:
+  // undefined means INACTIVE (the plan-02 presence guards and the shared
+  // deviceWhere assume undefined, never 'all'/null/false/'').
+  const listFilters = toDeviceListFilters(filters)
   // The full scan: every page of the current filters, canonical order, holder
   // + holder's department joined (D-09 semantics visible in the file).
   const rows = exportDevices({ type: filters.type, filters: listFilters })
