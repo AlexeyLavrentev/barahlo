@@ -5,10 +5,10 @@ milestone_name: milestone
 current_phase: 5
 current_phase_name: Search & Filters
 status: executing
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-09-04T18:07:30.069Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-09-04T18:28:18.374Z"
 last_activity: 2026-09-04
-last_activity_desc: Phase 04 complete, transitioned to Phase 5
+last_activity_desc: Phase 5 execution started
 progress:
   total_phases: 5
   completed_phases: 4
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-31)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 04 — custody-photos
+**Current focus:** Phase 5 — Search & Filters
 
 ## Current Position
 
-Phase: 5 — Search & Filters
-Plan: Not started
+Phase: 5 (Search & Filters) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-09-04 — Phase 04 complete, transitioned to Phase 5
+Last activity: 2026-09-04 — Phase 5 execution started
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 72%
 
 ## Performance Metrics
 
@@ -68,6 +68,7 @@ Progress: [██████████] 100%
 | Phase 02 P01 | 25 min | 2 tasks | 22 files |
 | Phase 02 P02 | 14 min | 3 tasks | 5 files |
 | Phase 02 P03 | 14 min | 3 tasks | 6 files |
+| Phase 05 P01 | 17 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 2/План 2: подтверждение архивации — дословный копи UI-SPEC, primary нейтральный bg-ink (не красный — архив обратим); TDD RED для UI-острова выражен smoke-ассертом data-employee-id (компонентного раннера в репо нет)
 - [Phase ?]: Фаза 2/План 3: сегментный loading.tsx в этой версии Next стримит поддерево с дочерними сегментами и флешит 200 до notFound() — карточка /employees/[id] вынесена в route group (card), 404-матрица восстановлена; [id]-loading сознательно не создаётся
 - [Phase ?]: Фаза 2/План 3: combobox отдела только записывает имя в hidden departmentName — создание делает серверный resolveDepartmentId в транзакции (гонка UNIQUE переиспользует существующий); закрепление «Создать „X“» байт-точное, как departments_name_uq
+- [Phase ?]: Фаза 5/План 1: свёртка поиска = write-side normalizeNumber через norm() UDF в openDb (deterministic); LIKE-паттерны экранированы (ESCAPE '\'), q обрезан до 100 символов на сервере
+- [Phase ?]: Фаза 5/План 1: query-params.ts — единственный парсер/билдер URL-фильтров /devices (D-08 связка ram/type живёт в билдере); db-слой получает undefined-for-inactive (сентинелы 'all'/null/false/'' стрипятся на странице)
+- [Phase ?]: Фаза 5/План 1: живой поиск — controlled input вне <form> (React 19 reset), 300 мс дебаунс → router.replace(scroll:false) в startTransition; Enter коммитит сразу; value===q guard против гонки со «Сбросить фильтры»
 
 ### Pending Todos
 
@@ -104,8 +108,8 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 1]: выбрать механизм сессии (исследование рекомендует jose signed cookie, не NextAuth)
-- [Phase 3]: подтвердить с пользователем семантику флага `ram_upgraded` (явный булев флаг vs сравнение с базовой RAM)
-- [Phase 5]: собрать typing-test фикстуру гомоглифов (С↔C, О↔O…) — приём нормализации подтверждён только практикой
+- [Phase 3]: подтвердить с пользователем семантику флага `ram_upgraded` (явный булев флаг vs сравнение с базовой RAM) — ЗАКРЫТ контекстом фазы 5 (D-06: явный флаг ramUpgraded)
+- ~~[Phase 5]: собрать typing-test фикстуру гомоглифов (С↔C, О↔O…)~~ — ЗАКРЫТ 05-01: tests/homoglyphs-fixture.ts (11 пар, обе стороны + completeness guard)
 
 ## Deferred Items
 
@@ -117,6 +121,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-04T17:09:41.921Z
-Stopped at: Phase 5 UI-SPEC approved
-Resume file: .planning/phases/05-search-filters/05-UI-SPEC.md
+Last session: 2026-09-04T18:27:35.829Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None

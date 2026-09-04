@@ -31,10 +31,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Поиск и фильтры
 
-- [ ] **FIND-01**: User can instantly search devices by substring in serial / inventory number / model, case-insensitive
+- [x] **FIND-01**: User can instantly search devices by substring in serial / inventory number / model, case-insensitive
 - [ ] **FIND-02**: User can filter ноутбуки by RAM-upgrade flag — «ноуты без апгрейда RAM» in one click
 - [ ] **FIND-03**: User can filter devices by type, status, department, and warranty window («гарантия истекает в 60 дней»)
-- [ ] **FIND-04**: Search and filters tolerate real input: extra spaces, регистр, кириллические/латинские гомоглифы (С vs C)
+- [x] **FIND-04**: Search and filters tolerate real input: extra spaces, регистр, кириллические/латинские гомоглифы (С vs C)
 
 ### Закупка и гарантия
 
@@ -115,10 +115,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REG-04 | Phase 4 | Complete |
 | EMP-02 | Phase 4 | Complete |
 | REG-05 | Phase 4 | Complete |
-| FIND-01 | Phase 5 | Pending |
+| FIND-01 | Phase 5 | Complete |
 | FIND-02 | Phase 5 | Pending |
 | FIND-03 | Phase 5 | Pending |
-| FIND-04 | Phase 5 | Pending |
+| FIND-04 | Phase 5 | Complete |
 | WAR-01 | Phase 5 | Pending |
 | UI-03 | Phase 5 | Pending |
 | DASH-01 | Phase 6 | Pending |
