@@ -56,7 +56,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **UI-01**: Интерфейс полностью на русском
 - [x] **UI-02**: Apple-aesthetic design: чистота, типографика, воздух (гайды skill `apple-design`)
-- [ ] **UI-03**: Lists stay fast at hundreds of devices (server-side pagination, indexed search columns)
+- [x] **UI-03**: Lists stay fast at hundreds of devices (server-side pagination, indexed search columns)
 
 ## v2 Requirements
 
@@ -120,7 +120,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIND-03 | Phase 5 | Complete |
 | FIND-04 | Phase 5 | Complete |
 | WAR-01 | Phase 5 | Complete |
-| UI-03 | Phase 5 | Pending |
+| UI-03 | Phase 5 | Complete |
 | DASH-01 | Phase 6 | Pending |
 | DASH-02 | Phase 6 | Pending |
 | DASH-03 | Phase 6 | Pending |

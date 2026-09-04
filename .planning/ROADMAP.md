@@ -146,7 +146,7 @@ Plans note: фото (REG-05) — объявленная линия отреза
   4. Состояние гарантии подсвечено в карточке и списках: зелёный / жёлтый «< 60 дней» / красный «истекла»
   5. На сотнях устройств поиск, фильтры и пагинация остаются мгновенными (серверные списки, индексированные колонки)
 
-**Plans**: 3/5 plans executed
+**Plans**: 4/5 plans executed
 
 Plans:
 **Wave 1**
@@ -160,7 +160,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [x] 05-03-PLAN.md — Подсветка гарантии в трёх местах: токены #248A3D/#FF9500, WarrantyDate (WAR-01)
-- [ ] 05-05-PLAN.md — Масштаб: perf-гейт полного фильтра @500 строк, seed до ~400 устройств (UI-03)
+- [x] 05-05-PLAN.md — Масштаб: perf-гейт полного фильтра @500 строк, seed до ~400 устройств (UI-03)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -215,5 +215,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Employees | 3/3 | Complete    | 2026-09-02 |
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
-| 5. Search & Filters | 3/5 | In Progress|  |
+| 5. Search & Filters | 4/5 | In Progress|  |
 | 6. Dashboard | 0/TBD | Not started | - |
