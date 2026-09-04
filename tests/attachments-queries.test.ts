@@ -257,11 +257,11 @@ describe('attachments queries — cap, strict pair, delete (D-05)', () => {
   it('getAttachment enforces the IDOR pair (deviceId + attachmentId)', () => {
     const dev = newDevice()
     const stranger = newDevice()
-    const id = seedAttachment(dev)
+    const id = seedAttachment(dev, `${dev}/pair-check.jpg`)
     const row = getAttachment(dev, id)
     expect(row).toBeDefined()
     expect(row!.deviceId).toBe(dev)
-    expect(row!.storageKey).toBe(`${dev}/seed-${id}.jpg`)
+    expect(row!.storageKey).toBe(`${dev}/pair-check.jpg`)
     // чужая пара → undefined
     expect(getAttachment(stranger, id)).toBeUndefined()
   })
