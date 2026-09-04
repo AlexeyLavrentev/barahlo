@@ -39,3 +39,29 @@ export function pluralDevices(n: number): string {
 // Client-side Russian ordering (combobox options in 02-03): case-insensitive,
 // ё sorted after е.
 export const ruCollator = new Intl.Collator('ru')
+
+// Display timezone of movement moments (RESEARCH C7, Pitfall 9): occurredAt
+// carries a real time, and a formatter without an explicit zone reads the
+// HOST clock — UTC inside the Docker container would silently shift every
+// printed time. The office wall clock is Moscow.
+export const DISPLAY_TZ = 'Europe/Moscow'
+
+// «03.09.2026, 15:53» — timeline meta line (VERIFIED ru-RU shape, 04-RESEARCH
+// C7). Deliberately NOT the card's UTC date formatter: that one is for
+// UTC-midnight date-only columns and would render 03:00 times here.
+export const occurredAtFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: DISPLAY_TZ,
+})
+
+// «03.09.2026» — «выдано {дата}» line of the employee card issued list.
+export const occurredDateFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: DISPLAY_TZ,
+})

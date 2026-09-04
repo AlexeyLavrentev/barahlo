@@ -10,12 +10,19 @@ import {
   type DeviceInput,
 } from '@/db/queries/devices'
 import {
+  acceptDevice,
+  assignDevice,
+  getDeviceHolder,
+  transferDevice,
+} from '@/db/queries/movements'
+import {
   deviceSaveSchema,
   deviceUpdateSchema,
   isDeviceTypeKey,
   typeFields,
   type DeviceTypeKey,
 } from '@/lib/device-schema'
+import { movementSchemas, occurredAtFromDate } from '@/lib/movement-schema'
 
 // Server Actions are directly POST-able — the proxy perimeter does not cover
 // them — so requireSession() is the FIRST line of every action (T-03-01).
@@ -278,6 +285,163 @@ export async function updateDeviceAction(
     if (!updated) return { error: SAVE_ERROR }
   } catch (e) {
     return uniqueFieldError(e)
+  }
+  refresh()
+  return { ok: true }
+}
+
+// ─── Custody actions (MOVE-01..03, D-08) ────────────────────────────────────
+//
+// Same contract as the registry actions: requireSession() first, zod
+// whitelist, one transactional query, refresh() on success. The status and
+// the holder are NEVER read from the payload — the query's guard-UPDATE
+// decides from the DB row inside the transaction (T-04-02, RESEARCH C1); a
+// guard rejection (crafted POST, stale UI) surfaces as the dialog's own
+// «Не удалось …» copy (04-UI-SPEC Guard row), with the submitted values
+// echoed back (React 19 form-reset pattern, 4886f6a).
+
+const ASSIGN_ERROR = 'Не удалось выдать. Попробуйте ещё раз.'
+const ACCEPT_ERROR = 'Не удалось принять. Попробуйте ещё раз.'
+const TRANSFER_ERROR = 'Не удалось передать. Попробуйте ещё раз.'
+
+export type MovementFieldErrors = {
+  employeeId?: string
+  occurredAt?: string
+}
+
+export type MovementFormState = {
+  ok?: boolean
+  error?: string
+  fieldErrors?: MovementFieldErrors
+  // Echo of the submitted strings — same rationale as DeviceFormState.values.
+  values?: Record<string, string>
+}
+
+// Raw strings of the movement form fields — the echo payload attached to any
+// failure state (the employee picker keeps its own client state, the date and
+// comment inputs are uncontrolled and reset by React 19).
+function echoMovementValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const key of ['employeeId', 'occurredAt', 'comment']) {
+    const raw = formData.get(key)
+    if (typeof raw === 'string' && raw !== '') values[key] = raw
+  }
+  return values
+}
+
+// FormData → whitelisted plain values. Empty optionals become undefined (→
+// «сейчас» / NULL in the queries); employeeId is included only for the
+// person-carrying schemas — the strict accept schema treats it as a tampering
+// signal (T-04-02).
+function movementPayload(formData: FormData, withEmployee: boolean) {
+  const comment = textOf(formData, 'comment')
+  const occurredAt = textOf(formData, 'occurredAt')
+  const base = {
+    deviceId: formData.get('deviceId'),
+    occurredAt: occurredAt === '' ? undefined : occurredAt,
+    comment: comment === '' ? undefined : comment,
+  }
+  return withEmployee
+    ? { ...base, employeeId: formData.get('employeeId') }
+    : base
+}
+
+// Map zod issues onto the UI-SPEC inline copy; an unmapped issue (garbage
+// deviceId, an overlong comment) falls back to the action's own error.
+function movementFieldErrorsOf(
+  error: z.ZodError,
+  fallback: string,
+): MovementFormState {
+  const fieldErrors: MovementFieldErrors = {}
+  for (const issue of error.issues) {
+    const key = String(issue.path[0])
+    if (key === 'employeeId') {
+      fieldErrors.employeeId = 'Выберите сотрудника'
+    } else if (key === 'occurredAt') {
+      // custom = the not-in-future refine; everything else = malformed date.
+      fieldErrors.occurredAt =
+        issue.code === 'custom'
+          ? 'Дата не может быть в будущем'
+          : 'Введите корректную дату'
+    } else {
+      return { error: fallback }
+    }
+  }
+  return { fieldErrors }
+}
+
+export async function assignDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.assign.safeParse(movementPayload(formData, true))
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, ASSIGN_ERROR), values }
+  }
+  try {
+    assignDevice(parsed.data.deviceId, parsed.data.employeeId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    // ILLEGAL_TRANSITION / EMPLOYEE_INACTIVE — the copy table's per-action
+    // error; internal details never leave the server (V7).
+    return { error: ASSIGN_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+export async function acceptDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.accept.safeParse(movementPayload(formData, false))
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, ACCEPT_ERROR), values }
+  }
+  try {
+    acceptDevice(parsed.data.deviceId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    return { error: ACCEPT_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+export async function transferDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const idParsed = IdSchema.safeParse(formData.get('deviceId'))
+  if (!idParsed.success) return { error: TRANSFER_ERROR, values }
+  // The current holder comes from the DB row (never the payload) — the
+  // transfer refine rejects «себе самому» with the inline field copy before
+  // the transaction; the guard-UPDATE remains the authority.
+  const holder = getDeviceHolder(idParsed.data)
+  if (!holder) return { error: TRANSFER_ERROR, values }
+  const parsed = movementSchemas
+    .transfer(holder.currentEmployeeId)
+    .safeParse(movementPayload(formData, true))
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, TRANSFER_ERROR), values }
+  }
+  try {
+    transferDevice(idParsed.data, parsed.data.employeeId, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    return { error: TRANSFER_ERROR, values }
   }
   refresh()
   return { ok: true }

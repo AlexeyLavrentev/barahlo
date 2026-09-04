@@ -8,6 +8,7 @@ import {
   updateEmployee,
   setEmployeeArchived,
 } from '@/db/queries/employees'
+import { returnAllDevices } from '@/db/queries/movements'
 
 // Server Actions are directly POST-able — the proxy perimeter does not cover
 // them — so requireSession() is the FIRST line of every action (T-02-01).
@@ -35,10 +36,40 @@ const ArchiveSchema = z.object({
   archived: z.enum(['true', 'false']).transform((v) => v === 'true'),
 })
 
+// «Вернуть всю технику» (D-07): no dedicated schema — the employee id comes
+// from the card's hidden input and passes the plain positive-int gate; the
+// transaction re-resolves the device list from the DB row.
+const ReturnAllSchema = z.object({
+  id: z.coerce.number().int().positive(),
+})
+
+const RETURN_ALL_ERROR = 'Не удалось вернуть технику. Попробуйте ещё раз.'
+
 export type EmployeeFormState = {
   ok?: boolean
   error?: string
   fieldErrors?: { name?: string; departmentName?: string }
+  // Echo of the submitted strings: React 19 resets an uncontrolled form after
+  // every form action (success or failure), so failures carry the input back
+  // to defaultValue — otherwise the user retypes everything on each error
+  // (4886f6a pattern; the 03-UAT known issue, fixed here).
+  values?: Record<string, string>
+}
+
+export type ReturnAllFormState = {
+  ok?: boolean
+  error?: string
+}
+
+// Raw strings of every field the employee form may submit — the echo payload
+// attached to any failure state.
+function echoValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const key of ['name', 'departmentName']) {
+    const raw = formData.get(key)
+    if (typeof raw === 'string' && raw !== '') values[key] = raw
+  }
+  return values
 }
 
 // Map zod issues onto the UI-SPEC inline copy (14/400 #D70015 under field).
@@ -57,15 +88,16 @@ export async function createEmployeeAction(
   formData: FormData,
 ): Promise<EmployeeFormState> {
   await requireSession()
+  const values = echoValues(formData)
   const parsed = CreateSchema.safeParse({
     name: formData.get('name'),
     departmentName: formData.get('departmentName'),
   })
-  if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) }
+  if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error), values }
   try {
     createEmployee(parsed.data)
   } catch {
-    return { error: SAVE_ERROR }
+    return { error: SAVE_ERROR, values }
   }
   // Without refresh() the route is NOT re-rendered in the action response
   // (Pitfall 1) — the new employee would not appear until a manual reload.
@@ -78,6 +110,7 @@ export async function updateEmployeeAction(
   formData: FormData,
 ): Promise<EmployeeFormState> {
   await requireSession()
+  const values = echoValues(formData)
   const parsed = UpdateSchema.safeParse({
     id: formData.get('id'),
     name: formData.get('name'),
@@ -87,7 +120,7 @@ export async function updateEmployeeAction(
     if (parsed.error.issues.some((i) => i.path[0] === 'id')) {
       return { error: SAVE_ERROR }
     }
-    return { fieldErrors: fieldErrorsOf(parsed.error) }
+    return { fieldErrors: fieldErrorsOf(parsed.error), values }
   }
   try {
     updateEmployee(parsed.data.id, {
@@ -95,7 +128,7 @@ export async function updateEmployeeAction(
       departmentName: parsed.data.departmentName,
     })
   } catch {
-    return { error: SAVE_ERROR }
+    return { error: SAVE_ERROR, values }
   }
   refresh()
   return { ok: true }
@@ -115,6 +148,26 @@ export async function setEmployeeArchivedAction(
     setEmployeeArchived(parsed.data.id, parsed.data.archived)
   } catch {
     return { error: SAVE_ERROR }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// «Вернуть всю технику» (D-07): ONE transaction — every currently held device
+// gets its own returned event, and any failure rolls back ALL of them (the
+// dialog's error copy promises exactly that). The returned count is discarded;
+// refresh() re-renders the card with the emptied «Техника» list.
+export async function returnAllDevicesAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<ReturnAllFormState> {
+  await requireSession()
+  const parsed = ReturnAllSchema.safeParse({ id: formData.get('id') })
+  if (!parsed.success) return { error: RETURN_ALL_ERROR }
+  try {
+    returnAllDevices(parsed.data.id)
+  } catch {
+    return { error: RETURN_ALL_ERROR }
   }
   refresh()
   return { ok: true }

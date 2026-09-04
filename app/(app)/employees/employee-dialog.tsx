@@ -72,7 +72,11 @@ function EmployeeDialogForm({
   )
   // The submitted name IS the trigger text: the hidden input mirrors the
   // combobox input, so what the user sees is exactly what the server resolves.
-  const [inputValue, setInputValue] = useState(employee?.department ?? '')
+  // The combobox input is controlled component state (not reset by React 19),
+  // but a failed submit echoes the server-trimmed value back when it exists.
+  const [inputValue, setInputValue] = useState(
+    employee?.department ?? '',
+  )
 
   // The action already called refresh() — closing on the fresh state object
   // (a new identity on every action response) shows the updated page behind
@@ -111,7 +115,7 @@ function EmployeeDialogForm({
           placeholder="Иван Иванов"
           autoComplete="off"
           maxLength={100}
-          defaultValue={employee?.name}
+          defaultValue={state.values?.name ?? employee?.name}
           className="h-10 px-3 text-base md:text-base"
           aria-invalid={state.fieldErrors?.name ? true : undefined}
         />

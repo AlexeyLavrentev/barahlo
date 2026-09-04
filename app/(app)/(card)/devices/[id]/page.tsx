@@ -5,6 +5,10 @@ import { z } from 'zod'
 import { requireSession } from '@/lib/auth'
 import { getDevice, type DeviceRow } from '@/db/queries/devices'
 import {
+  listActiveEmployees,
+  listTimeline,
+} from '@/db/queries/movements'
+import {
   DEVICE_TYPES,
   deviceStatusLabel,
   deviceTypeName,
@@ -15,6 +19,8 @@ import {
   DeviceDialog,
   type DeviceDialogDevice,
 } from '@/app/(app)/devices/device-dialog'
+import { DeviceActions } from '@/app/(app)/devices/device-actions'
+import { Timeline } from './timeline'
 // This page lives in the (card) route group: a segment loading.tsx on the
 // list branch streams its whole subtree (child segments included) and flushes
 // status 200 before notFound() can answer — grouping the card separately
@@ -213,11 +219,22 @@ export default async function DeviceCardPage({
       {/* Edit island (REG-03, D-06): the same dialog the list creates with,
           in edit mode — type read-only, every field of the row's own type
           editable; status/holder have no fields anywhere. */}
-      <div className="mt-6 flex gap-2">
+      {/* Custody actions (MOVE-01..03, D-08): «Редактировать» first, then the
+          status matrix (in_stock → Выдать accent; assigned → Принять ·
+          Передать; «Выдать» is hidden on assigned and the server guard
+          re-validates every transition). flex-wrap — up to five buttons wrap
+          on narrow screens (04-UI-SPEC spacing). */}
+      <div className="mt-6 flex flex-wrap gap-2">
         <DeviceDialog
           label="Редактировать"
           typeConfigs={DEVICE_TYPES}
           device={dialogDeviceOf(device)}
+        />
+        <DeviceActions
+          deviceId={device.id}
+          status={device.status}
+          holderName={device.holder}
+          employees={listActiveEmployees()}
         />
       </div>
 
@@ -270,8 +287,11 @@ export default async function DeviceCardPage({
         </FieldRow>
       </FieldGroup>
 
+      {/* Append-only history (MOVE-04): newest-first vertical rail fed by
+          listTimeline; legacy devices render the honest empty state — no
+          synthetic «received» events are invented (Defaults #18/#19). */}
       <FieldGroup title="История перемещений">
-        <PlaceholderRow>Здесь появится история выдач и возвратов.</PlaceholderRow>
+        <Timeline events={listTimeline(device.id)} />
       </FieldGroup>
       <FieldGroup title="Фото">
         <PlaceholderRow>Здесь появятся фотографии устройства.</PlaceholderRow>
