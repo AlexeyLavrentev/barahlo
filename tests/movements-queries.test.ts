@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, expect, afterAll } from 'vitest'
 import { applyMigrations } from './helpers'
+import { DISPLAY_TZ } from '@/lib/ru'
 
 // db/queries/movements.ts is bound to the module-level db from @/db, which
 // opens DATABASE_PATH at import time. Point it at a temp database BEFORE the
@@ -116,13 +117,20 @@ function captureThrown(fn: () => void): unknown {
   return thrown
 }
 
-// Local yyyy-mm-dd N days from today (the shape input[type=date] submits).
+// yyyy-mm-dd N days from today on the DISPLAY_TZ wall clock (the shape
+// input[type=date] submits, and the calendar the schema validates against —
+// CR-01). Host-local getters would drift a day off Moscow's wall clock
+// whenever the host timezone is not Moscow (fixed 2026-09-05: runs on a
+// UTC+5 host failed every 00:00–02:00 local because «today» resolved to
+// Moscow's tomorrow). Fixed 86_400_000 ms steps are exact — Moscow has no
+// DST since 2014.
 function isoDaysFromNow(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${mm}-${dd}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DISPLAY_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(Date.now() + days * 86_400_000)
 }
 
 function daysAgo(days: number): Date {
@@ -454,10 +462,16 @@ describe('movement schemas — whitelist + D-01 bounds', () => {
     const before = new Date()
     const back = occurredAtFromDate(isoDaysFromNow(-2))
     const after = new Date()
-    const [y, m, d] = isoDaysFromNow(-2).split('-').map(Number)
-    expect(back.getFullYear()).toBe(y)
-    expect(back.getMonth()).toBe(m - 1)
-    expect(back.getDate()).toBe(d)
+    // The stored instant's DISPLAY_TZ calendar day must equal the submitted
+    // one (the C7 contract) — host-local getters would read a different day
+    // whenever the host timezone is not Moscow (CR-01 class).
+    const backIso = new Intl.DateTimeFormat('en-CA', {
+      timeZone: DISPLAY_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(back)
+    expect(backIso).toBe(isoDaysFromNow(-2))
     // Time-of-day is «now» (±1h tolerance against an hour-boundary race)
     expect(Math.abs(back.getHours() - after.getHours())).toBeLessThanOrEqual(1)
     expect(back.getTime()).toBeLessThan(before.getTime())
