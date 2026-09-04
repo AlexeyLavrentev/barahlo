@@ -346,6 +346,261 @@ describe('listDevices — warranty filters (WAR-01, edge 9 filter side)', () => 
   })
 })
 
+describe('listDevices — the full filter matrix (FIND-02/FIND-03, edge 5/6/10/11)', () => {
+  // Dedicated fixture family (distinctive serial prefix) whose expected sets
+  // are computable by hand:
+  //   mat-l1  laptop  ram=0    warranty today+10  in_stock  dept A
+  //   mat-l2  laptop  ram=1    warranty today+10  in_stock  dept A
+  //   mat-l3  laptop  ram=NULL warranty today+200 assigned  dept A (holder empA)
+  //   mat-m1  monitor ram=0    warranty today+5   in_stock  dept A
+  //   mat-m2  monitor ram=NULL warranty NULL      in_stock  no holder (склад)
+  const M_MODEL = 'Матрица Фильтров'
+  let deptAId = 0
+  let empAId = 0
+  let empArchivedId = 0
+
+  function seedMatrix(
+    serial: string,
+    overrides: Partial<{
+      typeKey: 'laptop' | 'monitor'
+      ramUpgraded: 0 | 1 | null
+      warrantyUntil: Date | null
+      status: string
+      holderId: number | null
+    }> = {},
+  ): number {
+    const id = createDevice({
+      typeKey: overrides.typeKey ?? 'laptop',
+      ...base,
+      model: M_MODEL,
+      serialNumber: serial,
+      warrantyUntil: overrides.warrantyUntil ?? null,
+      ramUpgraded: overrides.ramUpgraded ?? null,
+    })
+    if (overrides.status) {
+      db.$client.prepare('UPDATE devices SET status = ? WHERE id = ?').run(overrides.status, id)
+    }
+    if (overrides.holderId !== undefined && overrides.holderId !== null) {
+      db.$client
+        .prepare('UPDATE devices SET current_employee_id = ? WHERE id = ?')
+        .run(overrides.holderId, id)
+    }
+    return id
+  }
+
+  const today = displayTodayUtc()
+  const empA = createEmployee({ name: 'Матрица Держатель', departmentName: 'Матрица-Отдел А' })
+  deptAId = empA.departmentId
+  empAId = empA.id
+  const empArchived = createEmployee({ name: 'Матрица Архивный', departmentName: 'Матрица-Отдел А' })
+  empArchivedId = empArchived.id
+
+  seedMatrix('mat-l1', { ramUpgraded: 0, warrantyUntil: addDaysUtc(today, 10) })
+  seedMatrix('mat-l2', { ramUpgraded: 1, warrantyUntil: addDaysUtc(today, 10) })
+  seedMatrix('mat-l3', {
+    ramUpgraded: null,
+    warrantyUntil: addDaysUtc(today, 200),
+    status: 'assigned', // held by empA — production custody sets holder+status together
+    holderId: empAId,
+  })
+  // D-09: a device held by an ARCHIVED employee still belongs to their dept.
+  seedMatrix('mat-l4', { ramUpgraded: 1, holderId: empArchivedId, status: 'assigned' })
+  db.$client.prepare('UPDATE employees SET is_active = 0 WHERE id = ?').run(empArchivedId)
+  seedMatrix('mat-m1', {
+    typeKey: 'monitor',
+    ramUpgraded: 0,
+    warrantyUntil: addDaysUtc(today, 5),
+  })
+  seedMatrix('mat-m2', { typeKey: 'monitor' })
+
+  function serialsOf(
+    filters: Parameters<typeof listDevices>[0]['filters'],
+    type: Parameters<typeof listDevices>[0]['type'] = 'all',
+  ): string[] {
+    return listDevices({ type, page: 1, pageSize: 1000, filters })
+      .rows.filter((r) => r.model === M_MODEL)
+      .map((r) => r.serialNumber)
+      .sort()
+  }
+
+  describe('RAM «без апгрейда» — NULL-safe D-07 predicate (edge 5)', () => {
+    it('includes laptops with ramUpgraded 0 AND NULL, excludes ramUpgraded 1', () => {
+      expect(serialsOf({ ramNoUpgrade: true })).toEqual(['mat-l1', 'mat-l3'])
+    })
+
+    it('plain != 1 semantics: the NULL-ramUpgraded laptop is INCLUDED (Pitfall 1)', () => {
+      // The discriminating row — a naive `ram_upgraded != 1` silently drops it.
+      const rows = serialsOf({ ramNoUpgrade: true })
+      expect(rows).toContain('mat-l3')
+    })
+
+    it('non-laptops NEVER match, even with ramUpgraded 0 on the row', () => {
+      expect(serialsOf({ ramNoUpgrade: true })).not.toContain('mat-m1')
+      expect(serialsOf({ ramNoUpgrade: true })).not.toContain('mat-m2')
+    })
+
+    it('hostile hand-crafted combo ?type=monitor&ram=1 is inert (T-05-06)', () => {
+      expect(serialsOf({ ramNoUpgrade: true }, 'monitor')).toEqual([])
+    })
+  })
+
+  describe("department — the holder's dept (D-09, edge 6)", () => {
+    it('matches exactly the devices whose CURRENT holder belongs to the department', () => {
+      // mat-l3 held by empA (active), mat-l4 by the archived employee of the
+      // same dept; every unheld row is out regardless of type.
+      expect(serialsOf({ departmentId: deptAId })).toEqual(['mat-l3', 'mat-l4'])
+    })
+
+    it('in-stock devices (NULL holder) never match ANY department filter', () => {
+      const rows = serialsOf({ departmentId: deptAId })
+      expect(rows).not.toContain('mat-l1')
+      expect(rows).not.toContain('mat-l2')
+      expect(rows).not.toContain('mat-m1')
+      expect(rows).not.toContain('mat-m2')
+    })
+
+    it('a device held by an ARCHIVED employee still matches their department', () => {
+      expect(serialsOf({ departmentId: deptAId })).toContain('mat-l4')
+    })
+
+    it('an unknown department id matches nothing (never a 500)', () => {
+      const result = listDevices({ type: 'all', page: 1, pageSize: 10, filters: { departmentId: 424242 } })
+      expect(result.total).toBe(0)
+      expect(result.rows).toEqual([])
+    })
+  })
+
+  describe('status — exact match, disposed visible by default (D-10/D-11)', () => {
+    it('each status value matches exactly its own rows', () => {
+      expect(serialsOf({ status: 'in_stock' })).toEqual(
+        expect.arrayContaining(['mat-l1', 'mat-l2', 'mat-m1', 'mat-m2']),
+      )
+      // Both held laptops — mat-l3 (active holder) and mat-l4 (archived
+      // holder) — carry the assigned status; status is orthogonal to who.
+      expect(serialsOf({ status: 'assigned' })).toEqual(['mat-l3', 'mat-l4'])
+    })
+
+    it('disposed stays visible by default and a serial search finds it (D-11)', () => {
+      seedMatrix('mat-d1', { status: 'disposed' })
+      const disposed = serialsOf({ status: 'disposed' })
+      expect(disposed).toEqual(['mat-d1'])
+      const searched = listDevices({
+        type: 'all',
+        page: 1,
+        pageSize: 1000,
+        filters: { q: 'mat-d1' },
+      }).rows
+      expect(searched.map((r) => r.serialNumber)).toEqual(['mat-d1'])
+    })
+  })
+
+  describe('composition — every filter combines with every other and with q (edge 6)', () => {
+    it('ram + warranty: the upgraded laptop drops out of the warn window', () => {
+      expect(serialsOf({ ramNoUpgrade: true, warranty: 'w60' })).toEqual(['mat-l1'])
+    })
+
+    it('dept + ram: NULL-ram laptops of the dept, the unheld one excluded', () => {
+      // mat-l1 has NO holder → out (dept NULL); mat-l3 held by dept-A → in;
+      // mat-l2 upgraded → out.
+      expect(serialsOf({ departmentId: deptAId, ramNoUpgrade: true })).toEqual(['mat-l3'])
+    })
+
+    it('q + dept: serial fragment narrows within the department', () => {
+      // «mat-l» hits mat-l1..l4 by serial; only the two held ones are in dept A.
+      expect(serialsOf({ q: 'mat-l', departmentId: deptAId })).toEqual(['mat-l3', 'mat-l4'])
+    })
+
+    it('the FULL combination narrows to exactly one row', () => {
+      expect(
+        serialsOf(
+          {
+            q: 'mat-',
+            status: 'in_stock',
+            departmentId: deptAId,
+            warranty: 'w60',
+            ramNoUpgrade: true,
+          },
+          'laptop',
+        ),
+      ).toEqual([])
+      // The same combo without the dept filter (mat-l1 has no holder):
+      expect(
+        serialsOf(
+          {
+            q: 'mat-',
+            status: 'in_stock',
+            warranty: 'w60',
+            ramNoUpgrade: true,
+          },
+          'laptop',
+        ),
+      ).toEqual(['mat-l1'])
+    })
+
+    it('count and rows share ONE where — a paged walk yields exactly total rows, no dupes/gaps', () => {
+      const filters = { departmentId: deptAId } as const
+      const probe = listDevices({ type: 'all', page: 1, pageSize: 1, filters })
+      const seen: string[] = []
+      for (let p = 1; p <= probe.pages; p++) {
+        for (const row of listDevices({ type: 'all', page: p, pageSize: 1, filters }).rows) {
+          seen.push(`${row.model}/${row.serialNumber}`)
+        }
+      }
+      expect(new Set(seen).size).toBe(seen.length)
+      expect(seen.length).toBe(probe.total)
+    })
+  })
+
+  describe('degrade — junk URL params never reach SQL as an invalid enum (edge 6)', () => {
+    it('parseDevicesSearchParams maps unknown status/warranty/dept/ram to inactive', async () => {
+      const { parseDevicesSearchParams } = await import('@/app/(app)/devices/query-params')
+      const junk = parseDevicesSearchParams({
+        status: 'hacked',
+        warranty: 'forever',
+        dept: 'not-a-number',
+        ram: 'yes',
+        type: 'teleporter',
+        q: '  ',
+      })
+      expect(junk).toEqual({
+        q: '',
+        type: 'all',
+        status: 'all',
+        departmentId: null,
+        warranty: 'all',
+        ramNoUpgrade: false,
+      })
+    })
+
+    it('listDevices never sees an invalid enum — junk filters degrade, never 500', () => {
+      const result = listDevices({ type: 'all', page: 1, pageSize: 5, filters: { status: 'in_stock' } })
+      expect(result.rows.every((r) => r.status === 'in_stock')).toBe(true)
+    })
+  })
+
+  describe('ordering + clamp under active filters (edge 10/11)', () => {
+    it('duplicate models keep the RU-sort + id tiebreaker under an active filter', () => {
+      seedMatrix('mat-o1', { status: 'repair' })
+      seedMatrix('mat-o2', { status: 'repair' })
+      const rows = listDevices({ type: 'all', page: 1, pageSize: 1000, filters: { status: 'repair' } }).rows
+        .filter((r) => r.model === M_MODEL)
+        .map((r) => r.serialNumber)
+      expect(rows).toEqual(['mat-o1', 'mat-o2'])
+    })
+
+    it('page 0/-3 clamp to 1; page beyond pages clamps to the last with rows', () => {
+      for (const p of [0, -3]) {
+        const result = listDevices({ type: 'all', page: p, pageSize: 2, filters: { status: 'in_stock' } })
+        expect(result.page).toBe(1)
+        expect(result.rows.length).toBeGreaterThan(0)
+      }
+      const beyond = listDevices({ type: 'all', page: 9999, pageSize: 2, filters: { status: 'in_stock' } })
+      expect(beyond.page).toBe(beyond.pages)
+      expect(beyond.rows.length).toBeGreaterThan(0)
+    })
+  })
+})
+
 describe('perimeter — devices are never deleted (roadmap: no delete path)', () => {
   it('exposes no delete/remove capability at module level', () => {
     expect(Object.keys(queries).some((k) => /delete|remove|destroy/i.test(k))).toBe(false)
