@@ -23,6 +23,8 @@ const {
   assignDevice,
   acceptDevice,
   transferDevice,
+  sendToRepair,
+  returnFromRepair,
   returnAllDevices,
   listTimeline,
   listIssuedByEmployee,
@@ -30,8 +32,14 @@ const {
 } = movementsQueries
 const { createEmployee, setEmployeeArchived } = employeeQueries
 const { createDevice } = deviceQueries
-const { assignSchema, acceptSchema, transferSchema, occurredAtFromDate } =
-  schemaModule
+const {
+  assignSchema,
+  acceptSchema,
+  transferSchema,
+  repairSchema,
+  occurredAtFromDate,
+  movementEventLabel,
+} = schemaModule
 
 afterAll(() => {
   db.$client.close()
@@ -248,6 +256,117 @@ describe('transferDevice — holder swap (MOVE-03)', () => {
   })
 })
 
+describe('sendToRepair — в ремонт (D-04, plan 04-02)', () => {
+  it('from in_stock: one to_repair event, status repair, holder cleared', () => {
+    const dev = newDevice('Ремонт Со Склада')
+    sendToRepair(dev, { comment: 'Треснул корпус' })
+    const row = rawDevice(dev)
+    expect(row.status).toBe('repair')
+    expect(row.current_employee_id).toBeNull()
+    const events = rawMovements(dev)
+    expect(events).toHaveLength(1)
+    expect(events[0].event_type).toBe('to_repair')
+    expect(events[0].from_employee_id).toBeNull()
+    expect(events[0].to_employee_id).toBeNull()
+    expect(events[0].comment).toBe('Треснул корпус')
+    expect(events[0].occurred_at).toBeGreaterThan(0)
+  })
+
+  it('from assigned: holder auto-accepted (returned) + to_repair in ONE tx (D-04)', () => {
+    const emp = newEmployee('Ремонт От Кого')
+    const dev = newDevice()
+    assignDevice(dev, emp.id)
+    sendToRepair(dev)
+    const row = rawDevice(dev)
+    expect(row.status).toBe('repair')
+    expect(row.current_employee_id).toBeNull()
+    const events = rawMovements(dev)
+    expect(events).toHaveLength(2)
+    // The auto-accept is a real returned event; the to_repair event follows
+    // it and records the handover «от держателя» in its from slot.
+    expect(events[0].event_type).toBe('returned')
+    expect(events[0].from_employee_id).toBe(emp.id)
+    expect(events[0].to_employee_id).toBeNull()
+    expect(events[1].event_type).toBe('to_repair')
+    expect(events[1].from_employee_id).toBe(emp.id)
+    expect(events[1].to_employee_id).toBeNull()
+  })
+
+  it('rejects repair→repair and disposed→repair with ZERO side effects', () => {
+    for (const status of ['repair', 'disposed']) {
+      const dev = newDevice()
+      db.$client
+        .prepare('UPDATE devices SET status = ? WHERE id = ?')
+        .run(status, dev)
+      const before = movementsCount()
+      expect(captureThrown(() => sendToRepair(dev))).toEqual({
+        code: 'ILLEGAL_TRANSITION',
+      })
+      expect(rawDevice(dev).status).toBe(status)
+      expect(movementsCount()).toBe(before)
+    }
+  })
+
+  it('a backdated date lands on BOTH events of the assigned path (D-01)', () => {
+    const emp = newEmployee('Ремонт Задним')
+    const dev = newDevice()
+    assignDevice(dev, emp.id)
+    const yesterday = daysAgo(1)
+    sendToRepair(dev, { occurredAt: yesterday, comment: 'Акт 9' })
+    for (const event of rawMovements(dev)) {
+      expect(event.occurred_at).toBe(Math.floor(yesterday.getTime() / 1000))
+      expect(event.comment).toBe('Акт 9')
+    }
+  })
+})
+
+describe('returnFromRepair — из ремонта (D-04)', () => {
+  it('repair → in_stock with a from_repair event (no person slots)', () => {
+    const dev = newDevice('Ремонт Возврат')
+    sendToRepair(dev)
+    returnFromRepair(dev, { comment: 'Готово' })
+    const row = rawDevice(dev)
+    expect(row.status).toBe('in_stock')
+    expect(row.current_employee_id).toBeNull()
+    const events = rawMovements(dev)
+    expect(events).toHaveLength(2)
+    expect(events[1].event_type).toBe('from_repair')
+    expect(events[1].from_employee_id).toBeNull()
+    expect(events[1].to_employee_id).toBeNull()
+    expect(events[1].comment).toBe('Готово')
+  })
+
+  it('rejects non-repair sources (in_stock, assigned, disposed) with zero effects', () => {
+    const emp = newEmployee('Ремонт Мимо')
+    for (const status of ['in_stock', 'assigned', 'disposed']) {
+      const dev = newDevice()
+      db.$client
+        .prepare(
+          'UPDATE devices SET status = ?, current_employee_id = ? WHERE id = ?',
+        )
+        .run(status, status === 'assigned' ? emp.id : null, dev)
+      const before = movementsCount()
+      expect(captureThrown(() => returnFromRepair(dev))).toEqual({
+        code: 'ILLEGAL_TRANSITION',
+      })
+      expect(rawDevice(dev).status).toBe(status)
+      expect(movementsCount()).toBe(before)
+    }
+  })
+
+  it('transfer is impossible from repair (the device has no holder)', () => {
+    const emp = newEmployee('Ремонт Передача')
+    const dev = newDevice()
+    sendToRepair(dev)
+    const before = movementsCount()
+    expect(captureThrown(() => transferDevice(dev, emp.id))).toEqual({
+      code: 'ILLEGAL_TRANSITION',
+    })
+    expect(rawDevice(dev).status).toBe('repair')
+    expect(movementsCount()).toBe(before)
+  })
+})
+
 describe('movement schemas — whitelist + D-01 bounds', () => {
   it('accepts a minimal assign payload with coerced ids', () => {
     const parsed = assignSchema.safeParse({
@@ -335,6 +454,40 @@ describe('movement schemas — whitelist + D-01 bounds', () => {
     expect(occurredAtFromDate(undefined).getTime()).toBeLessThanOrEqual(
       after.getTime(),
     )
+  })
+})
+
+describe('repair schema — whitelist + D-01 bounds (plan 04-02)', () => {
+  it('accepts a minimal repair payload, rejects an injected employeeId (strict)', () => {
+    expect(repairSchema.safeParse({ deviceId: '3' }).success).toBe(true)
+    expect(
+      repairSchema.safeParse({ deviceId: '3', employeeId: '2' }).success,
+    ).toBe(false)
+  })
+
+  it('comment ≤500; a future occurredAt is rejected', () => {
+    expect(
+      repairSchema.safeParse({ deviceId: '1', comment: 'а'.repeat(500) })
+        .success,
+    ).toBe(true)
+    expect(
+      repairSchema.safeParse({ deviceId: '1', comment: 'а'.repeat(501) })
+        .success,
+    ).toBe(false)
+    expect(
+      repairSchema.safeParse({ deviceId: '1', occurredAt: isoDaysFromNow(1) })
+        .success,
+    ).toBe(false)
+  })
+
+  it('timeline vocabulary: all 7 event labels render per UI-SPEC', () => {
+    expect(movementEventLabel('received')).toBe('Поступление')
+    expect(movementEventLabel('assigned')).toBe('Выдача')
+    expect(movementEventLabel('transferred')).toBe('Передача')
+    expect(movementEventLabel('returned')).toBe('Возврат')
+    expect(movementEventLabel('to_repair')).toBe('В ремонт')
+    expect(movementEventLabel('from_repair')).toBe('Из ремонта')
+    expect(movementEventLabel('disposed')).toBe('Списание')
   })
 })
 
@@ -568,5 +721,17 @@ describe('source gates (plan 04-01 acceptance)', () => {
     expect(src).toContain('<AssignDialog')
     expect(src).toContain('<AcceptDialog')
     expect(src).toContain('<TransferDialog')
+  })
+
+  it('device actions matrix covers the repair cycle (plan 04-02 source-assert)', () => {
+    const src = readFileSync(
+      join(process.cwd(), 'app/(app)/devices/device-actions.tsx'),
+      'utf8',
+    )
+    expect(src).toContain("status === 'repair'")
+    expect(src).toContain('<RepairDialog')
+    // «В ремонт» is offered from BOTH in_stock and assigned; «Из ремонта»
+    // belongs to the repair status only.
+    expect(src.match(/<RepairDialog/g)?.length).toBe(3)
   })
 })
