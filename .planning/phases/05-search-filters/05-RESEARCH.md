@@ -565,22 +565,25 @@ onValueChange={(value) => {
 | A6 | Timing smoke thresholds (e.g. full-filter query < 200 ms @ 500 rows) — generous to avoid flaky fails | Validation | Too-tight thresholds make CI-style runs flaky; measured headroom is ~200x |
 | A7 | CSV filename pattern `устройства-YYYY-MM-DD.csv` (+ASCII fallback) | Pattern 5 | Discretion item; cosmetic |
 
-## Open Questions
+## Open Questions — ALL RESOLVED during planning (2026-09-04)
 
-1. **Warn-boundary wording (A2) — the one real decision**
+1. **Warn-boundary wording (A2) — the one real decision** — **(RESOLVED: inclusive 60)**
    - What we know: D-15 preset «истекает ≤ 60 дней»; D-16/WAR-01 «жёлтый < 60 дней»; they diverge only at exactly day 60.
    - What's unclear: which rule the color should use.
    - Recommendation: single `WARRANTY_WARN_DAYS = 60`, inclusive (`days <= 60`) for both so filter results always match highlight colors; flag in plan for user confirmation at review.
+   - **RESOLVED:** unified inclusive boundary confirmed (orchestrator resolution 1) — one `WARRANTY_WARN_DAYS = 60`, `days <= 60` for filter AND color; implemented in plan 02 Task 1 (`lib/warranty.ts` + `warrantyPredicate`), consumed by plan 03; pinned by plan-02 must-have edge 8 («a filter hit can never render green»).
 
 2. **Green tone for "ok" warranty (A1)**
    - What we know: apple-design skill mandates palette discipline; D-17 says «один красный», says nothing about green.
    - What's unclear: `#34C759` vs darker text-safe green.
    - Recommendation: `#34C759` for consistency with Apple palette already used (#FF9500/#D70015); revisit only if contrast reads poorly on white.
+   - **RESOLVED:** darker contrast-safe green `#248A3D` chosen as `--color-warranty-ok` (checker D3 contrast rec — NOT #34C759); locked as resolution 2, implemented in plan 03 Task 1 (`app/globals.css` @theme), recorded in 05-UI-SPEC.md Default 2.
 
-3. **Does the ≤30 preset include already-expired devices?**
+3. **Does the ≤30 preset include already-expired devices?** — **(RESOLVED: active-only)**
    - What we know: D-15 separates «истекла» from «истекает ≤ N» presets, implying active-only windows.
    - What's unclear: nothing material — but the plan should state the semantics explicitly.
    - Recommendation: active-only (`today ≤ wu ≤ today+N`), per Pattern 4 probe; «истекла» covers the past.
+   - **RESOLVED:** active-only semantics confirmed — implemented in plan 02 Task 1 step 2 (`warrantyPredicate`: `isNotNull(warrantyUntil)` + `gte(today)` + `lte(today+N)`); pinned by plan-02 truth edge 9.
 
 ## Environment Availability
 
