@@ -89,11 +89,15 @@ export function PhotoGrid({
 
   // Sequential per-file upload (RESEARCH A4 — ≤8 phone photos, no
   // Promise.all burst); every failure aborts the rest with the single copy.
+  // A mid-batch failure keeps the already-stored files server-side (the
+  // upload route's contract), so the refresh runs whenever ≥1 file landed —
+  // the grid must show the partial success, not hide it behind the error.
   const onFilesChosen = useCallback(
     async (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return
       setUploading(true)
       setUploadError(null)
+      let stored = 0
       try {
         for (const file of Array.from(fileList)) {
           const blob = await resizeToJpeg(file)
@@ -104,14 +108,15 @@ export function PhotoGrid({
             body: form,
           })
           if (!res.ok) throw new Error(`upload failed: ${res.status}`)
+          stored += 1
         }
-        router.refresh()
       } catch {
         setUploadError(UPLOAD_ERROR)
       } finally {
         setUploading(false)
         // Reset so choosing the SAME file again re-fires onChange.
         if (inputRef.current) inputRef.current.value = ''
+        if (stored > 0) router.refresh() // full success and partial alike
       }
     },
     [deviceId, router],
