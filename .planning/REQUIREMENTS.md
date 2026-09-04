@@ -38,7 +38,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Закупка и гарантия
 
-- [ ] **WAR-01**: Device card and lists show warranty expiry state (зелёный / жёлтый «< 60 дней» / красный «истекла»)
+- [x] **WAR-01**: Device card and lists show warranty expiry state (зелёный / жёлтый «< 60 дней» / красный «истекла»)
 
 ### Дашборд
 
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIND-02 | Phase 5 | Complete |
 | FIND-03 | Phase 5 | Complete |
 | FIND-04 | Phase 5 | Complete |
-| WAR-01 | Phase 5 | Pending |
+| WAR-01 | Phase 5 | Complete |
 | UI-03 | Phase 5 | Pending |
 | DASH-01 | Phase 6 | Pending |
 | DASH-02 | Phase 6 | Pending |
