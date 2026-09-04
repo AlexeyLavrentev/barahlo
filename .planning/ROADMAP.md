@@ -146,9 +146,27 @@ Plans note: фото (REG-05) — объявленная линия отреза
   4. Состояние гарантии подсвечено в карточке и списках: зелёный / жёлтый «< 60 дней» / красный «истекла»
   5. На сотнях устройств поиск, фильтры и пагинация остаются мгновенными (серверные списки, индексированные колонки)
 
-**Plans**: TBD
+**Plans**: 5 plans
 
-Plans note: исследование рекомендует сюда же CSV-экспорт списка (UTF-8 BOM, `;`) как защиту от «параллельной таблицы» — это не v1-требование; решение принять на планировании фазы.
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Tracer-срез живого поиска: norm()-UDF, query-params модуль, дебаунс-остров, гомоглиф-фикстура (FIND-01, FIND-04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 05-02-PLAN.md — Комбинируемые фильтры: гарантийное окно + статус/отдел/RAM-чип, FilterBar одной строкой (FIND-02, FIND-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 05-03-PLAN.md — Подсветка гарантии в трёх местах: токены #248A3D/#FF9500, WarrantyDate (WAR-01)
+- [ ] 05-05-PLAN.md — Масштаб: perf-гейт полного фильтра @500 строк, seed до ~400 устройств (UI-03)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 05-04-PLAN.md — CSV-экспорт отфильтрованного списка: requireSession-first, BOM + «;», защита от formula injection (D-18)
+
+Plans note: CSV-экспорт (D-18) подтверждён как часть фазы — защита от «параллельной таблицы»; строка-парсер и where-builder общие со страницей списка.
 **UI hint**: yes
 
 ### Phase 6: Dashboard
@@ -197,5 +215,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Employees | 3/3 | Complete    | 2026-09-02 |
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
-| 5. Search & Filters | 0/TBD | Not started | - |
+| 5. Search & Filters | 0/5 | Not started | - |
 | 6. Dashboard | 0/TBD | Not started | - |
