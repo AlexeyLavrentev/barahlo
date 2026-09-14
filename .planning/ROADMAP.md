@@ -186,12 +186,12 @@ Plans note: CSV-экспорт (D-18) подтверждён как часть �
   2. Блок гарантии перечисляет устройства с истекающей/истёкшей гарантией и ведёт в отфильтрованный список
   3. Лента недавних перемещений показывает последние события со ссылками на устройства и сотрудников
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 06-01-PLAN.md — Tracer: «/» — живые счётчики по типам/статусам (8 тайлов, zero-default) + лента 10 движений (сегментные ссылки), nav «Дашборд», smoke-шаг 8 в трёх местах (DASH-01, DASH-03)
+- [x] 06-01-PLAN.md — Tracer: «/» — живые счётчики по типам/статусам (8 тайлов, zero-default) + лента 10 движений (сегментные ссылки), nav «Дашборд», smoke-шаг 8 в трёх местах (DASH-01, DASH-03)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -231,4 +231,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
 | 5. Search & Filters | 6/6 | Complete    | 2026-09-14 |
-| 6. Dashboard | 0/2 | Not started | - |
+| 6. Dashboard | 1/2 | In Progress|  |

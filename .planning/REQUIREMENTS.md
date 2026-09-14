@@ -42,9 +42,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Дашборд
 
-- [ ] **DASH-01**: User sees dashboard with device counts by type and status
+- [x] **DASH-01**: User sees dashboard with device counts by type and status
 - [ ] **DASH-02**: Dashboard shows list of devices with expiring/expired warranty
-- [ ] **DASH-03**: Dashboard shows recent movements feed
+- [x] **DASH-03**: Dashboard shows recent movements feed
 
 ### Доступ и данные
 
@@ -121,9 +121,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIND-04 | Phase 5 | Complete |
 | WAR-01 | Phase 5 | Complete |
 | UI-03 | Phase 5 | Complete |
-| DASH-01 | Phase 6 | Pending |
+| DASH-01 | Phase 6 | Complete |
 | DASH-02 | Phase 6 | Pending |
-| DASH-03 | Phase 6 | Pending |
+| DASH-03 | Phase 6 | Complete |
 
 **Coverage:**
 

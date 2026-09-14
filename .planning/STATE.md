@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 6
 current_phase_name: Dashboard
 status: executing
-stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-09-14T06:38:42.734Z"
+stopped_at: Completed 06-01-PLAN.md (dashboard tracer)
+last_updated: "2026-09-14T07:04:14.405Z"
 last_activity: 2026-09-14
-last_activity_desc: Phase 5 complete, transitioned to Phase 6
+last_activity_desc: Phase 6 execution started
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 21
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -23,16 +23,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-08-31)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 5 — Search & Filters
+**Current focus:** Phase 6 — Dashboard
 
 ## Current Position
 
-Phase: 6 — Dashboard
-Plan: Not started
+Phase: 6 (Dashboard) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-09-14 — Phase 5 complete, transitioned to Phase 6
+Last activity: 2026-09-14 — Phase 6 execution started
 
-Progress: [██████████] 100%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ Progress: [██████████] 100%
 | Phase 05 P05 | 11min | 2 tasks | 2 files |
 | Phase 05 P04 | 13 min | 2 tasks | 5 files |
 | Phase 05 P06 | 12 min | 2 tasks | 3 files |
+| Phase 06 P01 | 21min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 5/План 4: CSV-экспорт — один парсер (parseDevicesSearchParams) и один предикат (deviceWhere, факторизован из listDevices) на страницу и выгрузку; exportDevices = полный отфильтрованный скан без limit/offset, дрейф не представим
 - [Phase ?]: Фаза 5/План 4: CSV-письменник хенд-ролл в lib/csv.ts (запрет зависимостей T-05-SC): esc() с TAB-префикс-гвардом CWE-1236 (все ячейки проходят), BOM + «;» + CRLF, csvResponseHeaders — pure-хелпер с RFC 5987 двойным именем, nosniff, no-store
 - [Phase ?]: Фаза 5/План 6: G-5-1 фикс — реконсиляция с локальным приоритетом: adopt q только при value === lastSynced.current; lastSynced штампуется в момент пуша (не при взводе); inFlight-реф (cap 4) абсорбирует собственные эхо (точное/trim-совпадение); commitNow регистрирует пуш так же; инвариант: return с value !== q без таймера запрещён
+- [Phase ?]: Фаза 6/План 1: тайлы-ссылки = '/devices' + buildDevicesQuery(full DeviceFilters) — билдер отдаёт относительный query-string (?type=laptop), страница префиксует путь; query-string руками не собирается никогда (D-03/D-08)
+- [Phase ?]: Фаза 6/План 1: агрегаты дашборда живут рядом с deviceWhere/warrantyPredicate (co-location = D-04); GROUP BY-тишина закрывается zero-default итерацией DEVICE_TYPES/DEVICE_STATUS_KEYS с Map.get ?? 0; лента — один 3-way join с id сотрудников в SELECT и tiebreaker desc(occurredAt)+desc(id)
+- [Phase ?]: Фаза 6/План 1: роутная таблица ленты — один routeSegments() ({text, href}); из него и рендер, и title; timeline.tsx names-as-text остаётся анти-аналогом (D-05)
 
 ### Pending Todos
 
@@ -136,6 +140,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T05:58:34.861Z
-Stopped at: Phase 6 UI-SPEC approved
-Resume file: .planning/phases/06-dashboard/06-UI-SPEC.md
+Last session: 2026-09-14T07:04:01.420Z
+Stopped at: Completed 06-01-PLAN.md (dashboard tracer)
+Resume file: None
