@@ -6,11 +6,14 @@
 //   3. GET /devices WITHOUT cookie        → 307, Location /login   (perimeter)
 //   4. mint a session cookie (same jose HS256 scheme as lib/session.ts)
 //   5. GET /devices WITH cookie           → 200, HTML contains the probe model
-//   6. GET / WITH cookie                  → 307, Location /devices (shell redirect)
+//   6. GET / WITH cookie                  → 200, dashboard markers (Дашборд,
+//                                            type/status tile filter links,
+//                                            empty feed on the fresh temp DB)
 //   7. filter + clamp: ?type=laptop → 200 + probe; ?type=zzz → 200 (invalid = all);
 //      ?type=monitor&page=99 → 200 with clamped pagination label
 // Creating a device through the dialog is interactive (Server Action POST) —
-// that flow is covered by UAT; the smoke pins the list perimeter and redirect.
+// that flow is covered by UAT; the smoke pins the list perimeter and the
+// dashboard root (phase 6, D-01: / is the dashboard, no redirect).
 // Any assertion failure exits 1 with a readable message; the server process
 // and the temp directory are always cleaned up.
 
@@ -156,14 +159,34 @@ try {
     throw new Error('/devices с cookie: пагинации («Страница …», «Назад»/«Далее») нет в HTML')
   }
 
-  // 8. Shell redirect: / → 307 with Location /devices.
+  // 8. Dashboard (D-01, phase 6): / with cookie → 200 with the dashboard
+  //    markers — the «Дашборд» title/headline, the nav item as the active
+  //    page (aria-current), type- and status-filter tile deep links built by
+  //    buildDevicesQuery (D-03), and the «Всего: …» headline. The feed MUST
+  //    be empty here (Pitfall 8: createDevice writes no movement event, so
+  //    the honest empty state is the fresh-install norm, never seeded rows).
   const root = await fetch(`${BASE}/`, { redirect: 'manual', headers: cookieHeaders })
-  if (root.status !== 307 && root.status !== 302) {
-    throw new Error(`GET / с cookie: ожидался редирект, получен ${root.status}`)
+  if (root.status !== 200) {
+    throw new Error(`GET / с cookie: ожидался 200 (дашборд), получен ${root.status}`)
   }
-  const rootLocation = root.headers.get('location') || ''
-  if (!rootLocation.includes('/devices')) {
-    throw new Error(`GET / с cookie: Location «${rootLocation}» не ведёт на /devices`)
+  const rootHtml = await root.text()
+  if (!rootHtml.includes('Дашборд')) {
+    throw new Error('GET / с cookie: «Дашборд» нет в HTML (заголовок/навигация)')
+  }
+  if (!rootHtml.includes('aria-current="page"')) {
+    throw new Error('GET / с cookie: активного пункта навигации (aria-current="page") нет в HTML')
+  }
+  if (!rootHtml.includes('/devices?type=laptop')) {
+    throw new Error('GET / с cookie: тайла-ссылки с фильтром типа (?type=laptop) нет в HTML')
+  }
+  if (!rootHtml.includes('/devices?status=')) {
+    throw new Error('GET / с cookie: тайла-ссылки с фильтром статуса (?status=) нет в HTML')
+  }
+  if (!rootHtml.includes('Всего:')) {
+    throw new Error('GET / с cookie: строки «Всего: …» нет в HTML')
+  }
+  if (!rootHtml.includes('Перемещений пока нет')) {
+    throw new Error('GET / с cookie: пустой ленты («Перемещений пока нет») нет в HTML — на свежей temp-БД лента обязана быть пустой')
   }
 
   // 9. Filter matrix: valid type shows the probe laptop; a foreign value falls
@@ -272,7 +295,7 @@ try {
   }
 
   console.log(
-    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 307 на /devices; фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + таймлайн-пустое + фото-сетка «Фотографий пока нет»/«0 из 8»/«Добавить» + «Выдать» (D-08) + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
+    'SMOKE OK: 307 → /login без cookie; 200 + «Смок Устройство» + CTA + пилюля с cookie; / → 200 дашборд («Дашборд» + активный nav + тайлы ?type/?status + «Всего:» + пустая лента); фильтр type=laptop + «1 устройство»; type=zzz → все типы; page=99 клампится; карточка 200 + группы + таймлайн-пустое + фото-сетка «Фотографий пока нет»/«0 из 8»/«Добавить» + «Выдать» (D-08) + edit-остров; 404 на /devices/99999 и /devices/abc + русская страница «Страница не найдена»',
   )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))

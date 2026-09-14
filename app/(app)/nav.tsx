@@ -3,11 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-// Shell nav (UI-SPEC «App shell change»): «Устройства» · «Сотрудники», core
-// entity first. Active route = text-ink, inactive = text-ink-secondary with a
-// hover → ink — the active/inactive rule phase 2 declared but only one item
-// could express. RSC owns no pathname, so this is a client island.
+// Shell nav (UI-SPEC «App shell change»): «Дашборд» · «Устройства» ·
+// «Сотрудники» — the dashboard (D-01, phase 6) leads as the landing page
+// («/»); the active rule below matches it exactly (pathname === '/', and
+// startsWith('//') can never fire). Active route = text-ink, inactive =
+// text-ink-secondary with a hover → ink. RSC owns no pathname, so this is a
+// client island.
 const NAV_ITEMS = [
+  { href: '/', label: 'Дашборд' },
   { href: '/devices', label: 'Устройства' },
   { href: '/employees', label: 'Сотрудники' },
 ] as const

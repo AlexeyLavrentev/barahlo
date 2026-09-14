@@ -243,6 +243,51 @@ function deviceWhere(
   )
 }
 
+// Dashboard tile aggregates (DASH-01, phase 6). They live HERE, beside the
+// predicates above, because co-location IS the D-04 invariant: the counters
+// are the SAME predicate code as the /devices filters, and a separate
+// dashboard module would force exporting (or re-implementing) deviceWhere
+// terms — the drift path the phase forbids. N small counts, not a single-pass
+// CASE: raw sql templates cannot bind Date operands (probe-verified), while
+// typed operators on the timestamp-mode columns convert for free; at this row
+// count the sync cost of extra queries is irrelevant (~1 ms each, phase-5
+// measurement class).
+//
+// Zero-default rule (probe-verified): GROUP BY emits NO row for an absent
+// type/status — the page iterates DEVICE_TYPES / DEVICE_STATUS_KEYS with a
+// `?? 0` lookup, so all tiles always exist (even on a fresh install). The
+// casts below are backed by schema invariants: type_key carries an FK into
+// device_types (seeded with exactly the four keystone keys) and status has a
+// CHECK constraint over the same four values.
+export type TypeCount = { typeKey: DeviceTypeKey; n: number }
+
+export function deviceCountByType(): TypeCount[] {
+  return db
+    .select({ typeKey: devices.typeKey, n: count() })
+    .from(devices)
+    .groupBy(devices.typeKey)
+    .all()
+    .map((row) => ({ typeKey: row.typeKey as DeviceTypeKey, n: row.n }))
+}
+
+export type StatusCount = { status: DeviceStatusKey; n: number }
+
+export function deviceCountByStatus(): StatusCount[] {
+  return db
+    .select({ status: devices.status, n: count() })
+    .from(devices)
+    .groupBy(devices.status)
+    .all()
+    .map((row) => ({ status: row.status as DeviceStatusKey, n: row.n }))
+}
+
+export function totalDeviceCount(): number {
+  return db
+    .select({ value: count() })
+    .from(devices)
+    .get()!.value
+}
+
 export function listDevices({
   type,
   page,

@@ -386,6 +386,58 @@ export function listTimeline(deviceId: number): MovementEventView[] {
     .all()
 }
 
+// One row of the dashboard's «Последние перемещения» feed (DASH-03, phase 6).
+// Unlike MovementEventView this selects the employee ids TOO (fromId/toId) —
+// D-05 turns the names into /employees/[id] links, and a link needs the id,
+// not just the label (the timeline renders names as text, hence no ids there).
+export type RecentMovementView = {
+  id: number
+  eventType: string
+  occurredAt: Date
+  deviceId: number
+  model: string
+  serialNumber: string
+  fromId: number | null
+  fromName: string | null
+  toId: number | null
+  toName: string | null
+}
+
+// The 10 (limit) most recent movements across ALL devices (DASH-03): ONE
+// three-way join, never N+1. innerJoin(devices) is safe — the FK is NOT NULL
+// + restrict and disposal never deletes devices, so inner == left and no feed
+// row can drop. Names resolve through the same alias double-join as
+// listTimeline — archived employees render like active ones (history is
+// history; the employee card shows its own state). Order is occurredAt DESC
+// with id as the tiebreaker — backdated events (D-01) sort by their own
+// dates, and tied instants must not interleave between requests (probe-
+// verified). Read-only by construction: the table is append-only (INSERT
+// only — DB triggers abort UPDATE/DELETE).
+export function listRecentMovements(limit = 10): RecentMovementView[] {
+  const fromEmp = alias(employees, 'from_emp')
+  const toEmp = alias(employees, 'to_emp')
+  return db
+    .select({
+      id: movements.id,
+      eventType: movements.eventType,
+      occurredAt: movements.occurredAt,
+      deviceId: devices.id,
+      model: devices.model,
+      serialNumber: devices.serialNumber,
+      fromId: fromEmp.id,
+      fromName: fromEmp.name,
+      toId: toEmp.id,
+      toName: toEmp.name,
+    })
+    .from(movements)
+    .innerJoin(devices, eq(movements.deviceId, devices.id))
+    .leftJoin(fromEmp, eq(movements.fromEmployeeId, fromEmp.id))
+    .leftJoin(toEmp, eq(movements.toEmployeeId, toEmp.id))
+    .orderBy(desc(movements.occurredAt), desc(movements.id))
+    .limit(limit)
+    .all()
+}
+
 // Issued devices of one employee (EMP-02, RESEARCH C6): two batched queries —
 // the currently assigned rows, then ONE grouped max(occurred_at) over their
 // assigned events for «выдано {дата}». Sorted for the card list (RU model
