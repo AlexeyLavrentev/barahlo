@@ -1,7 +1,8 @@
 ---
 phase: 6
 slug: dashboard
-status: draft
+status: approved
+reviewed_at: 2026-09-14
 shadcn_initialized: true
 preset: base-nova
 created: 2026-09-13
@@ -222,11 +223,11 @@ CONTEXT.md D-01..D-06 are user-locked and used verbatim; RESEARCH findings are a
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-09-14
