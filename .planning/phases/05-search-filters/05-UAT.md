@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: complete
 phase: 5-search-filters
 source: [05-VERIFICATION.md]
 started: 2026-09-04T20:45:00Z
-updated: 2026-09-05T03:10:00Z
+updated: 2026-09-14T05:30:00Z
 ---
 
 ## Current Test
@@ -14,10 +14,11 @@ updated: 2026-09-05T03:10:00Z
 
 ### 1. Live-search feel
 expected: Open /devices on a seeded dev DB, type a serial fragment from the first character (no Enter), retype mid-debounce, press Enter once — results update live ~300 ms after typing stops, no skeleton flash per keystroke, focus/value kept, Enter commits immediately.
-result: issue
+result: pass
 reported: "поле поиска в целом работает если вводить и удалять символы по одному с паузами. Если вводить символы или удалять их быстро то поле ведет себя странно, и либо не прописывает то что я пишу, либо не удаляет"
-severity: major
-retest: "2026-09-14 orchestrator live-verified on :3001 (fixed build 74eb0d9) via Playwright: быстрый набор 14 символов покейстроково — input=URL; 2 символа набраны В ПОЛЁТЕ эха — выжили; бёрст Backspace x3 в полёте — выжили, input=URL='lenovo thinkpa'; прямая навигация по URL адоптится в инпут; гомоглифы live: 'SN-НZHB06' (кир. Н) → 1 находка, 'а5' (кир. А) → 1 находка, 'aspire' → 35, пустой результат даёт «Найдено: 0 устройств» + D-04-состояние. Репорт юзера объяснён стейлом окружения: temp-БД :3001 была сожрана /tmp-чисткой за 9 дней (логин отдавал 500 — дойти до поиска было невозможно), а Docker-контейнер :3000 собран до фикса 74eb0d9. Ждёт финального подтверждения владельца."
+severity: major (закрыто)
+retest: "2026-09-14 orchestrator live-verified on :3001 (fixed build 74eb0d9) via Playwright: быстрый набор 14 символов покейстроково — input=URL; 2 символа набраны В ПОЛЁТЕ эха — выжили; бёрст Backspace x3 в полёте — выжили, input=URL='lenovo thinkpa'; прямая навигация по URL адоптится в инпут; гомоглифы live: 'SN-НZHB06' (кир. Н) → 1 находка, 'а5' (кир. А) → 1 находка, 'aspire' → 35, пустой результат даёт «Найдено: 0 устройств» + D-04-состояние. Репорт юзера объяснён стейлом окружения: temp-БД :3001 была сожрана /tmp-чисткой за 9 дней (логин отдавал 500 — дойти до поиска было невозможно), а Docker-контейнер :3000 собран до фикса 74eb0d9. Ретест поймал G-5-2 (пробел), зафиксен 42ebf57."
+confirmed: "pass — владелец подтвердил 2026-09-14 после фиксов G-5-1 (74eb0d9) и G-5-2 (42ebf57)"
 
 ### 2. Search-box reconciliation (CR-01)
 expected: With a q active click «Сбросить фильтры», then use browser Back and Forward; also push a query with trailing spaces and let the server trim it. The input adopts the URL's q after reset/Back/Forward (empties on reset, restores on Back) and no re-push navigation loop starts.
@@ -42,8 +43,8 @@ result: pass
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -52,8 +53,9 @@ blocked: 0
 
 - gap_id: G-5-1
   truth: "Быстрый ввод/удаление символов в поиске не теряет keystrokes: инпут не откатывается к старому q из серверного эха, пока летит навигация"
-  status: fixed-awaiting-user
-  reason: "User reported: поле поиска в целом работает если вводить и удалять символы по одному с паузами. Если вводить символы или удалять их быстро то поле ведет себя странно, и либо не прописывает то что я пишу, либо не удаляет"
+  status: resolved
+  resolved_by: "05-06-PLAN (74eb0d9) + G-5-2 inline fix (42ebf57)"
+  resolved_at: 2026-09-14
   severity: major
   test: 1
   root_cause: "lastSynced.current = value пишется при взводе дебаунса (search-box.tsx:57), а не при получении эха; в окне взвод→эхо любое нажатие удовлетворяет q !== lastSynced и ветка адаптации (47–51) затирает более новый ввод setValue(q) и делает return без перевзвода (66–73). Регрессия от CR-01-фикса be80413."
@@ -68,7 +70,9 @@ blocked: 0
   fixed_by: "05-06 (74eb0d9) — live-verified Playwright 2026-09-14; см. retest в Tests"
 - gap_id: G-5-2
   truth: "Пробел в поисковом запросе не исчезает: «aspire 5» набирается с паузами, пробел не съедается эхом"
-  status: fixed-awaiting-user
+  status: resolved
+  resolved_by: "inline orchestrator fix (42ebf57)"
+  resolved_at: 2026-09-14
   reason: "User reported (2026-09-14, ретест G-5-1 на :3001): да, тут уже лучше, но в поиске нельзя поставить пробел если искать по имени например \"aspire 5\" то пробел удаляется сразу"
   severity: major
   test: 1
