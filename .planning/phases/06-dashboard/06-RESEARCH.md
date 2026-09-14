@@ -441,14 +441,14 @@ buildDevicesQuery({ q:'', type:'all', status:'all', departmentId:null, warranty:
 | A5 | Tile grid (2-col desktop / stack mobile) is a UI-SPEC concern; research only pins the block order (D-02) | Pattern 5 | Cosmetic |
 | A6 | The one-off test flake observed once this session (1 failed / 278 on first run, then 2× clean 278/278) is timing noise, not a baseline change | Validation | Low — baselines re-measured live at execution time per STATE discipline |
 
-## Open Questions
+## Open Questions — ALL RESOLVED during planning (2026-09-14)
 
-1. **Feed row click target granularity** — the only UX-shape decision research couldn't settle alone.
+1. **Feed row click target granularity** — (RESOLVED: segmented links A2) — принят в 06-01 T1 action, закреплён orchestrator-резолюцией 4 и утверждённым 06-UI-SPEC (segmented links, без вложенных анкеров).
    - What we know: D-05 locks both «строка кликабельна → карточка устройства» and «имена сотрудников — ссылки». HTML forbids nested anchors; a pure-RSC page has no row-level onClick.
    - Recommendation: segmented links (A2) — model link is the row's primary affordance, hover styling spans the whole row.
    - Handling: flag in the plan; UI-SPEC fixes the visual.
 
-2. **`pluralMovements` / block copy details** — deferred to the UI-SPEC copy contract (A4); the `lib/ru.ts` recipe exists if needed. No research gap.
+2. **`pluralMovements` / block copy details** — (RESOLVED: UI-SPEC copy contract) — закреплён утверждённым 06-UI-SPEC (17 элементов копи-контракта); `lib/ru.ts` recipe остаётся фолбэком исполнителю. No research gap.
 
 ## Environment Availability
 

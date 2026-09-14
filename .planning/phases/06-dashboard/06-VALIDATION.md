@@ -40,7 +40,10 @@ created: 2026-09-14
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (seeded by planner — fill after PLAN.md files exist) | 01 | 1 | DASH-01..03 | T-06-* | dashboard behind requireSession; zero new routes exposed | unit+integration | `npx vitest run` | ⬜ W0 | ⬜ pending |
+| 06-01 T1 | 06-01 | 1 | DASH-01, DASH-03 | T-06-01 | `/` behind requireSession; smoke «/» needle rewritten in the same task | integration | `npm run build && node scripts/smoke-devices.mjs && npx vitest run` | ⬜ W0 | ⬜ pending |
+| 06-02 T1 | 06-02 | 2 | DASH-02 | T-06-01 | гарантийные счётчики = те же предикаты, что фильтры | integration | `npx vitest run && npm run build && node scripts/smoke-devices.mjs` | ⬜ W0 | ⬜ pending |
+| 06-02 T2 | 06-02 | 2 | DASH-01, DASH-02, DASH-03 | — | parity-тесты: счётчики == listDevices totals; TZ-граница; feed ordering | unit (Wave 0) | `npx vitest run tests/dashboard-queries.test.ts && npx vitest run` | ⬜ W0 | ⬜ pending |
+| 06-02 T3 | 06-02 | 2 | DASH-01..03 | — | smoke-dashboard периметр `/` | smoke | `npm run build && node scripts/smoke-dashboard.mjs` | ⬜ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
