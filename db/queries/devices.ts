@@ -187,10 +187,15 @@ function searchPredicate(rawQ: string | undefined) {
 // with wu non-null; NULL warranty matches NO warranty filter (null is not
 // «expired» — three-valued SQL would drop it anyway, the isNotNull makes the
 // intent explicit). The ≤ 60 window shares WARRANTY_WARN_DAYS with the future
-// color state — a filter hit can never render green (edge 8).
-function warrantyPredicate(w: DeviceListFilters['warranty']) {
+// color state — a filter hit can never render green (edge 8). `today` is
+// injectable so the dashboard counters compose THIS function with their own
+// once-per-render Date (WR-01: one window body for filter, counters and
+// top-5) — the default keeps every filter call site unchanged.
+function warrantyPredicate(
+  w: DeviceListFilters['warranty'],
+  today: Date = displayTodayUtc(),
+) {
   if (!w) return undefined
-  const today = displayTodayUtc()
   if (w === 'expired') {
     return and(isNotNull(devices.warrantyUntil), lt(devices.warrantyUntil, today))
   }
@@ -289,13 +294,13 @@ export function totalDeviceCount(): number {
 }
 
 // Warranty preset counts of the dashboard's «Гарантия» block (DASH-02, D-04,
-// phase 6 plan 02). Each count composes THE SAME typed operators as
-// warrantyPredicate above (:191-203 — the «Истекает ≤ N» and «Истекла»
-// bodies, spelled out identically): co-location IS the D-04 invariant, and
-// the parity tests (tests/dashboard-queries.test.ts) pin every counter to
-// the total of the matching ?warranty= list through the public API — a
-// counter that disagrees with its list is the phase's cardinal bug and now
-// fails loudly. The inclusive phase-5 boundary: warranty until today is
+// phase 6 plan 02). Each count COMPOSES warrantyPredicate above (WR-01 — the
+// «Истекает ≤ N» / «Истекла» bodies by construction, not a spelled-out copy),
+// so counter==filter parity is structural; the parity tests
+// (tests/dashboard-queries.test.ts) still pin every counter to the total of
+// the matching ?warranty= list through the public API — a counter that
+// disagrees with its list is the phase's cardinal bug and now fails loudly.
+// The inclusive phase-5 boundary: warranty until today is
 // ALIVE (inside «≤ 30» AND «≤ 60»), until today + 60 inside the window,
 // today + 61 in neither window and not expired, before today expired only;
 // NULL matches no preset. N small counts, never a single-pass CASE: raw sql
@@ -306,48 +311,19 @@ export type WarrantyPresetCounts = { w30: number; w60: number; expired: number }
 export function warrantyPresetCounts(
   today: Date = displayTodayUtc(),
 ): WarrantyPresetCounts {
-  return {
-    w30: db
+  const countOf = (w: NonNullable<DeviceListFilters['warranty']>): number =>
+    db
       .select({ value: count() })
       .from(devices)
-      .where(
-        and(
-          isNotNull(devices.warrantyUntil),
-          gte(devices.warrantyUntil, today),
-          lte(devices.warrantyUntil, addDaysUtc(today, 30)),
-        ),
-      )
-      .get()!.value,
-    // THE one warn threshold — the «≤ 60» counter shares WARRANTY_WARN_DAYS
-    // with the filter preset and the color state, so a counter hit can never
-    // render green (the phase-5 edge-8 invariant).
-    w60: db
-      .select({ value: count() })
-      .from(devices)
-      .where(
-        and(
-          isNotNull(devices.warrantyUntil),
-          gte(devices.warrantyUntil, today),
-          lte(devices.warrantyUntil, addDaysUtc(today, WARRANTY_WARN_DAYS)),
-        ),
-      )
-      .get()!.value,
-    expired: db
-      .select({ value: count() })
-      .from(devices)
-      .where(
-        and(
-          isNotNull(devices.warrantyUntil),
-          lt(devices.warrantyUntil, today),
-        ),
-      )
-      .get()!.value,
-  }
+      .where(warrantyPredicate(w, today))
+      .get()!.value
+  return { w30: countOf('w30'), w60: countOf('w60'), expired: countOf('expired') }
 }
 
 // The 5 (limit) soonest-expiring STILL-ALIVE warranties of the «Гарантия»
-// block (DASH-02): the where is exactly the w60 window — the same operators
-// as warrantyPredicate's «≤ 60» body and the w60 counter above — so expired
+// block (DASH-02): the where COMPOSES warrantyPredicate('w60', today) — the
+// exact window of the w60 counter and the «≤ 60» filter, one body for all
+// three (WR-01) — so expired
 // devices and NULL warranties NEVER reach the list: the «Истекла» counter
 // carries them (D-04: истёкшая ≠ истекает). Soonest first, with the id
 // tiebreaker for one date (probe-verified order, RESEARCH Pattern 3 — the
@@ -369,21 +345,16 @@ export function nearestExpiringWarranties(
       warrantyUntil: devices.warrantyUntil,
     })
     .from(devices)
-    .where(
-      and(
-        isNotNull(devices.warrantyUntil),
-        gte(devices.warrantyUntil, today),
-        lte(devices.warrantyUntil, addDaysUtc(today, WARRANTY_WARN_DAYS)),
-      ),
-    )
+    .where(warrantyPredicate('w60', today))
     .orderBy(asc(devices.warrantyUntil), asc(devices.id))
     .limit(limit)
     .all()
   return rows.map((row) => ({
     id: row.id,
     model: row.model,
-    // The isNotNull term above guarantees a Date on every row — the column
-    // type just cannot see it (same cast discipline as the GROUP BY keys).
+    // The w60 window's isNotNull term (inside warrantyPredicate) guarantees a
+    // Date on every row — the column type just cannot see it (same cast
+    // discipline as the GROUP BY keys).
     warrantyUntil: row.warrantyUntil as Date,
   }))
 }
