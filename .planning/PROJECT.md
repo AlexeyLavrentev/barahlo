@@ -25,10 +25,11 @@
 - ✓ CSV-экспорт отфильтрованного списка (UTF-8 BOM, «;») — Phase 5 (решение roadmap-плана фазы, D-18)
 - ✓ Списки летают на сотнях устройств (0.76 мс @ 600 строк) — Phase 5 (UI-03)
 - ✓ Красивый современный UI в духе Apple (apple-design гайды) — Phases 2–5
+- ✓ Дашборд: сводка по типам/статусам, блок гарантии с deep-link в фильтры, лента перемещений — Phase 6 (DASH-01..03)
 
 ### Active
 
-- [ ] Дашборд: сколько единиц, у кого что, что на ремонте/списано — Phase 6 (DASH-01..03)
+(none — v1.0 milestone complete)
 
 ### Out of Scope
 
@@ -77,6 +78,8 @@
 | Зелёный гарантии #248A3D (не #34C759) | контраст AA 4.5:1 на белом; recommendation UI-checker принят до имплементации | ✓ Good |
 | Search-box: локальные правки приоритетнее URL; своё эхо не переписывает инпут | CR-01-фикс (lastSynced) ронял keystrokes (G-5-1, 74eb0d9); trim-эхо съедало пробел «aspire 5» (G-5-2, 42ebf57) — оба пойманы UAT и закрыты | ✓ Good |
 | CSV-экспорт в фазе 5 (D-18) | защита от «параллельной таблицы»; requireSession-first, общий deviceWhere со страницей, CWE-1236 guard | ✓ Good |
+| Гарантийные счётчики дашборда = композиция warrantyPredicate (injectable today) | parity by construction, не тестом (code review WR-01, a8c2bf7); фильтр-хит ≠ цвет невозможен структурно | ✓ Good |
+| Дашборд на `/` без loading.tsx | (app)-level loading ломал 404-матрицу фазы 2 (RESEARCH, phase-2 прецедент); queries single-digit ms — скелетон не нужен | ✓ Good |
 
 ## Evolution
 
@@ -96,4 +99,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-14 after Phase 5*
+*Last updated: 2026-09-14 after Phase 6 — v1.0 milestone complete*

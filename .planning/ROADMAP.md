@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Device Registry** - Реестр устройств: 4 типа с наборами полей на тип (keystone-модуль `device_schema`), карточка, редактирование, пагинация (completed 2026-09-03)
 - [x] **Phase 4: Custody & Photos** - Выдача/возврат/передача одним действием, неизменяемый таймлайн перемещений, статусы только действием, фото устройств (completed 2026-09-04)
 - [x] **Phase 5: Search & Filters** - Поиск по номерам и модели, фильтры («ноуты без апгрейда RAM», окно гарантии), подсветка гарантии, скорость на сотнях устройств (completed 2026-09-14)
-- [ ] **Phase 6: Dashboard** - Сводный экран: количество по типам и статусам, истекающая гарантия, лента недавних перемещений
+- [x] **Phase 6: Dashboard** - Сводный экран: количество по типам и статусам, истекающая гарантия, лента недавних перемещений (completed 2026-09-14)
 
 ## Phase Details
 
@@ -231,4 +231,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Device Registry | 2/2 | Complete    | 2026-09-03 |
 | 4. Custody & Photos | 3/3 | Complete    | 2026-09-04 |
 | 5. Search & Filters | 6/6 | Complete    | 2026-09-14 |
-| 6. Dashboard | 2/2 | In Progress|  |
+| 6. Dashboard | 2/2 | Complete    | 2026-09-14 |
