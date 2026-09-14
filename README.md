@@ -127,8 +127,8 @@ curl -s -o /dev/null -w '%{http_code}' -H "Cookie: session=$TOKEN" http://localh
 
 ### Требования к серверу
 
-- **Docker + compose plugin** — основной путь деплоя (D-08). Docker не нужен на хосте для Node-кода: сборка и работа — в контейнере.
-- **Host Node ≥ 20.9** — нужен только для шага миграции: `drizzle-kit` — devDependency, миграция выполняется на хосте против `./data/app.db` через том (standalone-образ devDeps не содержит).
+- **Docker + compose plugin** — основной путь деплоя (D-08). Docker не нужен на хосте для Node-кода: сборка и работа — в контейнере. В Ubuntu 24.04 `apt install docker.io` compose-плагин НЕ ставит — нужен пакет `docker-compose-v2` (или официальный репозиторий Docker).
+- **Host Node ≥ 22** — нужен только для шага миграции: `drizzle-kit` — devDependency, миграция выполняется на хосте против `./data/app.db` через том (standalone-образ devDeps не содержит). ≥22, а не ≥20.9: `better-sqlite3@13` объявляет engines `>=22` (Node 18 из apt Ubuntu 24.04 не подходит).
   - *Фолбэк при отсутствии host-Node:* разовый compose-сервис миграции из deps-стадии (там есть devDeps) — задокументированная альтернатива; при деплое заменить шаг `npx drizzle-kit migrate` на `docker compose run --rm --no-deps migrate`. Встроенного такого сервиса в `compose.yml` нет — добавляется при необходимости.
 - **Canonical remote** — `origin`, приватный репозиторий https://github.com/AlexeyLavrentev/barahlo.git; `git pull` деплоя тянется оттуда. (D-15 изначально называл корпоративный GitLab — решением владельца от 2026-09-01 канонический remote перенесён в приватный GitHub; публичных зеркал нет, код и `.planning/` остаются в частной зоне.)
 
