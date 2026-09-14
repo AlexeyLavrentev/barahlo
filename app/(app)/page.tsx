@@ -27,23 +27,20 @@ import { movementEventLabel } from '@/lib/movement-schema'
 import { occurredAtFormat, pluralDevices } from '@/lib/ru'
 import { displayTodayUtc } from '@/lib/warranty'
 import { WarrantyDate, formatWarrantyDate } from '@/lib/warranty-date'
-import { buildDevicesQuery } from './devices/query-params'
+import { buildDevicesQuery, TYPE_ITEMS } from './devices/query-params'
 
 export const metadata: Metadata = {
   title: 'Дашборд',
 }
 
-// Labels of the four type tiles: the type filter's PLURAL options, byte-exact
-// FILTER_ITEMS copy of the type-filter island
-// (app/(app)/devices/type-filter.tsx) — the UI-SPEC copy contract. An RSC
-// page cannot import a client island's constant, so the four labels live
-// here; DEVICE_TYPES' singular names are card/row copy, not tile copy.
-const TYPE_TILE_LABELS: Record<DeviceTypeKey, string> = {
-  laptop: 'Ноутбуки',
-  monitor: 'Мониторы',
-  dock: 'Док-станции',
-  peripheral: 'Периферия',
-}
+// Labels of the four type tiles: a lookup over TYPE_ITEMS from
+// devices/query-params.ts — the same shared module the type-filter island's
+// FILTER_ITEMS composes (app/(app)/devices/type-filter.tsx), so the UI-SPEC
+// copy contract is byte-exact BY CONSTRUCTION (WR-02), not by two hand-kept
+// lists. DEVICE_TYPES' singular names are card/row copy, not tile copy.
+const TYPE_TILE_LABELS = new Map(
+  TYPE_ITEMS.map((item) => [item.value, item.label] as const),
+)
 
 // D-02's locked status order — deliberately NOT the filter's in_stock-first
 // order: the dashboard leads with the live state. Labels come from the
@@ -307,7 +304,7 @@ export default async function DashboardPage() {
               {countByType.get(type.key) ?? 0}
             </span>
             <span className="mt-1 block truncate text-sm text-ink-secondary">
-              {TYPE_TILE_LABELS[type.key]}
+              {TYPE_TILE_LABELS.get(type.key)}
             </span>
           </Link>
         ))}

@@ -38,6 +38,19 @@ export const WARRANTY_ITEMS = [
   { value: 'expired', label: 'Истекла' },
 ] as const
 
+// The four keystone types with their PLURAL list-filter copy (UI-SPEC copy
+// table): single source for the type filter's options AND the dashboard's
+// type tiles (WR-02) — the tile labels are byte-exact FILTER_ITEMS copy by
+// construction, in this plain non-client module both sides already import.
+// The canonical SINGULAR names live in DEVICE_TYPES (lib/device-schema); the
+// island's «Все типы» sentinel option stays the island's own.
+export const TYPE_ITEMS = [
+  { value: 'laptop', label: 'Ноутбуки' },
+  { value: 'monitor', label: 'Мониторы' },
+  { value: 'dock', label: 'Док-станции' },
+  { value: 'peripheral', label: 'Периферия' },
+] as const
+
 const WARRANTY_VALUES: readonly string[] = WARRANTY_ITEMS.map((w) => w.value)
 
 function isWarrantyValue(value: unknown): value is DeviceFilters['warranty'] {
