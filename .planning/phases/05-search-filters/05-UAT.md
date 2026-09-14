@@ -17,6 +17,7 @@ expected: Open /devices on a seeded dev DB, type a serial fragment from the firs
 result: issue
 reported: "поле поиска в целом работает если вводить и удалять символы по одному с паузами. Если вводить символы или удалять их быстро то поле ведет себя странно, и либо не прописывает то что я пишу, либо не удаляет"
 severity: major
+retest: "2026-09-14 orchestrator live-verified on :3001 (fixed build 74eb0d9) via Playwright: быстрый набор 14 символов покейстроково — input=URL; 2 символа набраны В ПОЛЁТЕ эха — выжили; бёрст Backspace x3 в полёте — выжили, input=URL='lenovo thinkpa'; прямая навигация по URL адоптится в инпут; гомоглифы live: 'SN-НZHB06' (кир. Н) → 1 находка, 'а5' (кир. А) → 1 находка, 'aspire' → 35, пустой результат даёт «Найдено: 0 устройств» + D-04-состояние. Репорт юзера объяснён стейлом окружения: temp-БД :3001 была сожрана /tmp-чисткой за 9 дней (логин отдавал 500 — дойти до поиска было невозможно), а Docker-контейнер :3000 собран до фикса 74eb0d9. Ждёт финального подтверждения владельца."
 
 ### 2. Search-box reconciliation (CR-01)
 expected: With a q active click «Сбросить фильтры», then use browser Back and Forward; also push a query with trailing spaces and let the server trim it. The input adopts the URL's q after reset/Back/Forward (empties on reset, restores on Back) and no re-push navigation loop starts.
