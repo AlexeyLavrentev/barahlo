@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 6
-status: completed
+status: Awaiting next milestone
 stopped_at: Completed 06-02-PLAN.md (warranty block + Wave-0 fixtures + smoke-dashboard)
-last_updated: "2026-09-14T10:28:20.495Z"
+last_updated: "2026-09-14T10:41:41.121Z"
 last_activity: 2026-09-14
-last_activity_desc: Phase 6 complete
+last_activity_desc: Milestone v1.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 21
   completed_plans: 21
+current_phase: 6
 current_phase_name: Dashboard
 ---
 
@@ -27,12 +27,10 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-09-14 — Phase 6 complete
-
-Progress: [██████████] 100%
+Phase: Milestone v1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-09-14 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -147,3 +145,7 @@ Items acknowledged and carried forward from previous milestone close:
 Last session: 2026-09-14T07:34:59.151Z
 Stopped at: Completed 06-02-PLAN.md (warranty block + Wave-0 fixtures + smoke-dashboard)
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
