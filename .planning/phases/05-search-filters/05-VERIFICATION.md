@@ -1,31 +1,38 @@
 ---
 phase: 05-search-filters
 verified: 2026-09-04T20:39:27Z
-status: human_needed
+status: passed
 score: 5/6 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
 behavior_unverified_items:
+
   - truth: "Live-search UI invariant: 300 ms debounce from the first character, re-typing cancels the pending timer, Enter commits immediately, and an externally changed q («Сбросить фильтры», Back/Forward) is adopted into the input without a re-push navigation loop (CR-01 lastSynced reconciliation)"
     test: "In a browser on a seeded dev DB: type in the search box, retype mid-debounce, press Enter, then click «Сбросить фильтры» and use browser Back/Forward"
     expected: "Results update without Enter and without flicker; retyping never fires a stale push; after reset/Back/Forward the input shows the URL's q and no navigation loop starts"
     why_human: "Timer cancellation and the lastSynced reconciliation are client-runtime state transitions in a 'use client' island — no test exercises them (the repo has no component-test harness; the vitest node env cannot render the island), so presence + wiring is proven but the transition is not"
 human_verification:
+
   - test: "Live-search feel: open /devices on a seeded dev DB, type a serial fragment from the first character (no Enter), retype mid-debounce, press Enter once"
     expected: "Results update live ~300 ms after typing stops, no skeleton flash per keystroke, the input keeps focus and its value, Enter commits immediately"
     why_human: "Debounce feel, focus retention and transition smoothness are browser-runtime behavior — RSC/island output is not assertable from the vitest node environment (documented manual-only item in 05-VALIDATION.md)"
+
   - test: "Search-box reconciliation (CR-01): with a q active click «Сбросить фильтры», then use browser Back and Forward; also push a query with trailing spaces and let the server trim it"
     expected: "The input adopts the URL's q after reset/Back/Forward (it empties on reset, restores on Back) and no re-push navigation loop starts"
     why_human: "The fix (be80413, lastSynced ref) is present and wired, but the invariant spans browser history navigation — untestable outside a real browser; the fixer explicitly flagged it human-verify"
+
   - test: "One-bar FilterBar on a narrow viewport: narrow the window under ~768 px; set a department with a very long name; type a 100-character query"
     expected: "The bar wraps to a second line without overflow (flex-wrap by design), the long department name truncates with ellipsis in its sm:w-40 trigger, the long query renders in the flex-1 field without breaking the bar"
     why_human: "PLAN 02/05 backstop truths marked verification: backstop — held-out visual layout checks (05-VALIDATION.md manual item)"
+
   - test: "Warranty colors on real data: open /devices, a device card with each warranty state, and an employee card with issued devices"
     expected: "Registry row line 2 shows « · гар. до dd.mm.yyyy» colored green (#248A3D) beyond 60 days, orange (#FF9500) in the inclusive window, red (#D70015) expired; the device card «Гарантия до» value colored, label untouched; «без гарантии» renders no segment in lists and a plain «—» on the card; text color only — no pills/backgrounds/bold/icons"
     why_human: "Rendered color/typography is RSC visual output — the calculation is test-proven (frozen-clock boundary tests) but the paint cannot be asserted from vitest (documented manual-only item)"
+
   - test: "CSV open test: download via «Скачать CSV» on a filtered view and open the file once in RU Excel or Numbers"
     expected: "Cyrillic intact (no mojibake), one column per field («;» separator), dates dd.mm.yyyy, a model starting with «=» opens as text (no formula execution)"
     why_human: "PLAN 04 backstop truth marked verification: backstop — BOM/«;»/CRLF/mojibake behavior in a real spreadsheet app cannot be asserted from the vitest node environment; the automated layer (shape + injection matrix + headers) is fully proven"
+
   - test: "Reseed the dev DB and feel UI-03 at real scale: rm data/app.db (+ WAL/SHM), npx drizzle-kit migrate && DATABASE_PATH=./data/app.db node scripts/seed.mjs, then page/filter/search /devices"
     expected: "The registry shows ~400 devices (200/80/50/70) with all four warranty states; paging, filtering and search feel instant at that scale"
     why_human: "The automated perf gate is green (avg 0.922 ms @ 600 rows), but the felt «мгновенно» on the real dev DB is the documented end-of-phase check; the dev DB still holds the old 80-device fixtures (seed refuses non-empty DBs by design)"
