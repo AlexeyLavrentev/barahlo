@@ -4,16 +4,16 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 6
 current_phase_name: Dashboard
-status: executing
-stopped_at: Completed 06-01-PLAN.md (dashboard tracer)
-last_updated: "2026-09-14T07:04:14.405Z"
+status: verifying
+stopped_at: Completed 06-02-PLAN.md (warranty block + Wave-0 fixtures + smoke-dashboard)
+last_updated: "2026-09-14T07:34:59.412Z"
 last_activity: 2026-09-14
 last_activity_desc: Phase 6 execution started
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 21
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-08-31)
 
 Phase: 6 (Dashboard) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-14 — Phase 6 execution started
 
-Progress: [██████████] 95%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -76,6 +76,7 @@ Progress: [██████████] 95%
 | Phase 05 P04 | 13 min | 2 tasks | 5 files |
 | Phase 05 P06 | 12 min | 2 tasks | 3 files |
 | Phase 06 P01 | 21min | 1 tasks | 5 files |
+| Phase 6 P2 | 19min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 6/План 1: тайлы-ссылки = '/devices' + buildDevicesQuery(full DeviceFilters) — билдер отдаёт относительный query-string (?type=laptop), страница префиксует путь; query-string руками не собирается никогда (D-03/D-08)
 - [Phase ?]: Фаза 6/План 1: агрегаты дашборда живут рядом с deviceWhere/warrantyPredicate (co-location = D-04); GROUP BY-тишина закрывается zero-default итерацией DEVICE_TYPES/DEVICE_STATUS_KEYS с Map.get ?? 0; лента — один 3-way join с id сотрудников в SELECT и tiebreaker desc(occurredAt)+desc(id)
 - [Phase ?]: Фаза 6/План 1: роутная таблица ленты — один routeSegments() ({text, href}); из него и рендер, и title; timeline.tsx names-as-text остаётся анти-аналогом (D-05)
+- [Phase ?]: Фаза 6/План 2: гарантийные счётчики и топ-5 составлены из тех же типизированных операторов, что warrantyPredicate (тот же модуль, один today на рендер); parity-тесты прикалывают счётчик к total listDevices — дрейф громко красный (D-04)
+- [Phase ?]: Фаза 6/План 2: подписи счётчиков рендерятся одним шаблонным литералом (один текст-узел) — smoke-иглы непрерывны сквозь SSR-сплит; smoke-dashboard на :3119 сеет ноль устройств — Pitfall 8 стал ассертом
 
 ### Pending Todos
 
@@ -140,6 +143,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-14T07:04:01.420Z
-Stopped at: Completed 06-01-PLAN.md (dashboard tracer)
+Last session: 2026-09-14T07:34:59.151Z
+Stopped at: Completed 06-02-PLAN.md (warranty block + Wave-0 fixtures + smoke-dashboard)
 Resume file: None
