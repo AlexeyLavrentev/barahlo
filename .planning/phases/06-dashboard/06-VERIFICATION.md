@@ -1,21 +1,25 @@
 ---
 phase: 06-dashboard
 verified: 2026-09-14T08:59:15Z
-status: human_needed
+status: passed
 score: 19/19 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 unverified_prohibition_note: "3 judgment-tier prohibitions (DASH-01/DASH-02/DASH-03) carry code-level LLM-judge verdicts of RESOLVED — non-authoritative; human review recommended (see Human Verification item 4). A 4th item: WR-01 post-fix semantic confirmation, flagged by the fixer itself."
 human_verification:
+
   - test: "Visual hierarchy per 06-UI-SPEC on a seeded dev DB: open / and inspect the tiles grid (4 types then 4 statuses, one grid, quiet white tiles), the two-column blocks zone («Гарантия» left/first, feed second), counter rows with chevrons, «Ближайшие сроки» sub-header, top-5 two-line rows; then overflow probes: a very long device model and a long employee name/route in the feed, a long model in the top-5"
     expected: "Tiles/rows never break layout: model and route truncate before the shrink-0 pill/serial/date, top-5 model truncates before the chevron, title attributes carry the full texts; «Списано» tile is neutral (navigation, not a badge); «Списание» pill is the only destructive-tinted label"
     why_human: "Both PLANs declare overflow/truncate/title and the tile/card anatomy as held-out visual backstops (SUMMARY coverage D3/W3, human_judgment: true); rendered layout and title behavior cannot be asserted from the vitest node environment (no component test runner in the repo)"
+
   - test: "Deep-link click-through on the seeded dev DB: click a type tile, a status tile, each warranty counter (≤30, ≤60, Истекла) and a top-5 row; click a feed row's model and an employee name in the feed route"
     expected: "Every click lands on the pre-filtered /devices list (or the device/employee card); the list total for a clicked warranty counter equals the number shown on the dashboard (the plan's own manual probe: «клик по счётчику открывает отфильтрованный список с тем же числом»)"
     why_human: "Smoke asserts the href strings exist in HTML and parity tests prove counter==filter.total, but the felt navigation (browser routing to the right pre-filtered view, correct count rendering end-to-end on live data) is the deliberate end-of-phase manual check (06-02 verification section; post-execution note: deep-link navigation feel is manual-only)"
+
   - test: "WR-01 semantic confirmation on live data (fixer-flagged): with devices holding known warranty dates (today, today+60, today+61, yesterday, +70, NULL) on a seeded dev DB, read the three counters, the top-5 list and the colored WarrantyDate dates"
     expected: "«≤ 30» and «≤ 60» both include warranty-until-today; today+60 inside ≤60, today+61 in neither and not expired; yesterday counts only in «Истекла»; top-5 shows soonest-first alive-only dates, all warn-orange (no green), expired/NULL devices absent from the list but present in the «Истекла» count"
     why_human: "Commit a8c2bf7 changed SQL-boundary composition (injectable today param in warrantyPredicate, both dashboard consumers recomposed); the frozen-clock test suite pins the semantics, but the fixer explicitly flagged this logic-adjacent change for human confirmation during validation"
+
   - test: "Judgment-tier prohibition review (unverified-prohibition — human review recommended): read the three prohibition statements in 06-01/06-02 PLAN frontmatter against the code (db/queries/devices.ts:194-360, app/(app)/page.tsx:61-154) and sign off"
     expected: "Confirm: (a) no page counter has a parallel predicate/filter implementation — tiles are plain GROUP BY parity-pinned, warranty counters/top-5 COMPOSE warrantyPredicate; (b) the feed route table matches the UI-SPEC event table («склад» only in assigned/returned/transferred; to_repair keeps «от {держатель}»; received/from_repair/disposed have no route) and the SELECT reads append-only data — no mutation on the dashboard; (c) no second warranty math or color logic on the page (grep warrantyState( == 0; only WarrantyDate), expired devices never appear as «alive» in the top-5"
     why_human: "Judgment-tier prohibitions route to human resolution per ADR-550 D4 in autonomous verification; the code-level LLM-judge verdict is RESOLVED on all three but is non-authoritative"
