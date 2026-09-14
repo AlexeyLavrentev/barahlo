@@ -23,7 +23,7 @@ current_phase_name: Dashboard
 See: .planning/PROJECT.md (updated 2026-08-31)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 6 — Dashboard
+**Current focus:** Planning next milestone
 
 ## Current Position
 
