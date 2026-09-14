@@ -52,7 +52,7 @@ blocked: 0
 
 - gap_id: G-5-1
   truth: "Быстрый ввод/удаление символов в поиске не теряет keystrokes: инпут не откатывается к старому q из серверного эха, пока летит навигация"
-  status: failed
+  status: fixed-awaiting-user
   reason: "User reported: поле поиска в целом работает если вводить и удалять символы по одному с паузами. Если вводить символы или удалять их быстро то поле ведет себя странно, и либо не прописывает то что я пишу, либо не удаляет"
   severity: major
   test: 1
@@ -65,3 +65,19 @@ blocked: 0
     - "Иначе перевзводить debounce, чтобы более новый текст ушёл пушем"
     - "commitNow (Enter) аналогично: эхо не должно откатывать ввод, сделанный в полёте"
   debug_session: .planning/debug/search-input-keystroke-loss.md
+  fixed_by: "05-06 (74eb0d9) — live-verified Playwright 2026-09-14; см. retest в Tests"
+- gap_id: G-5-2
+  truth: "Пробел в поисковом запросе не исчезает: «aspire 5» набирается с паузами, пробел не съедается эхом"
+  status: fixed-awaiting-user
+  reason: "User reported (2026-09-14, ретест G-5-1 на :3001): да, тут уже лучше, но в поиске нельзя поставить пробел если искать по имени например \"aspire 5\" то пробел удаляется сразу"
+  severity: major
+  test: 1
+  root_cause: "Trim-эхо переписывало инпут: push «aspire » → сервер триммит до «aspire» → absorption-ветка делала if (value === pushed) setValue(q) — пробел, набранный на паузе между словами, съедался через ~300 мс собственным эхом. Перепись была механизмом защиты от пуш-лупа (search-box.tsx:69)."
+  artifacts:
+    - path: "app/(app)/devices/search-box.tsx"
+      issue: "absorption переписывал инпут на триммированное эхо; adoption-гвард был strict-equal и блокировал сброс при хвостовом пробеле"
+  missing:
+    - "Не переписывать инпут на триммированное эхо; whitespace-only расхождение после своего эха не перевзводит пуш (иначе цикл запросов)"
+    - "«Чистота» инпута для адаптации = совпадение по trim (хвостовой пробел — не несённый контент, сброс обязан очищать)"
+  debug_session: .planning/debug/search-input-keystroke-loss.md (диагноз продолжен оркестратором inline — трассировка та же ветка)
+  fixed_by: "inline-fix оркестратора (мид-UAT интерактив, точечный 10-строчный дифф): live-verified Playwright 2026-09-14 — «aspire » пробел выжил, «aspire 5» end-to-end (35 находок), сброс с хвостовым пробелом очистил инпут; 278/278 vitest, tsc clean"
