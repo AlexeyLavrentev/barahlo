@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import {
   deviceCountByStatus,
   deviceCountByType,
+  nearestExpiringWarranties,
   totalDeviceCount,
+  warrantyPresetCounts,
+  type NearestExpiringWarranty,
 } from '@/db/queries/devices'
 import {
   listRecentMovements,
@@ -22,6 +26,7 @@ import {
 import { movementEventLabel } from '@/lib/movement-schema'
 import { occurredAtFormat, pluralDevices } from '@/lib/ru'
 import { displayTodayUtc } from '@/lib/warranty'
+import { WarrantyDate, formatWarrantyDate } from '@/lib/warranty-date'
 import { buildDevicesQuery } from './devices/query-params'
 
 export const metadata: Metadata = {
@@ -77,6 +82,41 @@ function statusTileHref(status: DeviceStatusKey): string {
     ramNoUpgrade: false,
   })}`
 }
+
+// Warranty counter href (D-04): the ONE builder with a FULL DeviceFilters —
+// identical to the tile helpers except the warranty preset. Hand-built
+// filter URLs stay forbidden (orchestrator resolution 7); the builder owns
+// sentinel omission, so `?warranty=w30` / `?warranty=w60` / `?warranty=
+// expired` come out clean.
+function warrantyCounterHref(preset: 'w30' | 'w60' | 'expired'): string {
+  return `/devices${buildDevicesQuery({
+    q: '',
+    type: 'all',
+    status: 'all',
+    departmentId: null,
+    warranty: preset,
+    ramNoUpgrade: false,
+  })}`
+}
+
+// D-04's locked counter order: 30 → 60 → истекла (UI-SPEC Copywriting).
+// Each label carries the trailing colon so the row renders ONE static text
+// node («Истекает ≤ 30 дней: 3») — the smoke needles stay contiguous across
+// the React SSR text-splitting (the «Всего:» lesson from 06-01).
+const WARRANTY_COUNTERS: readonly {
+  preset: 'w30' | 'w60' | 'expired'
+  label: string
+}[] = [
+  { preset: 'w30', label: 'Истекает ≤ 30 дней:' },
+  { preset: 'w60', label: 'Истекает ≤ 60 дней:' },
+  { preset: 'expired', label: 'Истекла:' },
+]
+
+// Row recipe of the warranty card's link rows (counters and top-5): the
+// standing list-row anatomy plus the page-wide focus semantics (UI-SPEC —
+// focus-visible rings on tile/row links).
+const WARRANTY_ROW_CLASS =
+  'flex min-h-11 items-center justify-between gap-2 px-4 py-2 outline-none transition-colors duration-150 ease-out hover:bg-page focus-visible:ring-2 focus-visible:ring-accent/30'
 
 const TILE_CLASS =
   'rounded-2xl bg-white p-4 shadow-sm ring-1 ring-hairline outline-none transition-all duration-100 ease-out hover:bg-page active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-accent/30'
@@ -172,9 +212,51 @@ function FeedRow({ event }: { event: RecentMovementView }) {
   )
 }
 
-// The dashboard (DASH-01/DASH-03, D-01): a pure read-model over the existing
-// core — aggregate counters beside the same predicates the /devices filters
-// run, plus the 10 most recent movements. No mutations, no client islands
+// One top-5 row of the «Гарантия» block (UI-SPEC Visual Details): line 1 —
+// модель (truncate) + chevron; line 2 — «гар. до » (secondary prefix,
+// rendered by the page) + WarrantyDate variant="card". The card variant is
+// the bare colored date inheriting 14/400: inside the w60 window it renders
+// warn orange BY CONSTRUCTION — the query only admits w60-alive devices, so
+// green is impossible here (the phase-5 invariant, not a page rule). No
+// date-diff or color logic of its own (Don't-Hand-Roll, P2): the component
+// owns the math, `today` is the page's single once-per-render Date.
+function WarrantyTopRow({
+  item,
+  today,
+}: {
+  item: NearestExpiringWarranty
+  today: Date
+}) {
+  return (
+    <li>
+      <Link
+        href={`/devices/${item.id}`}
+        title={`${item.model} · гар. до ${formatWarrantyDate(item.warrantyUntil)}`}
+        className={WARRANTY_ROW_CLASS}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base text-ink">
+            {item.model}
+          </span>
+          <span className="mt-1 block text-sm text-ink-secondary">
+            {'гар. до '}
+            <WarrantyDate
+              value={item.warrantyUntil}
+              today={today}
+              variant="card"
+            />
+          </span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-[#C7C7CC]" aria-hidden />
+      </Link>
+    </li>
+  )
+}
+
+// The dashboard (DASH-01/DASH-02/DASH-03, D-01): a pure read-model over the
+// existing core — aggregate counters beside the same predicates the /devices
+// filters run, the warranty block over the very same operators, and the 10
+// most recent movements. No mutations, no client islands
 // (D-06: the nav below stays the page's only client JS), no cache — every
 // visit re-runs the queries. The page reads no searchParams at all.
 export default async function DashboardPage() {
@@ -195,6 +277,12 @@ export default async function DashboardPage() {
     deviceCountByStatus().map((row) => [row.status, row.n]),
   )
   const feed = listRecentMovements(10)
+  // DASH-02 (D-04): the SAME once-per-render today feeds the warranty
+  // counters, the top-5 query and every WarrantyDate below — three
+  // consumers, one Date, so the counter boundaries and the rendered date
+  // colors cannot disagree.
+  const warranty = warrantyPresetCounts(today)
+  const nearest = nearestExpiringWarranties(5, today)
 
   return (
     <section>
@@ -239,30 +327,80 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* DASH-03 (D-05): the 10 most recent movements. The empty feed is the
-          NORMAL fresh-install case (Pitfall 8: createDevice writes no
-          movement event) — the copy promises nothing. */}
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold tracking-tight text-ink">
-          Последние перемещения
-        </h2>
-        {feed.length === 0 ? (
+      {/* DASH-02 zone (D-02): «Гарантия» first — left column on sm+, first
+          on mobile in source order — the feed second; the grid owns the
+          spacing (gap-8 stacked / gap-6 side-by-side). */}
+      <div className="mt-8 grid gap-8 sm:grid-cols-2 sm:gap-6">
+        {/* DASH-02 (D-04): one card reading as one block — three counter
+            rows in the locked 30 → 60 → истекла order (each a deep link into
+            the matching phase-5 preset, always rendered even at «: 0» — the
+            target is a valid empty list), then the sub-header, then the top-5
+            nearest still-alive warranties (or the
+            honest empty copy — true whenever w30 = w60 = 0, including when
+            «Истекла: K» above shows K > 0). */}
+        <section>
+          <h2 className="text-xl font-semibold tracking-tight text-ink">
+            Гарантия
+          </h2>
           <div className="mt-3 divide-y divide-hairline rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
-            <p className="px-4 py-2 text-sm text-ink">
-              Перемещений пока нет
-            </p>
-            <p className="px-4 py-2 text-sm text-ink-secondary">
-              Здесь появятся выдачи, возвраты и передачи техники.
-            </p>
-          </div>
-        ) : (
-          <ul className="mt-3 divide-y divide-hairline overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
-            {feed.map((event) => (
-              <FeedRow key={event.id} event={event} />
+            {WARRANTY_COUNTERS.map(({ preset, label }) => (
+              <Link
+                key={preset}
+                href={warrantyCounterHref(preset)}
+                className={WARRANTY_ROW_CLASS}
+              >
+                <span className="text-sm text-ink">{`${label} ${warranty[preset]}`}</span>
+                <ChevronRight
+                  size={16}
+                  className="shrink-0 text-[#C7C7CC]"
+                  aria-hidden
+                />
+              </Link>
             ))}
-          </ul>
-        )}
-      </section>
+            {/* The allowed 14/600 mini-header separating counters from the
+                top-5 inside the same card — UI-SPEC's copy contract. */}
+            <p className="px-4 py-2 text-sm font-semibold text-ink">
+              Ближайшие сроки
+            </p>
+            {nearest.length === 0 ? (
+              <p className="px-4 py-2 text-sm text-ink-secondary">
+                Нет техники с истекающей гарантией
+              </p>
+            ) : (
+              <ul className="divide-y divide-hairline">
+                {nearest.map((item) => (
+                  <WarrantyTopRow key={item.id} item={item} today={today} />
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        {/* DASH-03 (D-05): the 10 most recent movements. The empty feed is the
+            NORMAL fresh-install case (Pitfall 8: createDevice writes no
+            movement event) — the copy promises nothing. */}
+        <section>
+          <h2 className="text-xl font-semibold tracking-tight text-ink">
+            Последние перемещения
+          </h2>
+          {feed.length === 0 ? (
+            <div className="mt-3 divide-y divide-hairline rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
+              <p className="px-4 py-2 text-sm text-ink">
+                Перемещений пока нет
+              </p>
+              <p className="px-4 py-2 text-sm text-ink-secondary">
+                Здесь появятся выдачи, возвраты и передачи техники.
+              </p>
+            </div>
+          ) : (
+            <ul className="mt-3 divide-y divide-hairline overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
+              {feed.map((event) => (
+                <FeedRow key={event.id} event={event} />
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </section>
   )
 }
