@@ -1,5 +1,5 @@
 import { and, count, desc, eq } from 'drizzle-orm'
-import { unlink } from 'node:fs/promises'
+import { unlinkSync } from 'node:fs'
 import { db } from '@/db'
 import { attachments, devices } from '@/db/schema'
 import { MAX_PHOTOS, resolveUploadPath, thumbKeyOf } from '@/lib/photos'
@@ -168,10 +168,14 @@ export function deleteAttachment(deviceId: number, attachmentId: number): void {
   if (storageKey === undefined) return // unreachable: throw paths exit above
   for (const key of [storageKey, thumbKeyOf(storageKey)]) {
     try {
-      unlink(resolveUploadPath(key)).catch(() => {})
+      // Synchronous unlink: the D-05 contract is «row AND both disk files are
+      // gone» when this returns — fire-and-forget fs/promises raced the test's
+      // existsSync and could lose the file deletion entirely if the process
+      // exits before the threadpool flushes. Two small files = microseconds.
+      unlinkSync(resolveUploadPath(key))
     } catch {
-      // containment violation of a tampered key — row is already gone, the
-      // file stays an unreachable orphan (harmless direction)
+      // ENOENT / containment violation of a tampered key — row is already
+      // gone, the file stays an unreachable orphan (harmless direction)
     }
   }
 }
