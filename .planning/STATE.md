@@ -2,9 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Скорость и удобство
+current_phase: 7
+current_phase_name: "v1.1: 7–11"
 status: planning
-last_updated: "2026-09-15T11:51:49.318Z"
+stopped_at: Phase 7 context gathered
+last_updated: "2026-09-15T16:49:31.663Z"
 last_activity: 2026-09-15
+last_activity_desc: Roadmap v1.1 создан (Phases 7–11, покрытие 5/5)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -143,9 +147,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15
-Stopped at: Roadmap v1.1 создан (Phases 7–11); REQUIREMENTS.md трейсабилити обновлено
-Resume file: None
+Last session: 2026-09-15T16:49:31.652Z
+Stopped at: Phase 7 context gathered
+Resume file: .planning/phases/07-live/07-CONTEXT.md
 
 ## Operator Next Steps
 
