@@ -1,290 +1,395 @@
-# Pitfalls Research
+# Pitfalls Research — v1.1 «Скорость и удобство» (5 new features on the existing app)
 
-**Domain:** Internal IT asset tracking web app — solo-built, single manager user, 50–200 employees, hundreds of devices, LAN-deployed, Russian-language UI, replaces a spreadsheet
-**Researched:** 2026-08-31
-**Confidence:** MEDIUM (web-researched findings corroborated across multiple independent sources; items marked **[PE]** are practitioner experience from the asset-tracker/internal-tool domain, rated MEDIUM-LOW)
+**Domain:** Adding employee live search, ⌘K palette, full-context CSV report, device cloning and bulk issue/return to a production Next.js 16 App Router RSC + server-actions app with better-sqlite3/drizzle (single-writer, WAL), Cyrillic data, one operator, Docker on Ubuntu amd64
+**Researched:** 2026-09-15
+**Confidence:** HIGH for codebase-grounded items (verified against the actual source: `db/schema.ts`, `db/queries/*.ts`, `app/(app)/devices/actions.ts`, `lib/csv.ts`, `search-box.tsx`, `proxy.ts`); MEDIUM for web-corroborated integration items; HIGH where pinned to official docs of the exact installed versions (Next 16.3.3 local docs, better-sqlite3 api.md)
+
+**Already solved in v1.0 — do not re-litigate, but every new code path must REUSE the fix:** React 19 form reset → echo-values-in-state; Base UI combobox items-on-Root + value=display-string; search debounce races → lastSynced + inFlight echo absorption; LIKE → ESCAPE + 100-char cap; UTC vs Moscow → DISPLAY_TZ / formatWarrantyDate; drizzle-kit push → generate+migrate; module-level SQLite → lazy db singleton; CSV → BOM + «;» + esc() CWE-1236 guard; pagination → server-side page clamp.
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Assignment history stored as mutable columns — reassignment rewrites the past
+### Pitfall 1: ⌘K hotkey bound to `event.key` — dead on the Russian keyboard layout **[⌘K]**
 
 **What goes wrong:**
-The device row has an `assigned_to` column (maybe `assigned_date` too). Every reassignment overwrites it. After three years the "полная история перемещений" requirement is unmeetable: the timeline shows only the current holder, and questions like «кто имел этот ноутбук в 2024-м» — the exact разборки/audit scenario PROJECT.md names — have no answer. Worse, someone "fixes" a wrong reassignment by editing the column again, silently destroying even that.
+The palette listener checks `e.key === 'k'`. On the ЙЦУКЕН layout the physical K key produces `event.key === 'л'`, so ⌘K does nothing for an operator who — in a Russian-language app — spends most of the day in the Russian layout. The feature reads as broken; it works only after switching to the Latin layout, which the user will do twice and then stop using the palette.
 
 **Why it happens:**
-CRUD thinking. A mutable current-state column is the obvious first design, and the history feature gets deferred as "we can add an audit log later." Retrofitting history onto a live mutable table is impossible — the past is already gone. Azure Architecture Center's event-sourcing writeup documents exactly this CRUD weakness: it stores only the latest state.
+`event.key` is the produced character, not the physical key. Every demo is recorded on a Latin layout, so the bug is invisible in development.
 
 **How to avoid:**
-Hybrid pattern (the community consensus — full event sourcing is overkill here):
-- One append-only `movements` table: `id, device_id, event_type (поступление/выдача/возврат/в ремонт/из ремонта/списание), from_employee_id, to_employee_id, occurred_at, note`. Rows are never UPDATEd or DELETEd.
-- Write the event and update the device's cached current-location columns **in the same DB transaction**. Current state stays fast to query; history stays immutable.
-- Record the initial «поступление» event when the device is created — every timeline must start somewhere.
-- Mistakes are corrected by a new compensating event («выдача отменена/исправлена»), never by editing or deleting the old row.
-- Snapshot name/department onto the event only if you ever allow employee hard-delete — see Pitfall 4; with immutable employee records, plain FKs are enough.
+Match on `event.code === 'KeyK'` together with `e.metaKey || e.ctrlKey` — `code` is the physical key identity and is layout-independent (MDN KeyboardEvent.code; ComfyUI frontend issue #5252 documents this exact Cyrillic failure; Microsoft's hotkey guidance for non-Latin locales says the same). The displayed hint can still say «⌘K». Ignore the event when a dialog/input owns it unless the palette is meant to stack (see Pitfall 2). Add a UAT step: enable Russian layout, press ⌘K.
 
 **Warning signs:**
-The schema has `assigned_to`/`location`/`status` columns but no movements table; someone says "историю добавим потом"; a UI mock shows editing an existing timeline entry.
+The keydown handler references `e.key` (or `e.key.toLowerCase()`) for the shortcut letter; no test with a non-Latin layout.
 
 **Phase to address:**
-Foundation/Schema phase — the movements table must exist in the first migration, before any device CRUD. Retrofitting is the one thing you cannot do later.
+⌘K palette phase — one-line decision at implementation time; discovered later it is a support ticket, not a bug report.
 
 ---
 
-### Pitfall 2: Status drift — the registry goes stale and becomes the spreadsheet again
+### Pitfall 2: Palette as a second dialog over the movement/employee dialogs — Escape, scroll-lock and focus stack conflicts **[⌘K]**
 
 **What goes wrong:**
-Statuses (`выдано`, `в ремонте`, `списано`, current holder) are fields the user can edit freely, separate from any "movement" action. The manager changes a holder in a hurry and forgets to flip the status, or marks a laptop «в ремонте» and forgets to close it out. Within months the dashboard and the filters answer from stale data; the user stops trusting the tool and reopens the spreadsheet. This is the #1 documented failure of asset-inventory systems (Motadata, CyCognito, Virima, AssetIT all list stale/incorrect records as the dominant failure mode) — and it is precisely why the spreadsheet is being replaced.
+The app already ships Base UI dialogs (`components/ui/dialog.tsx` — Backdrop + Popup, both `z-50`). The palette is another dialog. When ⌘K fires while a «Выдать» dialog (with its employee combobox) is open, the classic stacked-modal failures appear: Escape closes both layers or the wrong one; each dialog applies its own body scroll lock and the lock clears when the *first* (not last) closes; focus is trapped into the palette and returns to a closed dialog's trigger; the palette autofocus steals from the combobox mid-typing.
 
 **Why it happens:**
-Free-form field editing makes lying to the database one click too easy, and recording truth costs clicks. Solo tool + one busy user = discipline never happens.
+Independent dialogs each listen for Escape and each toggle the scroll lock with no stack discipline — the documented jQuery-UI / HeadlessUI #2324 / Drupal body_scroll_lock failure class.
 
 **How to avoid:**
-- Make state changes *actions*, not field edits: the only way to change holder/status is a single primary action («Выдать», «Вернуть», «В ремонт», «Списать») which writes the movement event and derives status. Hide direct status editing entirely.
-- Return should be one tap from the device card and from the employee card («сдать всю технику» when someone leaves — the highest-frequency bulk event).
-- Surface drift: dashboard widget «в ремонте дольше N дней», employee card shows only active assignments.
-- Anti-goal to resist: a generic "edit device" form that includes status/holder fields.
+Simplest robust rule for a single-operator tool: **while any other dialog is open, the ⌘K hotkey is inert** (a module-level "dialog open" flag set by the existing dialog wrappers, or checking `document.querySelector('[data-slot="dialog-content"]')`). This keeps the single-layer invariant the app was designed around. If true stacking is wanted, use Base UI's native nesting (render the palette inside the open dialog's tree) and verify three behaviors in UAT: Escape closes only the top layer; body scroll stays locked until the last layer closes; closing the palette returns focus into the still-open dialog, not to `document.body`.
 
 **Warning signs:**
-Any screen where status can be changed without producing a movement event; the user asks for "just a quick way to fix the status."
+The palette's `open` state and the hotkey listener live entirely in a layout-level island with no knowledge of other dialogs; no UAT step opens a movement dialog first.
 
 **Phase to address:**
-Movements/Actions phase (with employees) — action-based state transitions defined there; device edit forms built in the Registry phase must exclude state fields from day one.
+⌘K palette phase — define the stacking rule in the plan before the island is written.
 
 ---
 
-### Pitfall 3: Per-type field modeling collapses into EAV hell
+### Pitfall 3: Palette search data path — stale results, auth leakage, layout-level hydration cost **[⌘K]**
 
 **What goes wrong:**
-To give laptops RAM/SSD, monitors diagonal, docks port counts, someone builds a generic entity-attribute-value schema (`attributes` table: entity_id, key, value). Result: type enforcement gone, values stored as text ("16" vs "16GB" vs "шестнадцать"), the «ноуты без апгрейда RAM» filter becomes a self-join pivot over text comparisons, no unique/FK integrity, and every new query is a small research project. EAV is the single most-cited schema antipattern for this domain ("anything is better than EAV" — DBA.SE; Evolveum measured JSONB ~2x faster than EAV with less storage).
+Three related mistakes when wiring palette results:
+1. **Stale cache:** results fetched on first open are kept in module-level or context state. The palette is mounted in `app/(app)/layout.tsx`, which survives every navigation — after a movement action changes a holder, the palette keeps suggesting yesterday's state.
+2. **Auth leakage:** the search runs through a route handler (GET) or an action without `requireSession()` first. Server actions are directly POST-able — the proxy perimeter does not cover them (the T-03-01 rule already established in this codebase); a GET search route additionally risks intermediary/static caching of results.
+3. **Hydration cost:** the palette island hydrates a full result list, icons and item tree into *every* page because it lives at the layout level.
 
 **Why it happens:**
-The attribute-constructor promises "no migrations ever, any type supported" — seductive before the field list is known. It is the correct design only when attributes are genuinely unknown at design time and user-defined at runtime.
+The layout is the natural mount point for a global hotkey, and the natural mistake is to treat it like a normal page component with persistent data.
 
 **How to avoid:**
-PROJECT.md already made the right call («Фиксированные поля устройства, а не конструктор атрибутов») — defend it:
-- Single `devices` table: common columns (model, serial, inventory_no, photos, cost, purchase date/supplier, warranty_until, status) + nullable type-specific columns (`ram_gb`, `ssd_gb`, `screen_in`, …) + a CHECK constraint asserting type-appropriate fields.
-- Typed columns make the killer filter trivial and indexable: `WHERE type='laptop' AND (ram_upgraded = false OR ram_gb <= stock_ram_gb)`.
-- Model «RAM апгрейд» as an explicit boolean/value column, **not** as free text in notes — structured data hidden in the notes field is unfilterable (see UX Pitfalls).
-- When a new device type needs a field: a 5-minute migration is the *cheap* path for a solo dev. EAV is the expensive path dressed as the flexible one.
-- If per-type fields ever proliferate wildly, the escape hatch is JSONB for the type-specific tail — not EAV. But do not pre-build this.
+- Mount only a tiny hotkey + closed-shell island in the layout; render the result UI exclusively while open. Fetch on every open and on debounced keystrokes (200–300 ms) via a server action; never persist results across close.
+- `requireSession()` is the FIRST line of the search action (mirror `app/(app)/devices/actions.ts`); if a route handler is used instead, it must be `no-store`.
+- Server side: one combined query that **composes the existing `searchPredicate`** for the devices half (escape, 100-char cap, homoglyph fold, norm() UDF — all already solved). A second hand-rolled LIKE path in the palette will drift from the registry search within one milestone.
+- Results limited (e.g. 8 devices + 8 employees), navigated **by id** — employee names are deliberately non-unique (D-04); render department next to the name to disambiguate.
+- The «показать все в реестре» fallback link must be built with `buildDevicesQuery` (the ONE query builder) — a hand-built `?q=` string is the drift path.
 
 **Warning signs:**
-A `custom_fields`/`attributes`/`properties` table appears in the schema; field values read back as untyped strings; a filter request requires pivoting; someone proposes "fields configurable in the UI."
+A `useEffect` fetching results into module scope; a new `/api/search` route; the palette component tree rendered unconditionally in the layout; results keyed by name instead of id.
 
 **Phase to address:**
-Registry/Schema phase — the devices schema (typed columns + per-type field sets) is set in the first migrations.
+⌘K palette phase — the data-path contract (action + limits + no persistence) belongs in the plan.
 
 ---
 
-### Pitfall 4: Hard-deleted employees (or devices) orphan the history
+### Pitfall 4: Employee search misses Ё/ё because `norm()` does not fold it **[Employee search]**
 
 **What goes wrong:**
-An employee leaves, the manager deletes their record, and either (a) FK constraints block the delete with a cryptic error, or (b) with cascades/without constraints, the movement timeline now shows «бывший сотрудник #47» or silently drops every «кому выдали» fact — the audit value of history is gone exactly when a разборка needs it. The same applies to deleting a device that turns out to still exist.
+`normalizeNumber` (lib/normalize.mjs) upper-cases and maps Cyrillic→Latin homoglyphs, but has no Ё→Е fold: `norm('Ёлкин')` → `'ЁЛКИН'`, while the operator who never types the diaeresis (most real-world Russian text omits it — Wikimedia folds ё→е in search for exactly this reason) searches `'ЕЛКИН'` and gets «ничего не найдено». The codebase *sorts* correctly (ruSortKey folds Ё in ORDER BY) but *matches* not at all. The gap hits employee names far harder than serials: surnames like Ёлкин, Ёжиков, Алёшин are common, and department names are user-entered.
 
 **Why it happens:**
-Delete feels like the natural verb for "person left the company." The distinction between "no longer active" and "never existed" gets skipped. brandur.org's soft-deletion critique and the accompanying HN debate document the tradeoff space: naive `deleted_at` flags disable FK guarantees and leak into every query; hard deletes orphan references.
+The fold was designed for serial/inventory numbers, where Ё never occurs; the fixture guard pins HOMOGLYPHS, so nobody re-examined the matching path when the search target became human names.
 
 **How to avoid:**
-For this app the clean rule is: **employees and devices are never deleted — they are archived.**
-- Employee gets `is_active=false` (or `archived_at`); they disappear from pickers/dropdowns but every historical reference stays a valid FK. Timeline renders «Иванов И. (уволен)».
-- Device that is physically gone gets status «списано», not a delete. Device that was entered *twice by mistake* is the only legitimate delete — and only if it has no movements (enforce: block delete when movements exist; merge instead).
-- Do **not** use a generic soft-delete plugin that filters `deleted_at` globally across every query — explicit `is_active` scoping on pickers/lists is safer and easier to reason about at this scale.
-- Real hard deletes: none from the UI. If ever needed (GDPR-style erasure is not a factor for an internal RU tool), anonymize the employee row («Сотрудник #47») instead of deleting.
+Fold at **search time on both sides**, leaving stored data and `normalizeNumber` untouched: wrap the SQL side as `norm(replace(replace(name,'Ё','Е'),'ё','е')) like <pattern>` and apply the same JS replace to the query before normalizing it. This mirrors the existing ruSortKey recipe and changes no UNIQUE-indexed column, so no migration and no fixture-guard churn. Do **not** add Ё→Е into HOMOGLYPHS — that map is Cyrillic→Latin for serials and guarded by a fixture test.
 
 **Warning signs:**
-A «Удалить сотрудника» button in a mock; FK-violation errors in dev logs; history tests referencing employee IDs that no longer resolve; discussion of `ON DELETE CASCADE` on movements.
+The employee search predicate is `norm(name) like …` copied from `searchPredicate` verbatim; the typing test never includes a Ё surname; a tester named «Алёша» is unfindable as «Алеша».
 
 **Phase to address:**
-Employees phase — archive semantics built when the employee card is; delete buttons never shipped.
+Employee search phase — and the fold recipe must be shared with the palette's employee half (Pitfall 3), not implemented twice.
 
 ---
 
-### Pitfall 5: Serial-number search breaks on real-world input
+### Pitfall 5: Search + pagination interplay — query without a shared count, zero-page renders, and pagination links that drop `q` **[Employee search]**
 
 **What goes wrong:**
-Search works in demos with clean pasted serials, then fails in practice: the manager types the serial from a sticker with different casing, or copies one from a PDF/paste with trailing whitespace or full-width characters, or — with a Russian keyboard active — types **Cyrillic lookalikes into a Latin serial** (С instead of C, О instead of O, А instead of A). Lookup returns «не найдено», the manager concludes "the system doesn't have it," and trust dies. A related failure: the search requires the *full* serial when the user has only a partial («найди тот серийник на ABC…»).
+`listEmployees` currently takes only filter/page/pageSize. Bolting `q` onto the rows query but not the count query (or vice versa) makes totals lie; a search that matches 3 rows while `?page=7` is in the URL renders an empty page or an out-of-range OFFSET; and pagination links built as `?page=2&filter=active` (the existing `buildQuery(filter, page)` signature has no `q`) silently discard the search the moment the operator pages.
 
 **Why it happens:**
-Equality matching against raw input. Serials are the app's primary key in practice — users identify devices by them — so every input-noise defect hits the core value proposition («где серийник ABC123 — за секунды»).
+The existing helper predates search; extending the rows query feels like "the feature" and the count/links feel like plumbing.
 
 **How to avoid:**
-- Normalize on write AND on search: store `serial_normalized` (uppercase, trimmed, whitespace collapsed, Cyrillic homoglyphs mapped to Latin: А→A, В→B, С→C, Е→E, О→O, Р→P, etc.) alongside the display value. Same for inventory numbers.
-- `UNIQUE` index on `serial_normalized` and `inventory_normalized` — this also catches accidental double-entry at creation (see Recovery Strategies).
-- Search across model, serial, inventory number with **substring** match (`LIKE '%q%'`). At this scale (hundreds to low thousands of rows) a plain indexed-prefix + fallback scan is fast; pg_trgm/GIN is the documented upgrade path if it ever feels slow — do not build it preemptively. Note the documented trigram limits if ever used: ≥3-character patterns only, and Postgres full-text search is the *wrong* tool for serials (it matches stemmed whole words, not substrings).
-- Never case-sensitive; never exact-match-only on serial/inventory.
+- One predicate shared by the count and the rows query — the exact `deviceWhere` pattern of `listDevices` (count and rows provably cannot drift).
+- Keep the server-side clamp `current = min(max(1, page), pages)` — the zero-page-after-narrowing contract (known from v1.0) applies doubly when a search shrinks the result set under a stale `?page=`.
+- Extend `buildQuery` to carry the full state (`filter`, `q`, `page`) and make every link rebuild the FULL query string — the v1.0 «bare ?page=2 drops the filter» lesson, now with one more param.
+- Reuse the LIKE discipline: trim, `slice(0, 100)`, ESCAPE `\` for `%`/`_` — extract or copy the escape recipe from `searchPredicate`; a raw `%${q}%` without escape breaks on «100%» as a department/name fragment.
 
 **Warning signs:**
-Search box bound directly to `WHERE serial = ?`; no normalization helper anywhere; manual test passes only with copy-pasted serials; no unique constraint on serial.
+Two different `where` objects for count and rows; `buildQuery` signature unchanged; a `?q=` param accepted without a length cap.
 
 **Phase to address:**
-Search phase — but the normalized columns and unique indexes belong in the Registry phase schema (adding them after data exists means a cleanup migration over dirty data).
+Employee search phase — plan must name the count-with-search test (search + last page + next page).
 
 ---
 
-### Pitfall 6: Authentication bolted on after the app "works"
+### Pitfall 6: Rewriting the live-search island from scratch — reintroducing the G-5-1/G-5-2 debounce races **[Employee search]**
 
 **What goes wrong:**
-Auth is the last milestone of a solo build, and it ships wrong in predictable ways: password in plaintext or hardcoded; the JSON API routes and the `/uploads/` photo directory have **no auth check** because "the pages have a login"; session cookie without `HttpOnly`/`SameSite`; no rate limit on login; no CSRF protection on mutating actions; no way to reset a forgotten password without redeploying. The «internal network = safe» assumption is the documented trap (Invicti lists it among top developer security misconceptions; self-hosting communities consistently recommend auth + TLS even LAN-only, because LAN apps are prime lateral-movement targets).
+Employee live search needs exactly what `DeviceSearchBox` implements: local state, 300 ms debounce into `router.replace` inside `startTransition`, `lastSynced` stamped at push time, `inFlight` echo absorption. A "simpler" second island (naive `useEffect` on props adopting `q`, or a `<form action>` wrapper) re-loses keystrokes typed during flight (G-5-1) and eats trailing spaces mid-composition (G-5-2) — both were UAT-caught regressions in v1.0 with the scars recorded in Key Decisions.
 
 **Why it happens:**
-Auth is invisible in demos, one user "reduces" the perceived need, and it delays the fun parts. The gaps only surface when someone scans the LAN or the manager's workstation is compromised.
+The existing component is heavily commented and looks over-engineered; the subtle invariants (push-time stamping, trim-aware echo absorption) look removable.
 
 **How to avoid:**
-- Single-account auth is genuinely simple — do it *first*, as middleware, not last: password hashed with bcrypt/argon2; server-side session; cookie with `HttpOnly`, `SameSite=Lax`, `Secure` (via TLS); sensible expiry (weeks are fine here); login rate-limited.
-- Auth middleware on **everything** including API routes and static `/uploads` photo serving — photos of your company's hardware with serials and costs should not be fetchable by any LAN guest.
-- CSRF token on all mutating requests.
-- TLS at the reverse proxy (Caddy/nginx with an internal CA or self-signed) — cheap, and passwords stop crossing the LAN in cleartext.
-- Ship a CLI/script password reset with v1 — the one-user app where the user is locked out is a support incident against yourself.
-- PROJECT.md's single-account decision is sound; do not let "maybe later we need roles" grow into building RBAC (see Pitfall 9 / Technical Debt table).
+Either extract the reconciliation logic into a shared hook/component parameterized by the query builder, or copy `DeviceSearchBox` verbatim and change only the builder (`?q=` for employees). Keep it a **controlled input outside any `<form>`** — React 19 resets uncontrolled forms after every action/navigation (the 4886f6a pattern). Accept external resets («Сбросить») only when the input is clean — the CR-01 rule.
 
 **Warning signs:**
-Routes rendered without a session check "just for testing"; an open `/uploads` or `/api` prefix; password stored or logged in plaintext; no CSRF/rate-limit mentions in the plan; auth scheduled as the final phase after "polish."
+A new search component whose effect adopts the `q` prop unconditionally; `defaultValue` inputs; a debounce with no echo tracking.
 
 **Phase to address:**
-Foundation phase — auth middleware exists before device data does.
+Employee search phase — and the extracted hook is then reused by the palette input (Pitfall 3).
 
 ---
 
-### Pitfall 7: Unbounded photo storage and upload pathologies
+### Pitfall 7: Full-context CSV — join fan-out duplicates devices with history, and drift from the registry page **[CSV report]**
 
 **What goes wrong:**
-The manager photographs devices with a phone. Originals are 2–5 MB (and HEIC if iPhone). Nothing limits count or size, so a few hundred devices later the app has gigabytes of originals, list pages load 5 MB images for 40px thumbnails, HEIC photos won't render in Chrome/Android browsers, and backups of the uploads dir balloon. Phone-camera EXIF (precise GPS of where company hardware lives) gets served to anyone who can fetch the image.
+Enriching the report with context (e.g. «последнее перемещение», «сколько раз выдавалась», photo count) by adding a JOIN onto `movements` or `attachments` multiplies rows: a device with 5 history entries becomes 5 CSV lines. The file then disagrees with the registry count, and audits stop trusting it. The second failure mode is column drift: a second export query (or a second route) that parses filters or strips sentinels slightly differently than `parseDevicesSearchParams` + `toDeviceListFilters` + `deviceWhere` — the exact drift the D-18 zero-drift contract was built to prevent (one parser, one predicate, one strip).
 
 **Why it happens:**
-Storing `file.blob` as received is the path of least resistance; resizing is "optimization" deferred until the storage is already polluted with originals that can never be safely bulk-deleted.
+"Full context" invites "just join the history table", and per-type config fields (screen, panel, ports, peripheral kind) tempt a purpose-built report query.
 
 **How to avoid:**
-- Resize/compress **client-side before upload** (Canvas `toBlob` or `browser-image-compression`): longest edge ~1600px, JPEG quality ~80, target ≤200–300 KB — the standard small-app practice (cuts bandwidth, upload time, and storage at the source). Safari/iOS decodes HEIC to canvas natively, which sidesteps the format problem for the likely iPhone-wielding user.
-- Server-side: re-encode with `sharp` regardless (client checks are bypassable), generate one small thumbnail (~400px) at upload time, strip EXIF, enforce a hard size/count limit per device (e.g. ≤6 photos).
-- Store originals **nowhere**; store processed JPEG + thumb. Serve the thumb in lists, full image on the card.
-- Photos live in a directory next to the DB, referenced by filename — included in the same backup routine (see Technical Debt: backups).
-- Ceiling math: 500 devices × 4 photos × 250 KB ≈ 500 MB — bounded and backupable forever.
+- JOIN only along primary keys (`employees`, `departments` — cannot multiply, the existing `exportDevices` precedent). Any per-device aggregate comes from a **separate grouped query merged in JS** (the `listIssuedByEmployee` two-query pattern), never a join onto a one-to-many table.
+- Extend the existing artifacts in place: new columns go into `DeviceExportRow` + the same `exportDevices` select + the same `HEADER` + the same route. Never a second route for the «ведомость».
+- Sparse per-type columns: a monitor row has NULL ram/ssd/ports — render empty (the esc null → empty-field rule) and accept it; do not invent «—» or «нет» (which would conflict with the deliberate ramUpgraded three-state «да/нет/пусто» semantics).
+- Assertion test for free: `CSV data-row count === count() over the same predicate` (already the v1.0 parity idea — keep it for the extended columns).
 
 **Warning signs:**
-Upload handler writes the original bytes straight to disk; no `sharp`/image processing dependency; HEIC never mentioned; list UI `<img src>` points at full-size files; EXIF never discussed.
+A `leftJoin(movements…)` in the export query; a new `HEADER2`/route; a row-count mismatch in the first real export.
 
 **Phase to address:**
-Photos phase — with the upload constraints defined in its plan, before the first photo lands.
+CSV report phase — the plan should enumerate the exact new columns and their source tables up front.
+
+---
+
+### Pitfall 8: Formula injection returns through the NEW columns **[CSV report]**
+
+**What goes wrong:**
+The esc() guard (CWE-1236: leading `= + - @ TAB CR` → TAB prefix) lives in `buildCsv` and covers today's columns. The new report adds holder, department, config, cost columns — and any code that assembles the file with a raw `rows.map(r => [...]).join(';')` "just for the richer report" bypasses the guard. Employee names, department names, supplier and notes are free text entered by the user: a supplier named `@SUM(A1)` or a note beginning with `=HYPERLINK` becomes an executable formula when the file opens in Excel. A bypass also drops the BOM/CRLF/«;» contract that makes the file open correctly in RU Excel at all.
+
+**Why it happens:**
+The guard is one function in one module; the new feature's author reuses the *shape* of a CSV but not the *function*.
+
+**How to avoid:**
+Every cell of every column flows through `buildCsv`/`esc` — no raw join path exists, and a review rule makes that a blocker. New date columns render through `formatWarrantyDate` (UTC) only — a second formatter (`toISOString().slice(0,10)`) drifts after midnight in any non-UTC host (the known DISPLAY_TZ trap). Keep `purchasePrice` an integer cell — a decimal cost would break against the «;» list separator, and no totals row inside the data file (a «Итого» row corrupts machine-readability; totals live in the app).
+
+**Warning signs:**
+`.join(';')` or template-string CSV assembly anywhere outside lib/csv.ts; a new `Intl.DateTimeFormat` instance; a summary row appended to `cells`.
+
+**Phase to address:**
+CSV report phase — plus one vitest addition: injection matrix extended to the new columns.
+
+---
+
+### Pitfall 9: Clone trips the serial UNIQUE — and batch cloning multiplies it **[Clone]**
+
+**What goes wrong:**
+`serialNormalized` is UNIQUE and `serialNumber` is NOT NULL (db/schema.ts). Cloning copies the source row — including the serial — so the first clone of any device dies on `devices_serial_norm_uq` (or, in a batch of N clones with pasted-in serials, the k-th insert dies and, without a transaction, k−1 rows are already committed). `createDevice`'s `uniqueCodeOf` mapping exists but only helps if the action catches and echoes the field error.
+
+**Why it happens:**
+"Clone" is mentally "copy the row", and the unique columns are exactly the part that must NOT be copied.
+
+**How to avoid:**
+- Clone copies model, type, config, cost, supplier, warranty, notes — never serial, inventory, photos, movements, status/holder (status resets to `in_stock`, holder NULL).
+- The clone form **requires a fresh serial per copy** (field required, dup → the existing «уже есть» field copy via `uniqueCodeOf`). For a batch of N: N serial inputs, with a JS pre-check for duplicates *within the batch* plus a zod refine — otherwise the mid-batch UNIQUE is the first detection.
+- Wrap the whole batch in **one transaction** — better-sqlite3 rolls back everything on throw (verified against official api.md), which is the correct semantics: the operator cannot tell which of 5 partially-created rows exist. Map the caught failure to the offending copy's field error, all rows gone.
+- Note: composing the existing `createDevice` (which opens its own transaction) inside an outer `db.transaction` works — nested calls become savepoints — but let the error propagate to the action for mapping.
+
+**Warning signs:**
+Clone form prefills the serial field; a batch loop of bare `createDevice` calls with no surrounding transaction; a catch that returns a generic error instead of the field copy.
+
+**Phase to address:**
+Clone phase — the "what is copied / what is reset" table belongs in the plan (it is also the UI copy).
+
+---
+
+### Pitfall 10: Inventory auto-increment — collisions, padding, and the conflict with D-16 **[Clone]**
+
+**What goes wrong:**
+The feature «автоприрост инвентарника» collides with three facts of the schema:
+1. **D-16 says inventory numbers are manual, assigned by 1C.** A silent auto-assign creates numbers 1C will never agree with — a parallel numbering system, the exact «параллельная таблица» failure the project rejects elsewhere.
+2. **Format fragility:** `Number('00041') + 1` → `42` (padding lost); non-numeric inventories (1C formats like `Б-001234`) make naive parsing produce garbage or crash.
+3. **Collision handling:** "next = max + 1" computed outside the insert's transaction can propose a number that already exists (UNIQUE fires mid-batch).
+
+**Why it happens:**
+Auto-increment feels like a pure UI convenience, so the data-governance decision hides inside a form helper.
+
+**How to avoid:**
+Implement it as a **suggestion, not a write policy**: the clone form pre-fills «предложен: 00042» by parsing the numeric tail of the source's (or last device's) inventory — preserve zero-padding via string length, bail out to an empty field (NULL/NULL pair per `inventoryPair`) when the format isn't parseable — and the operator can edit or clear it before save. The UNIQUE index remains the backstop; a collision maps to the existing inventory field copy, never a 500. Compute the suggestion inside the same transaction as the insert (single sync writer makes this trivial and race-free).
+
+**Warning signs:**
+An UPDATE-free but *automatic* inventory number in the insert path; `Number()` on the inventory string; no edit affordance on the pre-filled value.
+
+**Phase to address:**
+Clone phase — plan must state "suggestion, editable, NULL when unparseable" and note the D-16 deviation explicitly in Key Decisions when it ships.
+
+---
+
+### Pitfall 11: Clone must not copy photos or movements — shared storage keys and falsified history **[Clone]**
+
+**What goes wrong:**
+Copying `attachments` rows to the clone makes two devices reference one `storage_key` on disk: deleting the photo on one device orphans (or double-deletes) the other's, and backups double-count. Copying `movements` rows is worse — it fabricates history («выдан Иванову 12.03» for a device that didn't exist then), violating the append-only audit contract that is the point of the movements table. Also note `movements.device_id` is FK-restrict: the copy would technically succeed only if re-pointed, and the DB triggers forbid ever correcting it.
+
+**Why it happens:**
+"Clone = copy everything" is the spreadsheet mental model; attachments/movements live in sibling tables and are easy to include "for completeness".
+
+**How to avoid:**
+Clone inserts **only a `devices` row** — exactly what `createDevice` does today (which also writes no «поступление» event; stay consistent with that precedent rather than inventing one for clones only). The clone's timeline starts empty and fills with its own real events. Photos are re-taken or re-uploaded per physical device — that is the domain reality (each box has its own sticker/scratch photos).
+
+**Warning signs:**
+`db.insert(attachments).values(source.photos.map(...))` or any `insert into movements` in the clone path; a clone card that shows the source's photos or timeline in staging.
+
+**Phase to address:**
+Clone phase — add "clone has empty timeline and zero photos" to the phase's UAT checklist.
+
+---
+
+### Pitfall 12: Bulk actions — partial failure semantics, selection loss, double-submit **[Bulk]**
+
+**What goes wrong:**
+The bulk issue/return action multiplies every single-device failure mode by the selection size:
+1. **Partial batch failure:** one of 20 selected devices is already issued (guard-UPDATE `changes === 0` → `ILLEGAL_TRANSITION`, the D-08 server-side guard). Without a defined policy the operator gets a generic error and cannot tell whether 0, 7 or 20 devices were written.
+2. **Selection state vs the RSC list:** selection lives in a client island over a server-rendered list. The search box fires `router.replace` 300 ms after every keystroke; any filter click re-renders the list — unchecked/phantom selection or selection referencing devices no longer visible.
+3. **Optimistic clearing / double-submit:** clearing the selection before the action resolves destroys the retry path; a slow bulk action with no `isPending` guard lets a second click queue a duplicate batch (React 19 queues form actions; disabling the button alone is incomplete — Enter key still submits).
+
+**Why it happens:**
+Bulk is planned as "the single action in a loop" and the UI state around it (selection lifecycle, pending, failure report) is treated as trivial.
+
+**How to avoid:**
+- **All-or-nothing, with up-front validation.** Before the transaction, run one query: `select id from devices where id in (ids) and status <> <expected>` — if non-empty, return the offending devices («Ноутбук X уже выдан») and write nothing. Inside one transaction, loop calling the existing `assignDevice`/`acceptDevice` (nested transactions become savepoints — verified; a mid-loop throw rolls back everything). This matches the shipped `returnAllDevices` precedent and its error-copy promise. Per-item continue-with-report semantics are a v2 option only with an explicit per-item result UI.
+- **One `movements` event per device** (never one merged event) — each device timeline must stand alone; same `occurredAt` and comment for the whole batch, mirroring `returnAllDevices`.
+- **Input shape:** the action takes `ids: number[]` through zod (`z.array(IdSchema).max(~200)`), not per-device FormData — small payload (the Next server-action 1 MB body limit is irrelevant for ids; it becomes real only if files ever ride actions), bounded transaction.
+- **Selection lifecycle:** scope selection to the current page; clear it whenever `q/type/status/dept/warranty/page` props change (an effect on the parsed filters, not on every render); keep it across the action's own revalidation (`refresh()` swaps rows, ids stable — restore ticks by id). Clear **only on confirmed success** — the echo-values discipline applied to selection.
+- **Pending:** `useActionState`'s `isPending` disables the submit button *and* a guard ref ignores re-entrant submits; button copy «Выдаём…» while pending. One `refresh()` after the batch, not per device.
+
+**Warning signs:**
+A `for` loop of per-device server-action calls from the client (N round trips, N partial states); selection stored in URL params; optimistic `setSelection([])` before awaiting the action; no status pre-check query.
+
+**Phase to address:**
+Bulk phase — the failure-policy sentence ("all-or-nothing + pre-validation") must appear verbatim in the plan; it determines both the query and the UI copy.
+
+---
+
+### Pitfall 13: New action/route without the auth preamble — the perimeter regression class **[all features]**
+
+**What goes wrong:**
+Every new server surface this milestone (palette search action, bulk action, clone action, extended export route) is directly POST-able or GET-able; the proxy default-deny perimeter does not cover server actions. Any of them shipped without `requireSession()` as the first statement is callable by anything on the LAN (the v1.0 threat model: a hostile LAN host reaching the full hardware registry). A GET search route adds a second exposure: cacheable responses.
+
+**Why it happens:**
+The action is "just an internal endpoint for my own UI"; the auth line feels redundant next to the proxy.
+
+**How to avoid:**
+House rule already established (T-03-01): `requireSession()` first, zod whitelist second, in every action and route handler — copy the header comment pattern from `devices/actions.ts` and the export route. Palette search must not be a GET route if avoidable; if it is, `no-store`.
+
+**Warning signs:**
+A new `'use server'` export whose first line is not `await requireSession()`; a new `app/api/**/route.ts` without it; grep finds `export async function` actions without the session call.
+
+**Phase to address:**
+Every phase — one checklist line in each plan; verified once per phase by curl without a cookie.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems.
-
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| No backup routine ("it's one server") | Nothing to build | Disk dies → entire registry gone; the spreadsheet was at least on Google's servers | Never — nightly copy of DB file + uploads dir to NAS/other machine, with one restore actually rehearsed, is a day of work in the Foundation phase |
-| Import "deferred" then done as a one-off SQL/CSV script against prod | Fast data entry in week 2 | Silent duplicates, mixed formats, dates as text — exactly the CSV-import debt documented in WooCommerce/NetSuite post-mortems (importers creating dupes instead of updates) | Only as a staged one-off: load into a scratch table, run validation report (dup serials, blanks), then promote. Never direct INSERT from CSV |
-| Structured facts (supplier, отдел, RAM-апгрейд статус) typed into free-text notes | No schema change now | Unfilterable, unsortable; «ноуты без апгрейда RAM» — the project's flagship query — becomes unread-the-notes | Never for the flagged fields; notes stay for genuinely unstructured remarks |
-| Dates stored as strings / timestamps for warranty and purchase dates | Skips one migration | «истекает гарантия» filter and highlight compare strings or carry timezone noise | Never — real DATE columns; warranty/purchase are dates, not timestamps |
-| Generic soft-delete (`deleted_at` global filter) "for flexibility" | One flag now | Every query must remember the filter forever; FK guarantees silently off (brandur.org critique) | Never here — explicit `is_active` on employees, `списано` status on devices |
-| Building roles/permissions "just in case" | Feels future-proof | Weeks of work for a one-user app; the second user, if ever, needs at most a second account with identical rights | Never in this milestone — PROJECT.md has it Out of Scope; revisit only when a second real user exists |
-| One-off manual DB edits in a sqlite/psql shell to "fix data quickly" | 30 seconds | Unrecorded history edits, drift between what UI shows and DB truth | Only via the app's correction-event flow (Pitfall 1) |
+| Hand-rolling a second, "simpler" live-search island instead of extracting the DeviceSearchBox reconciliation | An afternoon saved | Re-imports the G-5-1/G-5-2 keystroke-loss class into a second page; two debounce implementations to keep in sync | Never — extract the hook once; two pages already need it |
+| A second CSV route/query for the «ведомость» instead of extending the export in place | Feels cleaner to "not touch" the old export | Filter parsing and predicate drift; two files that disagree with each other and the registry | Never — the D-18 zero-drift contract exists precisely for this |
+| Palette results cached at module level across navigations | One fewer fetch | Stale holder/status suggestions after every movement action; the palette becomes a liar | Never — fetch per open; queries are single-digit ms at this scale |
+| Optimistic selection clearing / optimistic inventory assignment | Snappier feel | Failed batch wipes the operator's selection; invented inventory numbers diverge from 1C | Never — confirm-then-mutate-state (the echo-values discipline) |
+| Per-item "continue on error" bulk semantics without a result UI | No up-front validation query needed | Silent partial writes; the operator's mental model («выдал 5») diverges from the DB («выдало 3») | Only with an explicit per-device result list in the response — default to all-or-nothing |
+| Adding a `name_normalized` column + migration "for search" | Feels like the devices pattern | A migration + backfill + fixture churn for a 200-row table scanned in <1 ms | Not now — the search-time Ё-fold over the UDF is enough; revisit only if employees hit thousands |
+| FTS5/virtual table "since we're doing search" | Feels like the grown-up solution | A second index to maintain, tokenizer fights Cyrillic, no substring semantics by default | Never at hundreds of rows — LIKE + norm() UDF is measured fast (0.76 ms class) |
 
 ## Integration Gotchas
 
-Few external integrations by design (LAN-only, no clouds) — the gotchas are at the browser/OS boundary.
-
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Phone camera → upload | Accepting original HEIC/raw bytes; assuming JPEG | Client-side canvas resize (Safari decodes HEIC), server-side re-encode to JPEG with `sharp`, strip EXIF |
-| Barcode/QR scanner as input | Treating scanners as a feature to build | Most USB/BT scanners are keyboard wedges: they type the code + Enter. If ever wanted, it's a form autofocus + Enter-submit — hours, not weeks; keep out of MVP scope |
-| LAN reverse proxy | Serving the app bare on HTTP:8080 | Put Caddy/nginx in front: TLS (internal CA), compression, and a place to hang rate limiting |
-| Excel/Sheets round-trip ("just let me export") | No export, so user keeps the spreadsheet alive in parallel → two sources of truth diverge | Cheap CSV export of the device list in v1 kills the parallel-spreadsheet failure mode documented across asset-management sources; keep it one button, no import |
-| Corporate AD / HR system sync | Building an employee-import integration "since employees exist somewhere" | PROJECT.md: 50–200 employees, manual entry of name+отдел is minutes of work; sync is ERP territory (Pitfall 9) |
+| Russian keyboard layout → global hotkey | Matching `event.key` for ⌘K | `event.code === 'KeyK'` + meta/ctrl (Pitfall 1); UAT with RU layout active |
+| Base UI dialog + palette stacking | Assuming two independent Dialog Roots nest correctly | Suppress ⌘K while another dialog is open, or verify Escape-top-only, scroll-lock refcount, focus return (Pitfall 2) |
+| Next.js server actions (16.3.3) | Assuming unlimited payloads | 1 MB default `serverActions.bodySizeLimit` (local docs); ids arrays are fine — never ship photos through actions |
+| better-sqlite3 transactions | Treating bulk loop as "the DB handles it" | Exceptions roll back the whole tx (verified); nested `transaction()` calls become savepoints; never `async` inside `transaction()` |
+| Excel opening the extended report | New columns assembled outside `buildCsv` | Every cell through `esc()`; BOM/«;»/CRLF only via `buildCsv`; dates only via `formatWarrantyDate` |
+| React 19 + form actions | Button `disabled` as the only double-submit guard | `isPending` + re-entrant guard ref; Enter key bypasses a disabled button in some flows |
+| Route-level loading states | Adding `loading.tsx` to a new segment (clone page, palette deep-links) and breaking the 404 contract | Keep the (card) route-group workaround; don't add segment loading around `notFound()` paths |
 
 ## Performance Traps
 
-Scale context: hundreds of devices, thousands of movement rows, one user. Most "performance engineering" here is premature — but these five are the real ones.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| N+1 queries on lists (device list fetching employee name per row, ORM lazy-loading) | Device/employee lists issuing hundreds of queries; page load climbing as data grows (classic ORM signature — documented across admin-panel post-mortems) | Eager-load the 1–2 relations per list; it's a one-line fix if known from day one | Anywhere above ~50 rows per page — i.e., immediately in production data |
-| Dashboard recomputed with uncached full-table aggregates on every load | Dashboard creeping toward seconds; the "instant answer" promise eroding | At this scale aggregates are fast **if indexed**; index `status`, `type`, `warranty_until`, `employee_id`; avoid per-widget redundant scans | Only in the thousands-of-devices range — index from the start, optimize never |
-| Pagination COUNT tax — full `COUNT(*)` before every list render (the documented EasyAdmin paginator pathology) | Every page navigation slower than the data justifies | Standard LIMIT/OFFSET pagination with count cached per filter-set is fine at this scale; skip fancier schemes | Thousands+ rows; don't pre-optimize |
-| Full-size photos in list views | Device list downloads tens of MB | Thumbnails (Pitfall 7) | First week of real photo use |
-| Unindexed filters on the flagship queries | «без апгрейда RAM», «гарантия истекает» slow once data is real | These exact queries are known requirements — add their indexes in the schema migration, not after a complaint | Hundreds of devices with joins; borderline — index cheaply now |
+| Palette search firing a server action per keystroke (no debounce) | Network log floods; janky typing | Reuse the 200–300 ms debounce + echo absorption pattern | Immediately with a fast typist |
+| Unbounded palette results ("show everything") | Payload bloat, unusable list | LIMIT 8+8 rows, «показать все» deep-links into the registry with `q` | First test with a common letter («а») |
+| Bulk action as N client-side server-action calls | N round trips, N loading states, partial writes | One action, one ids array, one transaction | At the first multi-device batch |
+| Unbounded batch clone (N = «сколько угодно») | Giant form, giant tx, one bad serial kills all | Cap N in the UI and zod (e.g. ≤ 20) | First bulk purchase of 50 cables |
+| COUNT over the search predicate per keystroke navigation | Fear, not fact | Fine at this scale — measured single-digit ms; do not cache counts | Only if data ever hits tens of thousands |
 
 ## Security Mistakes
 
-Domain-specific beyond generic OWASP hygiene (see Pitfall 6 for the structural fix).
-
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| «It's LAN-only» as the security model | Any compromised LAN host (printer, visitor laptop, phished workstation) reaches the full hardware registry — serials, costs, who-has-what is a thief's shopping list | Auth + TLS even internally; the app assumes a hostile network |
-| Unauthenticated static `/uploads` and API routes | Photos and JSON endpoints bypass the page login entirely | Single auth middleware covering pages, API, and static files |
-| Plaintext or reversible password storage; no reset path | Trivial credential theft; permanent lockout | Argon2/bcrypt hash; CLI reset script shipped in v1 |
-| No login rate limiting / no CSRF on mutations | Password brute-force from any LAN host; forged requests from a visited page | Rate-limit login (per-IP + global, trivial at one user); CSRF token on POST/PUT/DELETE |
-| Photo EXIF preserved | GPS coordinates of company hardware locations published to anyone who can open the file | Strip EXIF at re-encode time |
+| Palette search action without `requireSession()` | LAN-wide device+employee directory leak via direct POST | requireSession first — every action, every route (Pitfall 13) |
+| GET search/export route without `no-store` | Results cached by intermediary/proxy; costs and holders leak | Server action preferred; `Cache-Control: no-store` if a route is unavoidable (the export route already sets it) |
+| New CSV columns bypassing esc() | Formula execution in Excel from user-entered name/notes cells | Single buildCsv path (Pitfall 8); injection-matrix test extended |
+| Bulk/clone actions trusting client-sent status/holder | Forged POST flips custody of arbitrary devices | Statuses never in the payload — guard-UPDATE decides from the row (existing C1 discipline); zod whitelist on ids |
+| Error copy leaking internals (`ILLEGAL_TRANSITION`, SQL text) to the new UIs | Fingerprinting, confusion | The V7 rule: generic Russian copy only; per-device failure reports name devices, not error codes |
 
 ## UX Pitfalls
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Search requires near-exact serial | «Не найдено» for typos/homoglyphs → user distrusts the system, falls back to memory and calls | Normalized substring search across serial, inventory no., model (Pitfall 5); show «ничего не найдено» with the query echoed |
-| Recording a movement takes many clicks/fields | State stops being updated in the rush → registry lies (Pitfall 2) | «Выдать» from the device card: pick employee (searchable), one confirm, done. Return: one tap |
-| Free-text notes used for status/structured facts | The flagship filters («без апгрейда RAM») silently miss rows | Dedicated typed fields; notes only for genuinely free remarks |
-| Archived employee vanishes everywhere | History shows blank/ID instead of «Иванов И. (уволен)» — разборки lose their evidence | Archived employees render in history context, excluded only from pickers |
-| Retired/repair devices clutter the main list | The list of «что в строю» — the daily view — drowns | Default filter «активные»; списано/ремонт one click away; dashboard carries the totals |
-| UI polish cycles before entry flows exist | Solo dev gold-plates cards while hundreds of devices remain unentered — value never materializes | Ship the fast-entry path first; Apple-aesthetic refinement is iterative polish, not a v1 blocker |
+| Palette results keyed/titled by name alone | Two «Иванов Иван» are indistinguishable (names are non-unique by D-04) | Show `имя · отдел` (and type/status/holder for devices); navigate by id |
+| Employee search ignoring the active/archive segment | Operator searches «Активные», results silently include (or worse, exclude) archived people | `q` composes WITH the segment filter; archived hits (in palette/global search) are labeled «в архиве» |
+| Clone dialog prefilling the serial | Operator saves without noticing → UNIQUE error loop, or worse a habit of "serial + 1" | Serial empty by design, placeholder «Серийный номер нового устройства»; inventory labeled «предложен» |
+| Bulk bar silent about scope | «Выдать» clicked with 3 of 5 ticks actually applied, 2 invisible rows selected on another page | Bar shows «Выбрано 3 · Выдать»; selection is page-scoped and visibly cleared on filter change |
+| Empty search state rendering as blank list | «Ничего не найдено» vs «Пока нет сотрудников» confusion | Echo the query in the empty state («Нет сотрудников по запросу „ёлк"») with a reset link |
+| Inventory suggestion shown without provenance | Operator assumes the system now owns numbering (vs 1C) | Label «Предложен автоматически — проверьте с 1С» on the clone form |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Movement timeline:** starts with a «поступление» event for every device; a wrong reassignment is corrected by a compensating event, not an edit — verify by reassigning a device 3× and reading the full timeline
-- [ ] **Search:** works typed from memory (wrong case, Cyrillic keyboard on, partial serial), not only with copy-paste — verify with `abc123`, `АВС123` (Cyrillic), trailing space
-- [ ] **Unique serials:** entering the same serial twice is rejected with a human message — verify double-entry attempt
-- [ ] **Employee offboarding:** archive an employee with 5 devices; their history renders names, device list shows «не сдано», pickers hide them — verify no FK errors
-- [ ] **Auth coverage:** `/api/*` and `/uploads/*` return 401/403 without a session, not just the HTML pages — verify with curl
-- [ ] **Photos:** upload a real phone photo (HEIC if possible); renders in list thumb and card; EXIF stripped; over-limit upload rejected
-- [ ] **Filters:** «ноуты без апгрейда RAM» returns zero rows only because none exist — not because the filter compares a typed column against note text
-- [ ] **Warranty:** «истекает» catches devices within the window and highlights them; DATE math not string compare
-- [ ] **Lists:** 300+ devices seeded — every list paginates, no page renders unbounded rows
-- [ ] **Backup:** restore of DB + uploads into a clean directory actually performed once
+- [ ] **⌘K:** opens with Russian layout active (`event.code` path); suppressed or correctly stacked while a movement dialog is open; Escape closes one layer; results fresh after a movement action (no stale cache)
+- [ ] **⌘K auth:** search action answers 401/redirect via curl without a cookie; login page has no hotkey listener
+- [ ] **Employee search:** «ёлк» finds «Ёлкин» and «Елкин» finds both; `?q=` + `?page=999` clamps; pagination links carry `q`+`filter`; «%» in the query matches literally
+- [ ] **Employee search island:** typing «aspire 5 » (trailing space) through the debounce round trip loses nothing (G-5-2 rerun on the new page)
+- [ ] **CSV report:** data-row count equals the registry's filtered count; every new column passes the injection matrix (`=SUM`, `@x`, `-1`, `+7` leading cells); sparse per-type cells render empty; dates dd.mm.yyyy
+- [ ] **Clone:** duplicate serial → inline field error, zero rows written (check devices count); clone has empty timeline and no photos; zero-padded inventory suggestion keeps padding; unparseable inventory left empty
+- [ ] **Bulk:** one already-issued device in the selection → nothing written and the message names it; two rapid clicks → one batch (isPending); selection survives `refresh()` revalidation but clears on filter change; timelines show one event per device
+- [ ] **All new actions:** `requireSession()` is line one (grep-verified); zod whitelist on every input including `ids`
 
 ## Recovery Strategies
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| History lost to mutable columns (Pitfall 1, shipped) | HIGH — lost past is unrecoverable | Add movements table now; backfill what's reconstructible (purchase records, user memory); accept the gap; never let it ship this way — prevention is the only real cure |
-| Dirty serials after months of entry (Pitfall 5) | MEDIUM | One-time migration: recompute `serial_normalized` for all rows; dedupe report before adding the UNIQUE index; search switches to normalized column |
-| EAV already built (Pitfall 3) | HIGH | Extract known attributes back to typed columns via migration; map/parse text values; drop EAV tables; do this before data volume doubles |
-| Photo originals already stored (Pitfall 7) | LOW-MEDIUM | Batch re-encode with `sharp`, generate thumbs, strip EXIF, delete originals; add upload limits |
-| Employee hard-deleted with history (Pitfall 4) | MEDIUM | Re-create the employee row (old ID if possible), mark archived; if ID lost, re-link movements by matching timeline context — painful, avoid |
-| Stale statuses after months of drift (Pitfall 2) | MEDIUM | One reconciliation session: physical spot-audit per department, corrections entered as compensating events; then tighten the action-based flow |
-| ERP creep mid-build (Pitfall 9) | HIGH — schedule, not code | Freeze: cut everything not in the Active requirements list into a backlog document; ship the registry; revisit only after real use |
+| ⌘K shipped with `event.key` | LOW | One-line change to `event.code`; no data effects |
+| Employee search shipped without the Ё fold | LOW | Add the replace() fold to the predicate (both sides); no migration — the fold is search-time |
+| CSV fan-out discovered after real exports | MEDIUM | Fix the query; re-export; previously exported files are wrong on disk — notify the operator (single user) to discard them; no DB damage |
+| Partial clone batch written (per-item semantics shipped) | LOW-MEDIUM | The incomplete rows have no movements — the one legitimate hard-delete case (v1.0 Pitfall 4 rule); delete via app path or rehearsed SQL, then fix semantics |
+| Bulk partial writes already in history | MEDIUM | Append compensating `returned`/`assigned` events per affected device via the app — append-only log makes repair possible, never edit rows |
+| Silent auto-assigned inventory numbers conflicting with 1C | MEDIUM | One-time reconciliation: edit numbers on affected devices to the 1C values (manual edit is the D-16 norm); switch the feature to suggestion mode |
+| Palette stale cache shipped | LOW | Change to fetch-on-open; no data effects |
 
 ## Pitfall-to-Phase Mapping
 
-Suggested functional phases (roadmap will number them); verification column = how to prove prevention held.
+Suggested v1.1 phase structure (roadmap will number; employee search precedes the palette because the palette reuses its predicate, fold and island):
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| 1. Mutable history | Foundation (schema) + Movements | Timeline survives 3 reassignments + a correction event; movements table is append-only (no UPDATE path in code) |
-| 2. Status drift | Movements/Actions | No UI path changes status/holder without an event; offboarding bulk-return exists |
-| 3. EAV | Foundation (schema) | Schema review: typed columns + CHECK per type; no attributes/key-value table |
-| 4. Delete orphans | Employees | Archive flow demo; no delete button; FK constraints on movements pass |
-| 5. Serial search | Registry (normalized columns) + Search | Typing-test: mixed case, Cyrillic homoglyphs, partial serial all hit; UNIQUE index present |
-| 6. Auth | Foundation (middleware first) | curl against `/api` and `/uploads` unauthenticated → 401; rate limit fires; reset script runs |
-| 7. Photo storage | Photos | Phone-HEIC upload → ≤300 KB JPEG + thumb, EXIF gone, limit enforced |
-| Performance traps | Every list phase + Dashboard | Seed 300+ devices; all lists paginated, eager-loaded; dashboard indexed queries |
-| Import/manual-entry debt | Foundation (backup) + rollout | Backup restore rehearsed; CSV export button exists; no direct-CSV import path |
-| 9. ERP scope creep | Planning (roadmap itself) | Roadmap phases contain only Active-requirement features; Out of Scope list from PROJECT.md untouched |
+| 1. ⌘K on RU layout | Palette phase (plan states `event.code`) | UAT: hotkey with RU layout active |
+| 2. Dialog stacking | Palette phase (stacking rule chosen in plan) | UAT: ⌘K over movement dialog; Escape/focus/scroll-lock |
+| 3. Palette data path | Palette phase (action + requireSession + limits in plan) | curl 401; stale-cache rerun after a movement; bundle: palette idle when closed |
+| 4. Ё/ё fold | Employee search phase (shared fold helper) | «ёлк»/«Елкин» typing test; palette reuses the same helper |
+| 5. Search + pagination | Employee search phase (count shares predicate; buildQuery carries q) | `?q=` + last-page + next-page test; links carry full state |
+| 6. Island rewrite | Employee search phase (extract shared hook) | G-5-2 rerun (trailing space) on the employees page |
+| 7. CSV fan-out/drift | CSV phase (columns enumerated; no new route) | Row-count parity test; grep: one export route |
+| 8. Injection in new columns | CSV phase (buildCsv-only rule) | Injection matrix extended to new columns |
+| 9. Clone serial UNIQUE | Clone phase (copy/reset table; one tx per batch) | Dup-serial → field error, row count unchanged |
+| 10. Inventory auto-increment | Clone phase (suggestion policy; D-16 note) | Padding kept; unparseable → empty; collision → field copy |
+| 11. Clone photos/movements | Clone phase (devices-row-only rule) | Clone card: empty timeline, zero photos |
+| 12. Bulk semantics | Bulk phase (all-or-nothing + pre-validation sentence in plan) | Mixed-selection test writes nothing; double-click single batch; selection lifecycle |
+| 13. Auth preamble | Every phase (plan checklist line) | Grep for requireSession-first; curl each new surface |
 
 ## Sources
 
-- [Motadata — IT asset management challenges](https://www.motadata.com/blog/it-asset-management-challenges), [CyCognito — asset inventory management](https://www.cycognito.com/learn/attack-surface-management/asset-inventory-management/), [Kordon — asset inventory guide](https://kordon.app/blog/asset-inventory-management-guide/), [Virima — IT asset inventory](https://virima.com/blog/it-asset-inventory-management-a-complete-guide), [AssetIT — 5 inventory tracking pitfalls](https://assetit.app/avoid-these-5-crucial-it-inventory-tracking-pitfalls/), [Itemit — asset manager mistakes](https://itemit.com/blog/5-mistakes-asset-managers-make-and-how-to-avoid-them/) — data quality/staleness failure modes
-- [Azure Architecture Center — Event Sourcing pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing), [RisingStack — event sourcing vs CRUD](https://blog.risingstack.com/event-sourcing-vs-crud/), [Nurkiewicz — event sourcing](https://nurkiewicz.com/2021/01/event-sourcing.html), [ACM — Online Event Processing](https://cacm.acm.org/practice/online-event-processing/), [PTS — database audit trails](https://pts-usa.com/custom-database-audit-trails/), [QuestDB — append-only log](https://questdb.com/glossary/append-only-log/) — append-only history / hybrid audit pattern
-- [r/PostgreSQL — EAV or JSON](https://www.reddit.com/r/PostgreSQL/comments/1e8ep41/eav_or_json/), [DBA.SE — EAV vs JSONB](https://dba.stackexchange.com/questions/323092/choosing-between-entity-attribute-value-or-jsonb-representations), [Evolveum — JSONB vs EAV measurements](https://docs.evolveum.com/midpoint/projects/midscale/design/repo/repository-json-vs-eav/) — EAV antipattern, hybrid typed-columns + JSONB
-- [PostgreSQL pg_trgm docs](https://www.postgresql.org/docs/current/pgtrgm.html), [SO — FTS with substrings](https://stackoverflow.com/questions/44284078/postgresql-full-text-search-with-substrings), [SO — leading-wildcard indexing](https://stackoverflow.com/questions/74409202/how-to-index-a-column-for-leading-wildcard-search-and-check-progress), [pgAnalyze — GIN indexes](https://pganalyze.com/blog/gin-index) — substring search mechanics, trigram constraints
-- [brandur.org — soft deletion probably isn't worth it](https://brandur.org/soft-deletion), [HN discussion](https://news.ycombinator.com/item?id=32156009), [Marty Friedel — soft, hard or audit](https://www.martyfriedel.com/blog/deleting-data-soft-hard-or-audit), [SO — hard deletes with FKs](https://stackoverflow.com/questions/40165123/how-can-hard-deletes-work-when-foreign-keys-are-involved) — delete semantics
-- [EasyAdmin #4055 — slow paginator COUNT](https://github.com/EasyCorp/EasyAdminBundle/issues/4055), [WooCommerce 500k-order admin stress test](https://www.reddit.com/r/Wordpress/comments/1viq0b8/i_built_a_500000order_woocommerce_store_to_find/) — dashboard/list degradation patterns
-- [SO — image resize at upload vs serve](https://stackoverflow.com/questions/39260609/resize-image-when-uploading-to-server-or-when-serving-from-server-to-client), [SE — client vs server resizing](https://softwareengineering.stackexchange.com/questions/318535/image-resizing-client-side-vs-server-side), [r/webdev — client-side resize before upload](https://www.reddit.com/r/webdev/comments/1t2h3ds/should_we_implement_client_side_image_resizing/) — photo pipeline
-- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html), [Invicti — security misconceptions](https://www.invicti.com/blog/web-security/security-misconceptions-web-application-developers), [r/selfhosted — LAN-only services](https://www.reddit.com/r/selfhosted/comments/1cr6bs1/running_services_for_only_home_use_no_remote/), [Auth0 — common auth mistakes](https://auth0.com/blog/five-common-authentication-and-authorization-mistakes-to-avoid-in-your-saas-application/) — auth in internal/LAN tools
-- [WooCommerce — CSV import duplicates](https://github.com/woocommerce/woocommerce/issues/18792), [SO — import suite creating duplicates](https://stackoverflow.com/questions/24452546/woocommerce-csv-import-suite-creating-duplicate-products), [Spiceworks — CSV serial import](https://community.spiceworks.com/t/import-csv-serial-number/496639) — import debt
-- [Wikipedia — Second-system effect](https://en.wikipedia.org/wiki/Second-system_effect), [Retool — build vs buy for internal tools](https://retool.com/blog/build-vs-buy-guide-for-internal-tools), [ResearchGate — scope creep vs project success](https://www.researchgate.net/publication/342682685_The_Impact_of_Scope_Creep_on_Project_Success_An_Empirical_Investigation), [Envy Labs — perils of over-engineering](https://envylabs.com/insights/the-perils-of-over-engineering-software) — scope/over-engineering
-- **[PE]** items: practitioner knowledge of the internal-tool/asset-registry domain — action-based state transitions, Cyrillic homoglyph normalization, backup discipline for solo LAN tools
+- **Codebase-verified (HIGH):** `db/schema.ts` (UNIQUE serial/inventory, NOT NULL serial, non-unique employee names D-04, no name index, movements append-only + FK restrict), `db/queries/devices.ts` (`searchPredicate` escape/cap/fold, `deviceWhere` single predicate, `uniqueCodeOf`, `inventoryPair` NULL pair), `db/queries/movements.ts` (guard-UPDATE C1 pattern, `returnAllDevices` all-or-nothing precedent), `db/queries/employees.ts` (no q support today, page clamp, ruSortKey Ё-fold in ORDER BY only), `lib/normalize.mjs` (norm() has no Ё→Е fold; HOMOGLYPHS fixture guard), `app/(app)/devices/actions.ts` + `search-box.tsx` (echo-values, lastSynced/inFlight, G-5-1/G-5-2), `app/api/devices/export/route.ts` + `lib/csv.ts` (D-18 zero-drift, esc() CWE-1236, header set), `proxy.ts` default-deny + actions-not-covered comment (T-03-01), `components/ui/dialog.tsx` (z-50 Backdrop/Popup), `package.json` (Next 16.3.3, React 19.2.8, @base-ui/react 1.7, better-sqlite3 13)
+- **Official docs of installed versions (HIGH):** Next.js 16.3.3 server actions — 1 MB default body limit, `serverActions.bodySizeLimit` (`node_modules/next/dist/docs/01-app/02-guides/server-actions.md`); better-sqlite3 api.md — exception rolls back transaction, nested transactions become savepoints, no async in `transaction()`
+- **[MEDIUM, web-corroborated]** [MDN KeyboardEvent.code](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code), [ComfyUI #5252 — shortcuts fail on non-Latin layouts](https://github.com/Comfy-Org/ComfyUI_frontend/issues/5252), [MS global hotkey guidance](https://learn.microsoft.com/en-nz/answers/questions/5884314/), [kevinsimper — shortcuts in other keyboard languages](https://kevinsimper.medium.com/why-keyboard-shortcuts-and-accessibility-in-other-keyboard-languages-rarely-works-8638abc15e71) — event.code vs event.key
+- **[MEDIUM]** [SO — ESC closes all stacked dialogs](https://stackoverflow.com/questions/4744070/single-esc-closes-all-modal-dialogs-in-jquery-ui-workarounds), [HeadlessUI #2324](https://github.com/tailwindlabs/headlessui/discussions/2324), [Drupal body_scroll_lock refcount bug](https://www.drupal.org/project/body_scroll_lock/issues/3123157), [MDN `<dialog>` multi-modal guidance](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog) — stacked-dialog stack/refcount failures
+- **[MEDIUM]** [DEV — useActionState and why disabling the button is not enough](https://dev.to/shubhradev/react-19s-useactionstate-showed-me-why-disabling-my-submit-button-was-never-enough-53jd), [RHF #11832 — isPending vs isSubmitting](https://github.com/orgs/react-hook-form/discussions/11832), [LogRocket — useActionState guide](https://blog.logrocket.com/react-useactionstate/) — double-submit mechanics
+- **[MEDIUM]** [Wikimedia — search normalization folds RU ё→е](https://wikimediafoundation.org/news/2018/09/13/anatomy-search-variation-under-nature/), [Mozilla Discourse — the Ё problem](https://discourse.mozilla.org/t/a-problem-of-the-russian-letter/102504), [SO — sorting Russian words with ё](https://stackoverflow.com/questions/79888813/sort-function-incorrect-sorting-russian-words-with-%D1%91-letter) — optional-diaeresis reality of Russian text
 
 ---
-*Pitfalls research for: Barahlo — internal IT asset tracking web app*
-*Researched: 2026-08-31*
+*Pitfalls research for: Barahlo v1.1 «Скорость и удобство» — employee search, ⌘K palette, full-context CSV, device cloning, bulk actions on the existing RSC/SQLite/Cyrillic app*
+*Researched: 2026-09-15*

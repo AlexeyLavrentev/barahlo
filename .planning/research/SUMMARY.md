@@ -1,198 +1,173 @@
 # Project Research Summary
 
-**Project:** Barahlo — учёт корпоративной техники
-**Domain:** Internal IT asset tracking — single-manager CRUD web app, LAN-deployed, Russian UI, replaces a spreadsheet (50–200 employees, hundreds of devices)
-**Researched:** 2026-08-31
-**Confidence:** MEDIUM-HIGH (Stack: HIGH — verified against npm registry + official vendor docs; Features/Architecture/Pitfalls: MEDIUM — multi-source synthesis with practitioner corroboration)
+**Project:** Barahlo — учёт корпоративной техники · milestone **v1.1 «Скорость и удобство»**
+**Domain:** Milestone delta on an existing production app: five velocity/UX features (employee live search, ⌘K global palette, full-context CSV inventory report, device cloning, bulk issue/return) added to a Next.js 16 App Router RSC + better-sqlite3/drizzle single-operator device registry (Russian UI, 50–200 employees, hundreds of devices, LAN Docker deploy)
+**Researched:** 2026-09-15
+**Confidence:** HIGH overall — Stack / Architecture / Pitfalls verified against the actual codebase, installed node_modules and the npm registry on 2026-09-15; Features (UX conventions) MEDIUM — cross-checked across ≥2 independent sources per load-bearing claim
+
+> This summary covers the **v1.1 milestone delta** and replaces the v1.0 research summary. v1.0 outcomes (D-16 «инвентарник назначается вручную из 1С», D-17 UNIQUE normalized codes, D-18 zero-drift export, append-only movements with triggers, T-03-01 `requireSession()`-first perimeter, G-5-1/G-5-2 debounce scars, echo-values discipline) are shipped code and standing invariants. They are not re-litigated here — but every new code path must **reuse** their fixes.
 
 ## Executive Summary
 
-This is a single-user internal asset registry, and the expert consensus on how to build it is remarkably uniform: **a server-rendered monolith over one relational database with one append-only event table for custody history**. No microservices, no separate API, no external search engine, no notification infrastructure, no cloud services. The domain's real risks are not scale — hundreds of rows and one writer are trivial — but *data trust*: the #1 documented failure mode of asset-inventory systems is the registry going stale until the user reopens the spreadsheet. Every architectural and UX decision below is shaped by keeping the registry truthful and the «мгновенный точный ответ» promise intact.
+v1.1 adds five speed features to an app that already works, and the research converges on an unusual headline: **zero new npm dependencies for the entire milestone**. Every feature is a composition of already-installed, UAT-proven capabilities — the devices search-island pattern (300 ms debounce + lastSynced/inFlight echo reconciliation that survived two keystroke-loss UAT bugs), the Base UI dialog/combobox wrappers in `components/ui/`, the hand-rolled CSV route with its CWE-1236 injection guard, and transactional movement helpers with guard-UPDATE semantics. The one genuinely contentious call — whether the ⌘K palette needs `cmdk` — resolves firmly against it: cmdk hard-depends on four `@radix-ui/*` packages, dragging a second overlay/focus stack into a Base UI-only app (~+15 kB, duplicated a11y) for functionality the existing combobox + dialog composition already ships; even shadcn's "base" Command is cmdk-backed underneath. This milestone buys *code*, not *packages*; the Docker image and its source-built sharp are untouched.
 
-The recommended approach: **one Next.js 16 (App Router) application** — Server Components read SQLite directly, Server Actions mutate — over **SQLite (better-sqlite3) + Drizzle ORM**, styled with **Tailwind v4 + shadcn/ui** restyled to the Apple aesthetic, deployed as **one Docker container** (`node:24-slim`, standalone output) with `data/app.db` + `data/uploads/` volume mounts as the entire system state. Two modules are the keystone: a code-defined `device_schema.ts` (per-type field definitions driving forms, validation, and the filter panel from one place) and `services/movements.ts` (the transactional invariant: append-only `movements` INSERT + denormalized `devices.current_employee_id`/`status` UPDATE in one transaction). Auth is a ~50-line bcrypt + jose signed-cookie session gated by middleware — deliberately not NextAuth/Auth.js (beta, merged into Better Auth, wrong weight for one account).
+The recommended approach is a five-slice build order with one hard dependency and deliberate risk isolation: **(1) employee live search first** — it produces the shared pieces the palette composes (`employeeSearchPredicate` with the Ё/ё fold, `employees/query-params.ts`, the debounce hook extracted behavior-preservingly from `DeviceSearchBox`); **(2) the CSV full-context report** — independent, smallest diff (four per-type columns added to the *existing* export route; never a second route, per D-18); **(3) device clone** — independent, but carries the milestone's only possible schema touch (nullable serial via the proven NULL-pair migration), a decision that must be made at planning, before build; **(4) bulk issue/return** — the largest UI refactor (row restructure so checkboxes live outside the row `<Link>`, plus a children-as-props selection island); **(5) the ⌘K palette last** — pure additive UI plus one authenticated search surface, delivering the headline UX once both search backends exist. Every new server surface starts with `requireSession()`; every search composes the existing `norm()`/`searchPredicate` machinery rather than re-spelling a LIKE.
 
-The key risks are all cheap to prevent in the right phase and nearly unrecoverable if missed: (1) **mutable assignment history** — the movements table must exist in the first migration, before any device CRUD, because lost history cannot be retrofitted; (2) **status drift** — holder/status may only change through action buttons («Выдать»/«Вернуть»/«В ремонт»/«Списать») that write events, never through free field editing; (3) **EAV collapse** — the fixed-per-type-fields decision is correct, defend it with typed nullable columns; (4) **auth and backups bolted on late** — auth middleware (covering API *and* photo routes) plus a rehearsed backup routine ship in the foundation phase; (5) **serial search failing on real-world input** (wrong case, Cyrillic homoglyphs, partial serial) — normalized columns with UNIQUE indexes from day one.
+The risks are not scale (hundreds of rows, one synchronous writer, queries measured at 0.76 ms @ 600 rows) but **drift and Cyrillic/UX edge cases**, all cheap to prevent in the right phase and annoying if discovered late: ⌘K bound to `event.key` is dead on the ЙЦУКЕН layout (match `event.code === 'KeyK'`); a palette that caches results goes stale after every movement action, and a second hand-rolled LIKE path diverges from the registry — «палитра находит, список — нет» is the cardinal bug of this milestone; cloning trips the UNIQUE serial constraint and collides with D-16 inventory governance unless the clone copies no identity fields and inventory auto-increment ships as an *editable suggestion computed in-transaction*, not a write policy; bulk actions need all-or-nothing semantics with up-front validation, or the operator cannot tell whether 0, 7 or 20 devices were written; and every new CSV cell must flow through `buildCsv`/`esc`, or formula injection returns through the new columns. PITFALLS.md maps all 13 pitfalls to phases with concrete UAT checks, including a «looks done but isn't» checklist the roadmapper should treat as acceptance-criteria seeds.
 
 ## Key Findings
 
 ### Recommended Stack
 
-Full detail in [STACK.md](./STACK.md). One Next.js app, one SQLite file, one Docker container; anything solving multi-user/multi-server/internet-scale problems is dead weight.
+Full detail in [STACK.md](./STACK.md). **Install nothing.** All five features are compositions of the installed stack (Next 16.3.3, React 19.2.8, @base-ui/react 1.7.0, better-sqlite3 13.0.3, drizzle 0.45.2). The optional @base-ui/react 1.7→1.8 bump should **not** ride along with this milestone.
 
-**Core technologies:**
-- **Next.js 16 (App Router) + React 19 + TypeScript** — full-stack framework; Server Components + Server Actions eliminate a separate REST layer; Turbopack default; best-documented self-hosting story with an official Docker example
-- **SQLite + better-sqlite3 13** — correct at this scale by sqlite.org's own criteria (one writer, hundreds of rows, internal server); zero administration; backup = copy one file; WAL mode
-- **Drizzle ORM + drizzle-kit** — typed schema doubling as documentation; keeps a near-mechanical Postgres escape hatch
-- **Tailwind CSS v4 + shadcn/ui** — the only realistic path to hand-tuned Apple-minimal design; component-kit admin themes actively fight the aesthetic
-- **jose + bcryptjs** — ~50-line single-account session (HS256 JWT in HttpOnly cookie); not NextAuth/Auth.js v5 (beta, migrating to Better Auth)
-- **zod 4** (Server Action validation), **sharp** (resize/re-encode/EXIF-strip photo uploads), **papaparse** (only if CSV import ever arrives — export is plain string building), **lucide-react**
-
-**Critical version constraints:**
-- Node 24 LTS (Node 20 is EOL); Docker image must be `node:24-slim` (glibc) — **never Alpine** with better-sqlite3
-- drizzle-orm and drizzle-kit bump in lockstep; zod v4 needs @hookform/resolvers@latest
-- Next 16: use `proxy.ts`, not `middleware.ts` (deprecated); `next lint` removed — run ESLint directly or Biome
-- No i18n libraries (single Russian locale; `Intl.DateTimeFormat('ru-RU')` suffices); no Redis, no TanStack Query, no Postgres, no `node:sqlite` (still RC)
+**Composition decisions (all argued against a named alternative):**
+- **⌘K palette:** existing `components/ui/dialog.tsx` + `components/ui/combobox.tsx` (Base UI 1.7) + a ~10-line `useEffect` hotkey listener — **not** cmdk 1.1.1 (drags Radix into a Base UI app) and **not** react-hotkeys-hook (one hotkey doesn't justify a dep).
+- **Search:** LIKE over `norm()`-folded columns via the existing deterministic UDF — **not** FTS5 (token semantics lose substring matching, unicode61 folds differently from the homoglyph-aware `norm()`, migration weight for zero perceivable gain at this scale).
+- **CSV:** `lib/csv.ts` unchanged (`buildCsv`/`esc`/`csvResponseHeaders` — BOM, «;», CRLF, CWE-1236 guard) — parsers (papaparse/json2csv/csv-stringify) remain prohibited; the injection guard must stay hand-rolled anyway.
+- **Bulk selection:** one client island holding `Set<number>` on Base UI checkboxes — **not** TanStack Table or any selection library (20 server-rendered rows/page, URL-owned filters).
+- **Transactions:** better-sqlite3 `db.transaction` — a throw propagating out rolls back the whole batch (verified from installed transaction.js); nested `transaction()` calls become savepoints; never async inside `transaction()`.
 
 ### Expected Features
 
-Full detail in [FEATURES.md](./FEATURES.md). The PROJECT.md Active list maps almost exactly onto the category's table stakes — no scope additions needed.
+Full detail in [FEATURES.md](./FEATURES.md). All five features are committed for v1.1; the question is per-feature scope and ordering.
 
-**Must have (table stakes — missing one makes it worse than the spreadsheet):**
-- Asset registry with 4 fixed per-type field sets (ноутбук / монитор / док-станция / периферия)
-- Search by serial / inventory number (substring, case-insensitive, instant)
-- Assign / reassign / return with **automatically logged** movement history timeline
-- Employee cards (name + department) with issued-asset list; offboarding is a top real-world query
-- Statuses: используется / на складе / в ремонте / списано (archive, never delete)
-- Purchase + warranty fields with on-screen expiry highlighting (no email infra)
-- Field filters incl. «ноуты без апгрейда RAM» and «гарантия < N дней» — this IS the core pain scenario
-- Dashboard summary (counts by type/status, warranty watchlist, recent movements)
-- Fast paginated lists at hundreds of records; single-account login; Russian UI with Apple aesthetic
+**Must have (table stakes):**
+- **Employee live search:** debounced input with instant echo, `?q=` URL-as-state, match on name AND department with norm-folding, reset to page 1, distinct «Ничего не найдено» empty state, pending indicator that never blocks typing.
+- **⌘K palette:** hotkey **plus** a visible button with «⌘K» hint; grouped results («Устройства», «Сотрудники», «Переход», «Действия») that auto-hide when empty; ↑↓/Enter/Esc keyboard loop; non-empty default state; «Ничего не найдено»; per-group cap (~5–8) with a «Показать все» escape hatch deep-linking into the list with `?q=`; select → `router.push` → close — **no forms inside the palette**.
+- **CSV ведомость:** superset column list (инвентарник, серийник, тип, модель, статус, сотрудник, отдел, per-type config columns, стоимость, даты, гарантия, заметки); **ignores current filters — always the full dump**; same export contract (requireSession-first, BOM/«;», esc); warranty status as TEXT from the same `warrantyPredicate` behind the colors (parity-by-construction, a8c2bf7); ISO dates; sparse per-type columns (NOT one merged «Конфигурация» text — breaks Excel pivots).
+- **Clone:** «Дублировать» opens the regular create dialog prefilled from the source; **serial cleared** (physically unique); инвентарник auto-suggested, editable; **photos/timeline/owner never copied**; clone starts «на складе», unassigned, empty timeline; purchase date/cost/warranty copied (same procurement batch).
+- **Bulk issue/return:** row checkboxes + tri-state header («выбрать страницу»); floating action bar «Выбрано: N · Выдать · Принять · Снять»; one dialog, one employee combobox for the whole batch (the real flow is a workplace set to ONE person); per-item server-side validation with all-or-nothing writes and a result report; selection clears only on confirmed success; no heavy «вы уверены» ceremony.
 
-**Should have (differentiators, v1.x with explicit triggers):**
-- Saved smart filters (trigger: same filter entered twice)
-- Global ⌘K search across assets + employees (trigger: asset count ~150+ or search feels slow)
-- Clone asset / bulk create (trigger: first multi-unit purchase)
-- QR label sheet → asset page (trigger: physical stickers or annual инвентаризация)
-- Printable handover act / акт приёма-передачи (trigger: first formal HR/accounting request)
-- Warranty watchlist tile (trivially cheap once dashboard exists)
-- Photos are in-scope for v1 but are the first thing to cut if the schedule slips
+**Should have (v1.1.x polish):** clone N-batch («Количество: 20» — THE stated scenario, but single-shot works day one); palette recents (localStorage, pruned against archived/disposed); match highlighting in search results (only if a clean-match implementation holds up across norm-folding); «Добавлен» column and dashboard «Ведомость» button as cheap adds.
 
-**Defer (v2+):** audit/spot-check mode, locations beyond department, consumables tracking.
-
-**Anti-features (competitors have them; building any is pure cost here):** custom field constructor, roles/permissions/LDAC/SSO, employee self-service, software/license tracking, network discovery agents, depreciation, procurement pipeline, email notifications, reservations, CSV import, native mobile app, 1D barcode hardware support.
+**Defer / anti-features (explicitly rejected by research):** cross-page «select all by filter» (redundant with «Вернуть всю технику» + filters); in-palette forms/multi-step flows (complexity trap); undo for bulk ops (inverse movements + timeline noise); XLSX/PDF/depreciation/fuzzy search/barcode printing (enterprise ITAM gravity, all Out of Scope); command-registry/plugin architecture (over-engineering for one operator).
 
 ### Architecture Approach
 
-Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). A single server-rendered monolith over ~6 tables (`users`, `sessions`/cookie, `device_types`, `devices`, `employees`, `movements`, `attachments`) with photos as files on disk behind an auth-checked route. Two patterns carry the domain: **(1) hybrid custody tracking** — append-only `movements` (INSERT-only, never UPDATE/DELETE) plus denormalized current state on `devices`, written in one transaction; corrections are new compensating events, never history edits. **(2) code-defined per-type field schemas** — one typed module (`device_schema.ts`) is the single source of truth for form rendering, server validation, card display, and the filter panel; the DB uses a wide `devices` table with typed nullable per-type columns (no EAV, no JSON-tail, no field constructor). Search is SQL `LIKE` over indexed columns; the dashboard is a pure read model of aggregates built last.
+Full detail in [ARCHITECTURE.md](./ARCHITECTURE.md). Everything extends the existing app in place; the consolidated file map is 6 new files + 12 modified files, with `lib/csv.ts`, `filter-bar.tsx`, `proxy.ts` and `db/index.ts` untouched. Standing invariants every feature must respect: schema changes only via drizzle-kit generate + migrate (never push); movements is append-only (triggers enforce it); each list has exactly one pure query-params module its client islands import (functions never cross the RSC boundary); `deviceWhere`/`searchPredicate` stay co-located in `db/queries/devices.ts` and every consumer composes them; `requireSession()` is the first statement of every action and route (the proxy does not cover server actions); query modules stay pure/sync (vitest-importable), actions add session + zod + refresh.
 
 **Major components:**
-1. **Auth gate** — single account, session cookie, middleware on *everything* including `/api` and photo routes
-2. **Devices module + `device_schema.ts`** — CRUD, per-type forms, device card (specs, purchase, warranty, photos, timeline); the schema module is the keystone
-3. **Employees module** — directory with archive semantics (`is_active`), issued-asset list
-4. **Movements service** — the transactional core: assign/transfer/return/repair/dispose as atomic event+projection writes
-5. **Attachments module** — client-resized, sharp-re-encoded, EXIF-stripped photos on disk, streamed through an authenticated route
-6. **Search/filters + Dashboard** — indexed SQL reads; dashboard built last as a pure consumer
+1. **Shared debounce engine** (`components/debounced-search.ts`, extracted from `DeviceSearchBox`) — the lastSynced/inFlight reconciliation as a hook parameterized by an imported query builder; reused by the employees search and the palette input.
+2. **Search predicates** — `employeeSearchPredicate` (new, with a search-time Ё/ё fold on both SQL and JS sides) composes into `listEmployees` (count and rows share ONE predicate) and the palette's `searchEmployees`; `searchDevices` composes the existing module-private `searchPredicate`.
+3. **Palette** (`app/(app)/command-palette.tsx` mounted in the (app) layout beside `nav.tsx`) + one new authenticated search surface; flat `PaletteItem[]`, one keyboard model, section headers derived at render; archived employees shown with an «архив» badge.
+4. **Clone** (`cloneDevices` in `db/queries/devices.ts`) — one transaction for the whole batch, prefix-scoped max+1 inventory computed inside the tx (zero-padding preserved, NULL when unparseable), per-clone serials, status reset to in_stock.
+5. **Bulk** (`selection.tsx` island as children-as-props provider + `bulkAssignDevices`/`bulkAcceptDevices` in `movements.ts`) — one tx per batch, guard-UPDATE per device (`changes===0 → ILLEGAL_TRANSITION`), one movement event per device with shared `occurredAt`/comment, zod-capped ids array (≤50), selection explicitly **not** in URL params.
 
 ### Critical Pitfalls
 
-Full detail in [PITFALLS.md](./PITFALLS.md). Top 6, all with phase-specific prevention:
+Full detail (13 pitfalls + tech-debt patterns + UAT checklist) in [PITFALLS.md](./PITFALLS.md). Top 5 plus the every-phase rule:
 
-1. **Mutable assignment history** — if custody lives in overwritable columns, the «кто когда имел» timeline is unrecoverable after the first reassignment. *Prevent:* append-only `movements` in the **first migration**, event + projection in one transaction, corrective events for mistakes.
-2. **Status drift (the #1 documented asset-tracker failure)** — free-editable status/holder fields go stale, trust dies, the spreadsheet returns. *Prevent:* state changes only via primary action buttons that write events; hide direct status editing; one-tap return; offboarding bulk-return.
-3. **EAV collapse** — a generic attributes table turns the flagship filter («ноуты без апгрейда RAM») into a self-join pivot over untyped text. *Prevent:* typed nullable columns + `device_schema.ts`; a 5-minute migration is the cheap path for new fields.
-4. **Hard-deleted employees/devices orphan history** — deletes break FKs or blank out timeline evidence exactly when a разборка needs it. *Prevent:* archive-only semantics (`is_active=false`, status «списано»); no delete buttons; block delete on devices with movements.
-5. **Serial search breaks on real input** — wrong case, Cyrillic lookalikes (С→C, О→O…), trailing whitespace, partial serials → «не найдено» → user distrusts the system. *Prevent:* `serial_normalized`/`inventory_normalized` columns (uppercase, trimmed, homoglyph-mapped) with UNIQUE indexes; substring search across serial + inventory + model.
-6. **Auth and backups bolted on late** — unauthenticated `/api` and `/uploads` routes, no rate limit/CSRF, plaintext passwords; and no backup routine means a dead disk erases the registry the spreadsheet at least had in the cloud. *Prevent:* auth middleware **first** in the foundation phase covering every route; bcrypt hash, HttpOnly/SameSite cookie, login rate limit, CSRF on mutations, TLS at the reverse proxy; nightly DB+uploads backup with one rehearsed restore; CLI password-reset script shipped in v1.
+1. **⌘K dead on the Russian keyboard layout** — `event.key` is the produced character («л» on ЙЦУКЕН); match `event.code === 'KeyK'` + meta/ctrl. A one-line decision at implementation time; discovered later it's a support ticket. UAT with RU layout active.
+2. **Palette data path — stale results, auth leakage, hydration cost** — fetch per open + on debounced keystrokes, never persist results across close/navigation; `requireSession()` first; compose the existing predicates (a second LIKE path diverges within one milestone); LIMIT-capped results navigated by id (names are non-unique, D-04).
+3. **Palette as a second dialog** — while any other dialog is open, ⌘K is inert (the simplest robust rule for a single-operator tool); otherwise Escape-top-only / scroll-lock refcount / focus-return must be UAT-verified.
+4. **`norm()` does not fold Ё/ё** — «Елкин» never finds «Ёлкин»; fold at search time on both sides (`replace()` in SQL + JS), leave stored data and the fixture-guarded `normalizeNumber` untouched; share the fold helper between list search and palette.
+5. **Clone vs UNIQUE serial + D-16 inventory governance** — clone never copies serial/inventory/photos/movements; one tx per batch (a mid-batch throw rolls back everything); inventory auto-increment is an editable in-tx suggestion with NULL fallback, never a silent write policy (record the D-16 tension in Key Decisions when it ships).
+6. **Every phase:** `requireSession()` is line one of every new action/route (server actions are directly POST-able; the proxy perimeter does not cover them) — grep-verified, plus one curl-without-cookie check per new surface.
 
-Also worth carrying into plans: photos must be client-resized (~1600px) and server-re-encoded with sharp (HEIC, EXIF GPS stripping, ≤6 per device) — original phone bytes stored nowhere; real `DATE` columns for warranty/purchase; CSV **export** (with UTF-8 BOM and `;` delimiter for Russian Excel) in v1 to kill the parallel-spreadsheet failure mode; and no RBAC/ERP scope creep — the second user, if ever, gets a second identical account.
+Honorable mentions that shape plans: search + pagination interplay (count shares the predicate, page clamp, every link rebuilds the FULL query string); never rewrite the live-search island from scratch (re-imports G-5-1/G-5-2); CSV join fan-out (JOIN only along primary keys; per-device aggregates come from a separate grouped query merged in JS); double-submit (`isPending` + re-entrant guard ref — a disabled button alone is not enough).
 
 ## Implications for Roadmap
 
-Based on combined research, a 7-phase structure. The ordering is heavily front-loaded: **schema correctness, auth, and backup discipline all land in Phase 1** because pitfalls 1/3/5/6 are cheap to prevent before data exists and expensive or impossible to fix after.
+Based on combined research, a **five-phase milestone** (plus a named polish backlog). One hard dependency exists (Phase 1 → Phase 5); the rest is risk-isolation ordering chosen for review size and churn separation.
 
-### Phase 1: Foundation — Skeleton, Schema, Auth, Backups
-**Rationale:** Every route is auth-gated, and every later phase depends on the schema being right the first time. Pitfalls research is unambiguous: the movements table, normalized serial columns, and indexes must exist in the first migration — retrofitting is the one thing you cannot do later.
-**Delivers:** Next.js 16 scaffold (TS, Tailwind v4, shadcn/ui init); full Drizzle schema (all ~7 tables, wide `devices` with typed nullable per-type columns, normalized serial/inventory columns with UNIQUE indexes, all indexes for the flagship filters); single-account auth (bcrypt + jose cookie) with middleware covering pages, API, and static routes; login rate limit + CSRF; backup routine (DB + uploads) with one rehearsed restore; Docker/compose deployment skeleton; CLI password-reset script.
-**Addresses:** Single-account login (FEATURES P1)
-**Avoids:** Pitfalls 1 (schema part), 3, 5 (schema part), 6; backup debt; dates-as-strings debt
-**Uses:** Full STACK.md core; official Next.js Docker example
+### Phase 1: Employee live search
+**Rationale:** Foundation slice — produces `employeeSearchPredicate` (with the shared Ё/ё fold helper), `employees/query-params.ts`, and the extracted debounce hook. The palette composes all three; building it first removes rework. The behavior-preserving `DeviceSearchBox` refactor onto the hook is safest before any new UI piles on.
+**Delivers:** Live name/department search on the employees page with URL state, page reset, empty states, pagination parity.
+**Addresses:** FEATURES Category 1 table stakes (highlighting deferred to polish).
+**Avoids:** Pitfalls 4 (Ё fold), 5 (search+pagination), 6 (island rewrite).
+**Plan must include:** a manual UAT checklist for the extracted hook (no component tests exist): type-then-Back/Forward adopt, trailing space mid-composition (G-5-2 rerun), Enter commits immediately, «%» matches literally, `?q=` + `?page=999` clamps, links carry full state.
 
-### Phase 2: Employees Directory
-**Rationale:** Zero dependencies; required as the FK target for devices and movements; and the simplest screen on which to establish the Apple-aesthetic list/detail patterns that every later screen reuses.
-**Delivers:** Employee CRUD, department field, archive semantics (`is_active`) with no delete button, archived employees still rendering in history context.
-**Addresses:** Employee cards (name-only part); offboarding groundwork
-**Avoids:** Pitfall 4 (delete orphans) — archive flow built here from day one
+### Phase 2: CSV full-context ведомость
+**Rationale:** Fully independent, smallest diff (2 files + tests), zero coupling with other phases — a clean warm-up that can even run parallel to Phase 1.
+**Delivers:** The existing export route extended in place: per-type columns (диагональ, тип матрицы, порты, вид периферии) as sparse typed columns; warranty-status text column from `warrantyPredicate`; row-count parity with the registry.
+**Addresses:** FEATURES Category 3 (table stakes + «Добавлен» column and dashboard button as cheap adds).
+**Avoids:** Pitfalls 7 (fan-out/second-route drift), 8 (injection via new columns); auth-preamble checklist line.
+**Plan must include:** exact column enumeration with source tables; injection-matrix test extension; no `leftJoin` onto one-to-many tables.
 
-### Phase 3: Device Registry
-**Rationale:** The heart of the app; needs employees for nothing, but everything else needs it. The `device_schema.ts` keystone module is built here.
-**Delivers:** `device_types` + wide `devices` table; `device_schema.ts` (per-type fields: labels, input types, validation, filter metadata); type-aware create/edit forms (react-hook-form only for the device card form); paginated list with default «активные» filter; device card with common fields; status column populated (creation = «поступление» groundwork) but **no state fields in edit forms**.
-**Addresses:** Registry with per-type fields; asset card; statuses (display side); photos as first-cut candidate
-**Avoids:** Pitfall 3 (EAV — CHECK constraints per type); Pitfall 2 groundwork (status/holder excluded from edit forms); structured-facts-in-notes debt (RAM-upgrade is a boolean column)
+### Phase 3: Device clone (single, with N-batch as the extension)
+**Rationale:** Independent of Phases 1–2, but decision-heavy: the serial-nullable migration is the milestone's **only schema touch** and must be resolved at planning and migrated FIRST if accepted. N-batch («Количество: N», cap ≤20) extends the same dialog/action in one transaction — fold it in here or hold it as the first polish item; research supports either.
+**Delivers:** «Дублировать» on card (and optionally row menu), prefilled create dialog, serial blank by design, inventory suggestion computed in-tx (padding preserved, NULL fallback, «Предложен автоматически — проверьте с 1С» label), zero photos / empty timeline.
+**Addresses:** FEATURES Category 4 table stakes (+ the N-batch differentiator).
+**Avoids:** Pitfalls 9 (serial UNIQUE), 10 (inventory policy), 11 (copied relations).
+**Plan must include:** the copy/reset table (it doubles as UI copy); the serial decision ((b) NULL-pair migration recommended vs (a) required-serials wart); the `received`-movement-on-clone decision.
 
-### Phase 4: Custody — Movements and Timeline
-**Rationale:** The transactional core and the app's reason to exist; requires devices + employees. Photos could swap with this phase (they only need devices).
-**Delivers:** «Выдать»/«Вернуть»/«В ремонт»/«Из ремонта»/«Списать» actions as atomic event+projection transactions; per-device movement timeline starting with «поступление»; employee card issued-asset list; one-tap return; offboarding «сдать всю технику» bulk return; corrections as compensating events.
-**Addresses:** Assignment/return with automatic history; movement timeline; employee issued-asset list; statuses (mutation side)
-**Avoids:** Pitfall 1 (fully), Pitfall 2 (action-based transitions — no UI path changes state without an event)
+### Phase 4: Bulk issue/return
+**Rationale:** Independent at the query/action layer, but the largest UI refactor (row restructure: checkbox as sibling outside the `<Link>`; children-as-props selection island over the server-rendered list). Doing it after clone keeps `actions.ts`/`movement-schema.ts` churn in two reviewable steps.
+**Delivers:** Page-scoped selection (resets on navigation — documented v1.1 scope), floating action bar with count, batch issue to one employee / batch accept, all-or-nothing with up-front status validation («Не удалось выдать: „Ноутбук X" уже выдан» — nothing written), one movement event per device, double-submit protection.
+**Addresses:** FEATURES Category 5 table stakes (cross-page selection, undo, bulk attribute edit are anti-features).
+**Avoids:** Pitfall 12 (partial failure / selection loss / double-submit) + 13.
+**Plan must include:** the failure-policy sentence verbatim («all-or-nothing + up-front validation» — it determines both the query and the UI copy); verification of the selection-provider placement claim against the `(app)`/`(card)` route split (see Gaps); zod ids cap (50 recommended).
 
-### Phase 5: Photos
-**Rationale:** Only depends on devices; parallelizable with Phase 4 if desired. Upload constraints must be defined in the plan before the first photo lands.
-**Delivers:** Client-side resize (Canvas, ~1600px, Safari/HEIC decode) → Server Action/Route Handler with MIME+size+count limits → sharp re-encode to JPEG + ~400px thumbnail, EXIF stripped, UUID filenames under `data/uploads/` → `attachments` metadata in same transaction → authenticated streaming route, thumbnails in lists, `next/image` on the card.
-**Addresses:** Asset photos (FEATURES P1, first candidate to cut if slipping)
-**Avoids:** Pitfall 7 (unbounded storage, HEIC breakage, EXIF GPS leakage, unauthenticated static files)
-
-### Phase 6: Search, Filters, Warranty Highlighting, CSV Export
-**Rationale:** Needs device fields finalized (Phase 3) and custody in place (Phase 4); this is where the Core Value («мгновенный точный ответ») becomes user-visible.
-**Delivers:** Global substring search across serial_normalized + inventory_normalized + model; filter panel generated from `device_schema` translated to SQL (encoding the «IS NULL or false» nuances once); «ноуты без апгрейда RAM»; warranty-expiry highlight and window filter (real DATE math); CSV export of the device list (UTF-8 BOM, `;` delimiter, RFC 5987 Cyrillic filename).
-**Addresses:** Search; field filters; warranty highlighting; export
-**Avoids:** Pitfall 5 (search usability — verify with Cyrillic-keyboard typing tests); parallel-spreadsheet divergence
-
-### Phase 7: Dashboard + v1.x Differentiators (stretch)
-**Rationale:** Pure read model over everything above — built last, cheap, inherits correctness from the core. v1.x features are trigger-driven additions, not launch blockers.
-**Delivers:** Counts by type/status, warranty watchlist tile, «в ремонте дольше N дней» drift widget, recent movements, every tile linking into a filtered list. Then, by trigger: saved smart filters, ⌘K search, clone asset, QR label sheet, bulk actions, printable handover act.
-**Addresses:** Dashboard; all FEATURES P2/P3 differentiators
-**Avoids:** Pitfall 2 (drift surfacing widgets); scope creep (each v1.x item ships only on its trigger)
+### Phase 5: ⌘K global palette
+**Rationale:** Last by hard dependency — composes `searchDevices` (exists) + `searchEmployees` (Phase 1) behind one new authenticated search surface; pure additive UI otherwise. Delivers the headline UX once both backends exist. The «Скачать ведомость» action item lands free after Phase 2.
+**Delivers:** Global hotkey (layout-independent) + visible button; grouped, capped results with «Показать все» escape hatch; navigation by id; static default state («Переход» + «Действия»); recents deferred to polish.
+**Addresses:** FEATURES Category 2 (static default first, recents in polish).
+**Avoids:** Pitfalls 1 (RU layout), 2 (dialog stacking rule), 3 (data path); auth-preamble checklist line.
+**Plan must include:** the `event.code` decision; the stacking rule; the search-surface contract (requireSession first, LIMIT 8+8, per-open fetch, no persistence, composed predicates, `no-store` if a route).
 
 ### Phase Ordering Rationale
 
-- **Dependency-driven:** auth gates everything → employees is the FK target → devices needs the schema module → movements needs devices + employees → search/filters need finalized fields + custody → dashboard consumes all. This mirrors ARCHITECTURE.md's recommended build order 1:1.
-- **Pitfall-driven:** the four "cannot fix later" pitfalls (1, 3, 5-schema, 6) are all neutralized in Phase 1's migration and middleware; the "trust-erosion" pitfalls (2, 4) are neutralized by building actions/archive before data entry begins in earnest.
-- **Value-driven:** the flagship query («ноуты без апгрейда RAM») and search — the product's Core Value — land in Phase 6, immediately after the data they operate on is trustworthy; the dashboard (a convenience) comes last.
-- **A note for the roadmapper:** ARCHITECTURE.md describes the monolith in stack-agnostic terms (HTMX/vanilla JS, routes/views); STACK.md resolves this to Next.js idioms — App Router routes, Server Components, Server Actions. Treat ARCHITECTURE's component boundaries and data model as authoritative; map its routes/views layout onto Next App Router conventions, not literally.
+- **1 → 5 is the only hard dependency:** the palette's employee half and its input reuse the Phase-1 predicate, fold helper, and debounce hook; extracting them once avoids two implementations of the matching logic — the drift the research calls the cardinal bug of this milestone.
+- **2 early because it is risk-free:** zero coupling, smallest diff, independent of list-page churn; also unblocks the palette's «Скачать ведомость» action.
+- **3 before 4** so `actions.ts` churn arrives in two reviewable steps, and so the schema decision (if accepted) lands while the milestone is still early.
+- **5 last** keeps the most pitfall-dense UI work (stacking, hotkey, data path) on top of stable backends.
+- **Polish backlog (v1.1.x):** clone N-batch (if not folded into Phase 3), palette recents, match highlighting. **Never:** cross-page select-all, in-palette forms, bulk undo, XLSX/PDF/depreciation, fuzzy search.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning (`/gsd:plan-phase --research-phase`):
-- **Phase 5 (Photos):** the most Next.js-specific plumbing — FormData in Server Actions vs Route Handlers, sharp inside the standalone Docker image, authenticated streaming interplaying with `next/image`. Patterns exist but are scattered; a focused pass would de-risk it.
-- **Phase 1 (Foundation), lightly:** only if unfamiliar with Next 16 specifics (`proxy.ts` on Node runtime, Server Actions + zod, Drizzle SQLite setup). Official docs cover all of it — a light check, not full research.
+Phases likely needing deeper research or a resolved decision during planning (`/gsd:plan-phase --research-phase`):
+- **Phase 3 (Clone):** decision-heavy rather than research-heavy — serial-nullable migration (accept/decline), `received` event on clone (and on plain create?), inventory-suggestion policy vs D-16. The mechanics are proven in-repo (`inventoryPair` NULL-pair recipe, `returnAllDevices` tx precedent); what's needed is a decision, then a migration.
+- **Phase 4 (Bulk):** the App Router layout-persistence / provider-placement claim (FEATURES flagged it; ARCHITECTURE resolved it with page-scoped selection) is MEDIUM-confidence reasoning — verify against the actual route split during planning before committing the island design.
 
 Phases with standard patterns (skip research-phase):
-- **Phase 2 (Employees), Phase 3 (Registry), Phase 4 (Custody):** plain CRUD + the transaction pattern already fully specified in ARCHITECTURE.md (including code).
-- **Phase 6 (Search/Filters):** SQL LIKE + filter-builder over a typed schema — well-documented, fully specified in research.
-- **Phase 7 (Dashboard):** aggregate queries + cards — trivial.
+- **Phase 1 (Employee search):** in-repo pattern proven by the devices page; pitfalls and UAT checklist fully enumerated.
+- **Phase 2 (CSV):** D-18 contract documented and tested; column list enumerated by research.
+- **Phase 5 (Palette):** Base UI dialog/combobox composition already in production (`movement-dialogs.tsx`, `employee-dialog.tsx`); the three palette pitfalls come with prescribed preventions and UAT steps.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Versions verified against npm registry + official vendor docs on 2026-08-31; SQLite-over-Postgres and avoid-NextAuth calls backed by official guidance |
-| Features | MEDIUM | Anchored on Snipe-IT's official product page (primary) corroborated by independent secondary sources; no hands-on product trials |
-| Architecture | MEDIUM | Synthesized from multiple independent engineering/community sources per topic; no single authoritative spec exists for this domain — but the core patterns (hybrid event log, typed columns, monolith) are unanimous |
-| Pitfalls | MEDIUM | Corroborated across multiple independent sources; items marked [PE] (action-based transitions, Cyrillic homoglyph normalization, backup discipline) are practitioner experience, MEDIUM-LOW |
+| Stack | HIGH | Every claim cross-checked against the actual codebase (`package.json`, `components/ui/*`, `db/queries/*`, `lib/csv.ts`, route handlers) and the npm registry on 2026-09-15; the zero-new-dependencies verdict is verified, not estimated |
+| Features | MEDIUM | UX conventions cross-checked across ≥2 independent design-system/primary sources per claim; domain-internal claims (layout persistence) explicitly flagged for phase-level verification |
+| Architecture | HIGH | Every existing-module claim verified by reading the source this run; better-sqlite3 tx semantics verified from installed node_modules; Next 16.3.3 claims from bundled local docs |
+| Pitfalls | HIGH | Codebase-grounded pitfalls verified against actual source; integration pitfalls (event.code, dialog stacking, double-submit) MEDIUM but multi-source corroborated, with official-docs anchors for installed versions |
 
-**Overall confidence:** MEDIUM-HIGH. The stack decisions are as solid as research gets; domain patterns are consensus-backed. No finding contradicts another file — ARCHITECTURE's session-options and HTMX wording were resolved by STACK's specific choices (signed cookie, React Server Components), noted above for the roadmapper.
+**Overall confidence:** HIGH for what to build and how it integrates; MEDIUM for UX-convention details — the correct polarity, since implementation surfaces are code-verified while interaction polish is practitioner consensus.
 
 ### Gaps to Address
 
-- **CSV `;` delimiter + BOM for Russian Excel:** well-established but MEDIUM confidence (not verified against a Microsoft doc). Verify with a real Russian-locale Excel during Phase 6 — a 5-minute test.
-- **RAM-upgrade signal:** «без апгрейда RAM» needs a decision finalized at requirements/Phase 3 — research recommends an explicit manager-set boolean `ram_upgraded` (simplest, unambiguous) over current-vs-base-RAM comparison. Confirm with the user.
-- **Cyrillic homoglyph map:** the normalization table (А→A, В→B, С→C…) is practitioner advice; build a small typing-test fixture in Phase 6 to validate coverage.
-- **HEIC client-side decode:** Safari/iOS canvas decoding is reported to work natively but wasn't tested; verify with a real iPhone photo in Phase 5 (server-side sharp re-encode is the fallback that makes this gap non-blocking).
-- **Session mechanism:** STACK specifies a jose-signed JWT cookie; ARCHITECTURE left DB-table vs signed cookie open. Decide signed cookie in Phase 1 planning (simpler ops at one user; either works).
-- **Initial data entry:** user starts clean (CSV import explicitly rejected), but the plan should acknowledge a manual-entry ramp — the fast-entry path (clone-adjacent entry, keyboard-first forms) matters before any UI polish cycles.
+Decisions and verifications for planning (none block roadmap creation):
+
+- **Serial-nullable migration (Phase 3):** accept (b) NULL-pair migration (recommended — batch serial-less peripherals are a live data-corruption pressure today) or ship (a) required-serials wart. Decides whether the milestone has a schema touch at all. Decide BEFORE build.
+- **Palette transport disagreement:** STACK leans server action (`searchAll(q)`); ARCHITECTURE prescribes GET `/api/search` (idempotent, no RSC payload waste, export-route precedent); PITFALLS prefers the action, allows a route with `no-store`. The **contract** is load-bearing, not the transport: `requireSession()` first, LIMIT-capped, per-open + debounced fetch, no persistence across close, composed predicates. Pick one in planning and move on.
+- **Palette filtering location:** FEATURES suggested a client-side index filtered in JS; ARCHITECTURE/PITFALLS prescribe server-side filtering via the shared SQL predicates. **Recommendation: server-side** — one matching implementation (zero drift) and no stale-cache class; at hundreds of rows the debounced roundtrip is single-digit ms. Confirm in planning.
+- **Inventory auto-increment vs D-16:** convergent recommendation across all four files — an editable suggestion computed inside the transaction (numeric-tail parse, padding preserved, NULL when unparseable, «предложен» label), never a silent write policy. Record the D-16 tension in Key Decisions when it ships.
+- **`received` movement on clone (and plain create?):** timeline/feed consistency vs scope discipline — plain `createDevice` writes no event today; either accept the inconsistency or wire it in the same milestone.
+- **Archived employees in the palette:** show with «архив» badge (recommended — an archived person's card is exactly what «кто это был?» needs) or active-only.
+- **Bulk selection placement:** verify the children-as-props provider against the `(app)`/`(card)` route split during Phase-4 planning; page-scoped selection is accepted v1.1 scope, cross-page is a documented non-goal.
+- **Search-box extraction has no component tests:** the Phase-1 plan must carry the manual UAT checklist (the hook is the most-reused new code in the milestone).
 
 ## Sources
 
-Aggregated from the four research files; see each file for the complete annotated list.
+Aggregated from the four research files; per-claim attributions live in each file.
 
 ### Primary (HIGH confidence)
-- npm registry (fetched 2026-08-31) — authoritative versions: next 16.3.3, react 19.2.8, drizzle-orm 0.45.2, better-sqlite3 13.0.3, tailwindcss 4.3.3, jose 6.2.10, zod 4.5.4, sharp 0.35.4
-- nextjs.org — Next 16 announcement, self-hosting guide, official `with-docker` example (standalone, node:24-slim, non-root)
-- sqlite.org — official "when to use" criteria (one writer, unlimited readers)
-- orm.drizzle.team, ui.shadcn.com, nodejs.org release/API docs, authjs.dev (v5 beta → Better Auth status)
-- Snipe-IT official product page + label/barcode docs (fetched directly) — feature-landscape anchor
+- Codebase, read 2026-09-15: `db/schema.ts`, `db/queries/{devices,employees,movements}.ts`, `db/index.ts` (norm UDF), `drizzle/0000_amusing_talon.sql` (movements triggers), `app/(app)/devices/{page,filter-bar,search-box,query-params,actions}.*`, `app/(app)/employees/page.tsx`, `app/(app)/layout.tsx` + `nav.tsx`, `app/api/devices/export/route.ts`, `lib/{csv,normalize.mjs,device-schema,movement-schema}.ts`, `components/ui/{dialog,combobox,checkbox}.tsx`, `proxy.ts`, `tests/helpers.ts`, `package.json`
+- better-sqlite3 v13 `transaction.js` from installed node_modules (rollback only on exception propagation; nested = savepoints)
+- Next.js 16.3.3 bundled docs, `node_modules/next/dist/docs/` (proxy rename, server-actions body limit + refresh semantics, route handlers)
+- npm registry, fetched 2026-09-15: @base-ui/react 1.8.0, cmdk 1.1.1 (+ manifest showing 4 @radix-ui deps), react-hotkeys-hook 5.3.3
 
 ### Secondary (MEDIUM confidence)
-- Heap Engineering (JSONB vs typed columns), GitLab engineering docs (STI caution), Azure Architecture Center (event sourcing), thoughtbot (state transitions), brandur.org + HN (soft deletion critique), DBA.SE / r/PostgreSQL (EAV antipattern), Evolveum (JSONB vs EAV measurements)
-- OWASP Session Management Cheat Sheet, Invicti, Auth0 — auth in internal/LAN tools
-- Motadata, CyCognito, Virima, AssetIT, Itemit — stale-data failure modes; BlueTally, Asset Panda — warranty alerting norms
-- Reftab, AssetTiger, Timly, Cheqroom comparisons (GetApp, vendor pages) — competitor feature matrix
-- Stack Overflow / DBA.SE / softwareengineering.SE threads — photo pipeline, search mechanics, FK deletes
+- Design systems / UX: PatternFly Bulk Selection; HashiCorp Helios Table Multi-Select; NN/g Bulk Actions guidelines; SaaS UI + Eleken bulk-action patterns; Solomon (ex-Linear) Designing Command Palettes; uxpatterns.dev Command Palette; shadcn/ui Command docs (base variant is cmdk-backed); Next.js Learn search + pagination; Aurora Scharff search-param filtering with useTransition
+- Domain templates: AssetPrime, MapTrack, Kladana, FMX fixed-asset register column sets; shadcn.io duplicate-record block; Backpack clone operation; koder.ai layered duplicate defenses
+- Platform specifics: MDN KeyboardEvent.code; ComfyUI #5252 + MS guidance (non-Latin hotkey failures); jQuery-UI / HeadlessUI #2324 / Drupal body_scroll_lock (stacked-dialog failures); React 19 useActionState double-submit mechanics; Wikimedia / Mozilla Discourse (Ё/ё search normalization)
 
-### Tertiary (LOW confidence — validate during implementation)
-- r/sysadmin, r/selfhosted, r/webdev, r/PostgreSQL threads — practitioner sentiment (SQLite consensus, LAN security norms, client-side image resize)
-- **[PE]** practitioner experience items: action-based state transitions, Cyrillic homoglyph normalization, backup discipline for solo LAN tools, CSV semicolon/BOM convention for Russian Excel
+### Tertiary (LOW confidence, non-load-bearing)
+- cmdk ecosystem fragmentation around React 19 (cmdk-base, dip/cmdk, react-cmdk) — single source; supports the no-cmdk decision, which stands on local precedent alone
+- FTS5-vs-LIKE scale crossover (~100k docs) — community consensus; irrelevant at hundreds of rows either way
 
 ---
-*Research completed: 2026-08-31*
+*Research completed: 2026-09-15*
 *Ready for roadmap: yes*

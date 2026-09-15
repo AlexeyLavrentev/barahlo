@@ -1,366 +1,304 @@
-# Architecture Research
+# Architecture Research: v1.1 «Скорость и удобство» — Integration into Existing Barahlo App
 
-**Domain:** Internal IT asset tracking (single-manager web app, self-hosted, 50–200 employees, hundreds of devices)
-**Researched:** 2026-08-31
-**Confidence:** MEDIUM (synthesized from multiple independent community/engineering sources per topic; no single authoritative spec exists for this domain)
+**Domain:** Integration architecture for 5 features on an existing Next.js 16 App Router / better-sqlite3 / drizzle RSC app
+**Researched:** 2026-09-15
+**Confidence:** HIGH (every existing-module claim below was verified by reading the source this run; the only external claims — cmdk ecosystem status — are tagged LOW and are not load-bearing)
 
-## Standard Architecture
-
-### System Overview
-
-Small internal asset trackers (Snipe-IT, Hatchbox-style inventory tools, countless in-house builds) converge on the same shape: **a single server-rendered monolith over a single relational database, with one append-only event table for custody history**. No microservices, no separate API, no external search engine.
+## Verified Existing Architecture (the integration surface)
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                        Browser (office LAN)                        │
-│              Russian-language UI, Apple-style aesthetics           │
-└──────────────────────────────┬─────────────────────────────────────┘
-                               │ HTML forms / light JS (HTMX or vanilla)
-┌──────────────────────────────▼─────────────────────────────────────┐
-│                     Web App (single monolith)                      │
+│ proxy.ts (Next 16 proxy, default-deny matcher)                     │
+│   everything except _next/static|_next/image|favicon.ico is gated  │
+│   PUBLIC_PATHS = ['/login'] exact strings; api/* IS covered        │
 ├────────────────────────────────────────────────────────────────────┤
-│  Auth middleware          │ session cookie, single account gate    │
+│ app/(app)/ layout.tsx  — requireSession() + 48px bar               │
+│   ├─ nav.tsx ('use client' island — layout-level client precedent) │
+│   ├─ devices/  page.tsx (RSC) + filter-bar (server compose) +      │
+│   │            search-box.tsx (300ms debounce island, URL state)   │
+│   │            query-params.ts (THE parser/builder)                │
+│   │            actions.ts (requireSession → zod → query → refresh) │
+│   ├─ employees/ page.tsx (RSC, local buildQuery, NO search yet)    │
+│   └─ (card)/   devices/[id], employees/[id] — palette targets      │
 ├────────────────────────────────────────────────────────────────────┤
-│  Route/Controller layer   │ devices │ employees │ movements │      │
-│                           │ search  │ dashboard  │ photos │ auth   │
+│ app/api/  export/route.ts (requireSession-first GET precedent)     │
+│           attachments/, photos/, health/                           │
 ├────────────────────────────────────────────────────────────────────┤
-│  Domain services          │ validation, per-type field schemas,    │
-│                           │ movement transactions, filter builder  │
-├────────────────────────────────────────────────────────────────────┤
-│  Persistence              │ repo/query functions                   │
-├────────────────────┬─────────────────────┬─────────────────────────┤
-│  ┌───────────────┐ │  ┌───────────────┐  │  ┌───────────────────┐  │
-│  │ Relational DB │ │  │ Photo store   │  │  │ Sessions          │  │
-│  │ (SQLite or    │ │  │ (disk dir or  │  │  │ (DB table or      │  │
-│  │  Postgres)    │ │  │  DB blobs)    │  │  │  signed cookie)   │  │
-│  └───────────────┘ │  └───────────────┘  │  └───────────────────┘  │
-└────────────────────┴─────────────────────┴─────────────────────────┘
+│ db/queries/*.ts — PURE sync functions, no framework imports;       │
+│   devices.ts: deviceWhere (THE predicate) + searchPredicate +      │
+│               exportDevices (composes deviceWhere) + ruSortKey     │
+│   employees.ts: listEmployees (innerJoin departments, ruSortKey)   │
+│   movements.ts: guard-UPDATE .changes pattern, one tx per action,  │
+│                 append-only INSERTs (triggers in migration 0000)   │
+│ db/index.ts — norm() UDF (deterministic normalizeNumber) on conn   │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+**Invariants every feature must respect** (all confirmed in source):
+- Schema changes ONLY via drizzle-kit generate + migrate (never push).
+- movements is append-only: INSERT only in app code + `movements_no_update/no_delete` triggers (drizzle/0000_amusing_talon.sql:94–99).
+- query-params.ts is the single URL vocabulary for /devices; islands import builders themselves (functions never cross the RSC boundary — flat serializable props only).
+- deviceWhere is co-located in db/queries/devices.ts; the export is «the same predicate, second caller» — never a parallel schema (D-18).
+- requireSession() is the first statement of every action and API route (server actions are directly POST-able; the proxy does not cover them).
+- Query modules stay pure/sync (vitest imports them directly against a temp db — tests/helpers.ts); actions add session + zod + refresh().
+- better-sqlite3 v13 transaction semantics (verified from installed node_modules/lib/methods/transaction.js): ROLLBACK runs only when the exception propagates OUT of the transaction function; catching inside keeps the tx alive (HIGH).
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Auth gate | One login+password account; every route except `/login` requires a valid session | Server-side session (DB table or signed cookie), httpOnly secure cookie, bcrypt/argon2 password hash |
-| Devices module | Device CRUD, per-type forms, device card (specs, purchase, warranty, photos, timeline) | One `devices` table; per-type field schema defined in code |
-| Device types | Reference data: which fields belong to which type (laptop/monitor/dock/peripheral) | Small `device_types` lookup table + in-code field definitions driving form rendering and validation |
-| Employees module | Directory: name + department; list of devices currently held | `employees` table; devices linked via denormalized `current_employee_id` |
-| Movements module | Full custody history: who, when, from whom / to whom; timeline per device | **Append-only `movements` table**, written in the same transaction as the denormalized custody update |
-| Attachments module | Device photos/documents: upload, store, serve authenticated | `attachments` metadata table + files on disk (or DB blobs); served via authorized route, downscaled on upload |
-| Search & filters | Instant lookup by serial/inventory/model; field filters ("laptops without RAM upgrade", "warranty expiring") | SQL `WHERE` over indexed columns; one search box fanning out over 3–4 text columns; no external search engine |
-| Dashboard | Counts by type/status, custody summary, repair/disposed lists, expiring-warranty highlight | A handful of aggregate SQL queries; zero caching needed at this scale |
+## Feature 1: Employee Live Search (справочник)
 
-## Recommended Project Structure
+**Verdict: extend listEmployees with `q`, mirror the devices URL discipline in a new employees/query-params.ts, extract the search-box engine into a shared hook.**
 
-Stack-agnostic monolith layout (maps directly onto Django, Rails, Laravel, Node/Express+HTMX, etc.):
+### Query-module shape
 
-```
-src/ (or app/)
-├── routes/               # HTTP layer: thin controllers, one file per module
-│   ├── auth.ts           #   login, logout, session
-│   ├── devices.ts        #   list, card, create, edit, dispose
-│   ├── employees.ts      #   directory, employee card
-│   ├── movements.ts      #   assign / transfer / return / repair / dispose actions
-│   ├── search.ts         #   global search box endpoint
-│   └── dashboard.ts      #   aggregates
-├── services/             # domain logic, no HTTP knowledge
-│   ├── device_schema.ts  #   per-type field definitions (single source of truth
-│   │                     #   for forms, validation, AND filter UI)
-│   ├── movements.ts      #   custody transitions as transactions
-│   └── filters.ts        #   structured filter → SQL clause builder
-├── db/
-│   ├── schema.sql        #   tables, indexes, constraints
-│   └── queries/          #   repo functions per module
-├── views/                # server-rendered templates + partials
-│   ├── layouts/
-│   ├── devices/          #   list, card, form
-│   ├── employees/
-│   └── dashboard/
-├── files/                # photo storage root (gitignored; outside web root)
-└── static/               # css, js, fonts
-```
-
-### Structure Rationale
-
-- **routes/ vs services/:** the one piece of domain logic worth isolating is movement transactions (event insert + custody update must be atomic) and the per-type field schema (used by forms, validation, and filters — it must live in exactly one place). Everything else can stay thin.
-- **`device_schema.ts` is the keystone:** it defines, per type, which fields exist, their labels (Russian), input types, and validation. Forms render from it, payloads validate against it, the filter panel builds from it. This is what makes "fixed fields per type" cheap — adding a field is one entry, not a schema-migration-plus-five-views affair (only the column itself needs a migration).
-- **files/ outside the web root:** photos must not be served as raw static files — they sit behind the same auth as everything else, so they are streamed through a controller route after the session check.
-
-## Data Model (the core of this domain)
-
-Five tables plus sessions. This is deliberately a fraction of the 30-table "full ITAM lifecycle" schemas — those model procurement workflows, licenses, and locations, all of which are out of scope here.
-
-```sql
-users(id, login, password_hash)                      -- exactly one row
-sessions(token, user_id, created_at, expires_at)     -- or signed cookies
-
-device_types(id, key, name)                          -- laptop, monitor, dock, peripheral
-
-devices(
-  id, type_id        -> device_types,
-  -- common fields (every type)
-  model, serial_number, inventory_number,             -- unique-ish, indexed
-  status,                                             -- in_stock | assigned | repair | disposed
-  current_employee_id -> employees NULL,              -- denormalized custody (see Movements)
-  purchase_date, purchase_price, supplier,
-  warranty_until,                                     -- nullable; drives expiry highlighting
-  notes,
-  -- type-specific fields: typed, nullable columns (see "Per-Type Fields")
-  ram_gb, ram_upgraded, ssd_gb,                       -- laptop
-  screen_diagonal, panel_type,                        -- monitor
-  port_count,                                         -- dock
-  peripheral_kind,                                    -- peripheral
-  created_at, updated_at
-)
-
-employees(
-  id, name, department,
-  is_active                                           -- archive left employees, keep history
-)
-
-movements(                                            -- APPEND-ONLY, never UPDATE/DELETE
-  id, device_id -> devices,
-  event_type,                                         -- received | assigned | transferred
-                                                      -- | returned | to_repair | from_repair | disposed
-  from_employee_id -> employees NULL,
-  to_employee_id   -> employees NULL,
-  comment,
-  occurred_at,                                        -- user-visible date; may differ from created_at
-  created_at
-)
-
-attachments(
-  id, device_id -> devices,
-  file_name, mime_type, byte_size, kind,              -- photo | document
-  storage_key,                                        -- path under files/, or NULL if stored as blob
-  created_at
-)
-```
-
-**Indexes:** `devices(serial_number)`, `devices(inventory_number)`, `devices(type_id, status)`, `devices(current_employee_id)`, `devices(warranty_until)` (partial, where not null), `movements(device_id, occurred_at)`. Everything else is unnecessary at hundreds of rows.
-
-### Per-Type Fields Without the EAV Mess
-
-The research is unambiguous on this: **EAV (rows-as-attributes) is the mess to avoid**, and this project is structurally immune to the problem that pushes people toward it, because PROJECT.md already fixes the field sets in code — there is no user-defined-field constructor. That leaves three sane patterns:
-
-| Pattern | Verdict here | Why |
-|---------|-------------|-----|
-| **Wide table, typed nullable columns** (recommended) | **Use it** | 4 stable types × ~4–5 fields ≈ 20 extra columns. Sparse NULLs cost nothing at hundreds of rows. The killer filters ("RAM not upgraded", "warranty expiring") become plain indexed `WHERE` clauses — no joins, no JSON path expressions. Adding a field = one migration + one entry in `device_schema`. Hardware categories don't churn, so migration cost is near zero. |
-| JSON column for type-specific tail | Fallback | Viable (GIN-indexable in Postgres, `json_extract` in SQLite), but it buys nothing here — field sets are fixed — and makes the flagship filters uglier and slower. The Heap engineering post's 80% JSONB slowdown is a hot-table story, not this scale, but there's simply no upside to pay for. Reach for it only if type fields start churning every week. |
-| Class-Table Inheritance (per-type detail tables) | Escape hatch | Typed columns with real FKs, at the price of a join per detail fetch and more migrations. Only worth it if some type grows FK-heavy fields (e.g., peripherals referencing a catalog). Keep in mind as the documented evolution path, don't build it now. |
-| EAV / attribute constructor | Reject | User already rejected the constructor. EAV makes every query a pivot, kills type safety, and is the classic "six months later every feature hurts" trap. |
-
-GitLab's engineering docs ban single-table inheritance for *large evolving* schemas (type proliferation, NULL bloat); that caution doesn't transfer to four frozen hardware types in a single-user app. The honest trade: this table stays readable because a comment block (and `device_schema.ts`) documents which columns belong to which type.
-
-### Movement History: Append-Only Events + Denormalized Current State
-
-The consensus pattern for custody tracking is the **hybrid**, and it fits perfectly:
-
-1. **`movements` is append-only** — INSERT only, never UPDATE or DELETE. Each row is an immutable custody event: type, from, to, when, comment. This *is* the "кто когда имел" timeline; no separate audit log needed (the event log and the audit trail are the same thing here — if a field like `warranty_until` also matters historically, add a lightweight `audit_log(entity, entity_id, field, old, new, at)` later, but don't build it up front).
-2. **`devices.current_employee_id` + `devices.status` are the denormalized projection** — "who has it now" and list filtering read them directly, with no "latest event" subquery on every row. Both writes happen **inside one transaction** with the movement INSERT:
+`db/queries/employees.ts` — modify `listEmployees` to take `q?: string` (the list IS the search target; pagination and the active/archive filter keep working unchanged). The predicate is the device searchPredicate recipe ported to people:
 
 ```typescript
-// services/movements.ts — the single most important invariant in the app
-function transfer(deviceId: number, toEmployeeId: number, comment?: string) {
-  db.transaction(() => {
-    const dev = db.one(`SELECT current_employee_id, status FROM devices WHERE id = ?`, deviceId);
-    db.run(
-      `INSERT INTO movements (device_id, event_type, from_employee_id, to_employee_id, comment, occurred_at)
-       VALUES (?, 'transferred', ?, ?, ?, ?)`,
-      [deviceId, dev.current_employee_id, toEmployeeId, comment, today()],
-    );
-    db.run(`UPDATE devices SET current_employee_id = ?, status = 'assigned' WHERE id = ?`, [toEmployeeId, deviceId]);
-  });
+// same recipe as searchPredicate in devices.ts: fold the BIND pattern through
+// the SAME normalizeNumber the norm() UDF folds the columns with
+export function employeeSearchPredicate(rawQ: string | undefined) {
+  const q = normalizeNumber(rawQ ?? '').slice(0, 100)
+  if (q === '') return undefined
+  const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
+  return or(
+    sql`norm(${employees.name}) like ${pattern} escape '\\'`,
+    sql`norm(${departments.name}) like ${pattern} escape '\\'`,
+  )
 }
 ```
 
-Why not pure event sourcing (derive current state by replaying events)? Because replay machinery, snapshots, and projections solve problems this app doesn't have — a single user means no concurrent-transition races (thoughtbot's state-transition caveat is moot), and "who has it now" must be indexable for list filters. Why not a single mutable `assignments` row (current holder overwritten in place)? Because it destroys exactly the history this project exists to answer, and bolting on an audit table afterwards recreates the hybrid anyway. Every movement mutation the UI offers ("I entered the wrong employee") should be implemented as a **corrective event** or, pragmatically, an edit of the *last* event by the single trusted user — never as silent history rewriting.
+- The `innerJoin(departments)` already in listEmployees carries the department term — the same «predicate rides the existing join» shape as the devices department filter (D-09).
+- The count query and the rows query share ONE where (the Pitfall-5 parity property listDevices already exhibits).
+- norm() needs no registration change — it is already a deterministic UDF on every connection (db/index.ts).
+- Extract the predicate into a named exported function (not inline) — the ⌘K palette's `searchEmployees` composes exactly this function, mirroring the deviceWhere/exportDevices factoring.
 
-## Data Flow
+### URL layer
 
-### Request Flow
+New `app/(app)/employees/query-params.ts` — parse/build for `{ q, filter, page }` (parse degrades invalid values to sentinels, never 500s; builder omits inactive sentinels). Rationale: the current local `buildQuery` in page.tsx would become the second place that knows the URL vocabulary the moment `q` lands, and the search island must import a pure builder itself (function props are banned across the RSC boundary). This is the same discipline query-params.ts established for /devices, scoped to the employees' smaller vocabulary.
 
-```
-[User action: assign laptop #12 to Ivanov]
-    ↓
-POST /devices/12/transfer  (form)
-    ↓
-Auth middleware ──✗──> redirect /login
-    ↓ (valid session)
-movements controller → services/movements.transfer()
-    ↓
-TRANSACTION: INSERT movements + UPDATE devices.current_employee_id/status
-    ↓
-redirect → device card re-renders: timeline shows new entry, custody shows Ivanov
-```
+### Component: extract, don't copy
 
-### Read Flows
-
-1. **Device card:** `devices` row (with type + current employee joined) + `movements` timeline (last-N, indexed by `device_id, occurred_at`) + `attachments` — 3 queries, single-digit milliseconds.
-2. **Global search:** one input → `WHERE serial_number LIKE ? OR inventory_number LIKE ? OR model LIKE ?` (case-insensitive). At hundreds of rows a sequential scan is millisecond-fast; no FTS infrastructure needed. If typo tolerance ever matters, SQLite FTS5 / Postgres `pg_trgm` is a contained upgrade inside `db/queries/` — not an external engine.
-3. **Filters ("laptops without RAM upgrade"):** filter panel built from `device_schema` → translated to straight SQL: `WHERE type_id = 'laptop' AND (ram_upgraded IS FALSE OR ram_upgraded IS NULL)`. The "IS NULL or false" nuance is the kind of thing to encode once in `services/filters.ts`.
-4. **Dashboard:** a few `GROUP BY` aggregates over `devices` + one range scan on `warranty_until`. Highlight = compare `warranty_until` to `today() + 30/60/90 days` in the query.
-
-### Photos
-
-```
-upload → controller (auth-checked) → validate mime/size → downscale to ~1600px client-side
-       → write file to files/<device_id>/<uuid>.jpg → INSERT attachments metadata (same transaction)
-view  → GET /attachments/<id>/file → auth check → stream from disk with long cache headers
-```
-
-Store bytes on disk with metadata in the DB (recommended: simpler streaming, OS caching, resize variants), **or** as DB blobs if the stack lands on SQLite and single-file backup outweighs everything else — both are defensible at this scale; the non-negotiable part is serving through the authenticated route, never as raw static files. Backups = `db dump + files/ directory`, cron-able to any internal share.
-
-## Architectural Patterns
-
-### Pattern 1: Server-Rendered Monolith + Session Auth
-
-**What:** One deployable app renders HTML on the server; auth is a classic server-side session behind an httpOnly cookie; interactivity (search-as-you-type, inline filter forms, photo preview) sprinkled via HTMX or a little vanilla JS.
-**When to use:** Always for this project — single user, LAN-only, form-driven CRUD, no mobile client.
-**Trade-offs:** Forfeits offline-rich-client behavior nobody asked for; in exchange: one process to deploy on the internal server, one auth story, no CORS, validation written once. SPA+API would double the auth/validation surface for zero benefit here. JWT is strictly worse than sessions at this scale (revocation pain, no horizontal scaling to justify it).
-
-### Pattern 2: Append-Only Event Log with Denormalized Projection
-
-**What:** Described above — immutable `movements` + maintained current state on `devices`, committed atomically.
-**When to use:** Any "who had what when" question is a product requirement (it is here — it's in the project title of requirements).
-**Trade-offs:** Two writes per action instead of one; the invariant "projection matches last event" must live in one service function so it can't drift. Do **not** generalize into full event sourcing.
-
-### Pattern 3: Code-Defined Type Schemas (single source of truth)
-
-**What:** Per-type field definitions live in one typed module and drive form rendering, server validation, card display, and the filter panel.
-**When to use:** When field sets are fixed per type but you don't want a migration touching five view files each time.
+`app/(app)/devices/search-box.tsx` holds ~90 lines of battle-tested reconciliation (lastSynced anchor, inFlight echo absorption, push-time stamping — two UAT bugs G-5-1/G-5-2 fixed here). Extract the engine into `components/debounced-search.ts`:
 
 ```typescript
-// services/device_schema.ts (excerpt)
-const LAPTOP: TypeSchema = {
-  key: "laptop", label: "Ноутбук",
-  fields: [
-    { key: "ram_gb",        label: "RAM, ГБ",    type: "int",  filter: "range" },
-    { key: "ram_upgraded",  label: "RAM апгрейд", type: "bool", filter: "exact" },
-    { key: "ssd_gb",        label: "SSD, ГБ",    type: "int",  filter: "range" },
-  ],
-};
+'use client'
+// useDebouncedParam({ q, buildHref }) → { value, onChange, onKeyDown }
+// Encapsulates: value state, 300ms timer, lastSynced/inFlight refs, commitNow.
+// The BUILDER is imported by each wrapper, never passed as a prop.
 ```
 
-**Trade-offs:** Columns and schema entries must be added in two places (migration + definition) — acceptable; what you must never do is let the DB hold field *definitions* (that's the EAV/constructor path already rejected).
+- `DeviceSearchBox` is refactored onto the hook — **behavior-preserving refactor**; it keeps importing `buildDevicesQuery` and its `DeviceFilters` spread.
+- New `app/(app)/employees/search-box.tsx` — thin wrapper importing the employees builder, RU placeholder «Имя или отдел», same aria conventions.
+- **Risk (MEDIUM):** this code has no component tests (vitest covers queries/schemas only). Mitigate with a manual UAT checklist before merge: type-then-Back/Forward adopt, trailing-space mid-composition, external filter reset adopts into clean input, Enter commits immediately.
+
+Page wiring (`app/(app)/employees/page.tsx`): parse q → pass to listEmployees → builder carries q; switching Активные/Архив keeps q and resets page to 1; add the «Ничего не найдено» empty-state variant with a reset link (copy parity with /devices).
+
+**Files:** NEW employees/query-params.ts, employees/search-box.tsx, components/debounced-search.ts · MODIFIED db/queries/employees.ts, employees/page.tsx, devices/search-box.tsx.
+
+## Feature 2: ⌘K Global Palette (устройства + сотрудники)
+
+**Verdict: layout-level client island + one new authenticated GET /api/search route; hand-rolled on the existing Base UI dialog; one flattened keyboard index.**
+
+### Where it lives
+
+Mount `<CommandPalette />` in `app/(app)/layout.tsx` beside `<AppNav />` — a layout-level client island is an established precedent (nav.tsx). A global keydown listener (⌘K / Ctrl+K, ignore when a dialog already owns focus) toggles it; mounted at layout level it works on every protected page.
+
+### Where results come from: new API route, NOT a server action, NOT RSC prefetch
+
+- **Server actions are the wrong shape**: they are POST form machinery (FormData in, action state out) — type-ahead wants idempotent GET-with-params; and the action response carries an RSC payload of the current route, which is wasted bytes per keystroke.
+- **RSC prefetch / router navigation per keystroke** would re-render whole list pages per query — the search-box deliberately avoids this even for one input.
+- A **GET route handler** matches the export-route precedent: data leaves the RSC tree, authentication is explicit, the client gets a small JSON payload.
+
+New `app/api/search/route.ts`:
+
+```typescript
+export async function GET(request: NextRequest) {
+  await requireSession() // FIRST statement — export-route precedent
+  const q = String(request.nextUrl.searchParams.get('q') ?? '').slice(0, 100)
+  const [devices, employees] = [searchDevices(q, 8), searchEmployees(q, 5)]
+  return Response.json({ devices, employees }) // hardcoded shape, no input echo
+}
+```
+
+Proxy/auth coexistence: **no matcher change needed.** The default-deny matcher already covers `/api/*` (only `_next/static|_next/image|favicon.ico` are excluded — verified in proxy.ts), and the palette only renders under the (app) layout whose requireSession already passed, so the same-origin fetch carries the session cookie automatically. `requireSession` in the route is the defense-in-depth layer (V3), exactly like the attachments and export routes.
+
+### New query functions (both pure-sync, tested against temp db)
+
+- `searchDevices(q, limit)` in `db/queries/devices.ts` — composes the module-private `searchPredicate` (same module = the deviceWhere-colocation discipline; no need to export it), `ruSortKey` order + id tiebreaker, `.limit(limit)`; selects `{ id, typeKey, model, serialNumber, inventoryNumber, status }`.
+- `searchEmployees(q, limit)` in `db/queries/employees.ts` — composes `employeeSearchPredicate` from Feature 1; selects `{ id, name, department, isActive }`. Archived employees SHOULD appear (badge «архив» in the palette) — an archived person's card is exactly what «кто это был?» needs; flag as a planning decision if the operator disagrees.
+- Limit-driven: no pagination, no count query. At 50–200 employees / hundreds of devices a `norm() like` scan is single-digit ms (phase-5 measurement class).
+
+### Merge + one keyboard model
+
+Client-side, one flat array is the model (MEDIUM — universal palette pattern):
+
+```typescript
+type PaletteItem =
+  | { kind: 'device'; id: number; title: string; subtitle: string }   // model · serial · holder
+  | { kind: 'employee'; id: number; title: string; subtitle: string } // name · department (+ «архив»)
+
+const items: PaletteItem[] = [
+  ...data.devices.map(toDeviceItem),   // devices FIRST — registry is the primary entity
+  ...data.employees.map(toEmployeeItem),
+]
+// selection = ONE index into items; section headers («Устройства», «Сотрудники»)
+// are derived at render time (kind changes between neighbors) and are NOT focus-stops.
+// ↑/↓ move (clamp), Home/End, Enter → router.push(`/devices/${id}` | `/employees/${id}`) + close,
+// Esc → close + restore focus to the previously focused element.
+```
+
+Fetch discipline: debounce ~150–200 ms (shorter than the 300 ms URL debounce — palette results are ephemeral, never URL state), AbortController per request with latest-wins, do not fire until q is non-empty (unlike the list, a palette's «full list» is meaningless).
+
+### No cmdk dependency
+
+Hand-roll (~150 lines) on the existing `components/ui/dialog.tsx` (Base UI): the project hand-rolls for supply-chain reasons already (lib/csv.ts rationale), Base UI provides the dialog focus trap/Escape, and the filtering/ranking lives server-side in SQL anyway. The cmdk ecosystem is fork-fragmented around React 19 (cmdk-base, dip/cmdk) — LOW-confidence single-source web finding, supporting color only; the decision stands on the local precedent. aria: input with `aria-activedescendant` pointing at the active option id (listbox pattern) or roving highlight — pick one, pin it in the component comment.
+
+**Files:** NEW app/api/search/route.ts, app/(app)/command-palette.tsx · MODIFIED app/(app)/layout.tsx, db/queries/devices.ts, db/queries/employees.ts.
+
+## Feature 3: CSV Full-Context Report (ведомость)
+
+**Verdict: extend the existing /api/devices/export in place. A second endpoint would be exactly the «параллельная таблица» D-18 exists to prevent — zero-drift is structural when the route keeps one parser, one strip, one predicate.**
+
+What the phase-5 export already carries: Тип, Модель, Серийник, Инвентарник, Статус, Держатель, Отдел (holder's department, D-09), RAM, RAM апгрейд, SSD, Дата закупки, Стоимость, Поставщик, Гарантия до, Заметки. «Владелец, отдел, гарантия, стоимость» are DONE. The gap is the per-type config columns.
+
+Changes:
+- `db/queries/devices.ts` — `DeviceExportRow` gains `screenDiagonal, panelType, portCount, peripheralKind`; `exportDevices` select gains the same four. This module owns the export scan (it already exists here — no new owner).
+- `app/api/devices/export/route.ts` — HEADER gains «Диагональ, ″», «Тип матрицы», «Количество портов», «Вид периферии» (after SSD, before the purchase block — registry visual order); cells map them (null → empty via esc()). Typed payload note: a row only populates its OWN type's columns — sparse columns are the honest machine-readable representation; do NOT merge into one «Конфигурация» text column (prettier, lossy, unfilterable in Excel).
+- `lib/csv.ts` — unchanged (buildCsv/esc/csvResponseHeaders sufficient; BOM/«;»/CRLF/CWE-1236 guard all ride along).
+- The «Скачать CSV» link in filter-bar.tsx — unchanged (same route, same href).
+- `tests/csv-export.test.ts` — extend the column matrix.
+
+**Files:** MODIFIED db/queries/devices.ts, app/api/devices/export/route.ts, tests/csv-export.test.ts. Nothing new.
+
+## Feature 4: Device Cloning with Inventory Auto-Increment
+
+**Verdict: query function in devices.ts (createDevice's sibling), one tx for the whole batch, prefix-scoped max+1 computed inside the tx, and — the milestone's one schema decision — allow empty serials via the proven NULL-pair migration.**
+
+### Transaction shape
+
+`cloneDevices(sourceId, count, serials, opts)` in `db/queries/devices.ts` — one `db.transaction` creating all N rows (returnAllDevices atomic-batch precedent: a mid-flight failure leaves no partial batch):
+
+```typescript
+return db.transaction((tx) => {
+  const src = tx.select().from(devices).where(eq(devices.id, sourceId)).get()
+  if (!src) throw { code: 'NOT_FOUND' }
+  // copied: typeKey, model, config fields, purchaseDate/Price, supplier, warrantyUntil
+  // NOT copied: serial (per-clone), inventory (auto or NULL), status (always 'in_stock'),
+  //             currentEmployeeId (always NULL), notes (or per-clone), createdAt/updatedAt
+  for (let i = 0; i < count; i++) { tx.insert(devices).values(rowFor(i)).run() }
+})
+```
+
+Custody fields are never cloned — a clone is stock, exactly like createDevice produces. Validation rides the existing keystone: the clone dialog is the save dialog pre-filled (deviceSaveSchema validates each clone's effective payload); the action maps uniqueCodeOf results to the existing inline copy.
+
+### Inventory auto-increment rule
+
+If the source's inventoryNumber ends in a digit run (e.g. «2026-015», «Б-12»): extract prefix + width, scan `inventoryNormalized like prefix%` **inside the same tx**, parse suffixes in JS, take max+1, assign `base+1..base+N` zero-padded to the source width. No source number, or no trailing digits → all clones get NULL inventory (manual 1C assignment later — D-16 «inventory is manual-only» semantics preserved; do not invent numbers 1C will contradict).
+
+- Race safety: better-sqlite3 executes the tx synchronously and serialized — the like-scan and the inserts cannot interleave with another writer. The uniqueCodeOf catch remains the backstop; a catch-and-bump retry inside the tx fn is safe (verified from transaction.js: rollback only on propagation; SQLite ABORT undoes only the failed statement).
+
+### The serial sharp edge — recommend the NULL-pair migration
+
+Verified today: `serialNumber: z.string().min(1)` (device-schema.ts:174) + `serial_number NOT NULL` + `UNIQUE(serial_normalized)` (D-17). Clones of one model cannot share a serial, and a batch of serial-less peripherals (mice, docks) currently forces the operator to invent unique strings («б/н», «б/н 2») — a live data-corruption pressure that cloning makes acute.
+
+- **Recommended (b): allow empty serial via migration** — make `serial_normalized` nullable and store the empty serial as the NULL/NULL pair, the EXACT inventoryPair recipe (Pitfall 5, proven). SQLite UNIQUE permits multiple NULLs; search simply never matches a NULL serial (same three-valued behavior as NULL inventory); schema change goes through generate + migrate — the sanctioned path — plus schema.test.ts updates. The clone dialog accepts one serial per line where blank = «без серийника».
+- Fallback (a): no schema change — the dialog requires N distinct serials; ship with a documented data-quality wart.
+- Whatever is chosen: decide it in planning, BEFORE build — it is the only schema touch of the milestone.
+
+### Movements on clone
+
+Recommend writing ONE `received` («Поступление») event per clone in the same tx (append-only INSERT — sanctioned; the vocabulary exists in MOVEMENT_EVENT_LABELS; comment «Клон устройства #id»). It makes the batch visible in the dashboard feed (listRecentMovements) and on each card's timeline — a clone without history contradicts «Полная история перемещений». Open question for planning: plain createDevice writes no received event today — either accept the inconsistency or wire the same event there (small, same milestone).
+
+**Files:** MODIFIED db/queries/devices.ts (cloneDevices), app/(app)/devices/actions.ts (cloneDeviceAction), lib/device-schema.ts (serial optional + clone payload pieces — only per decision), db/schema.ts + NEW drizzle migration (only if (b)), card UI (clone entry point beside device-actions.tsx), tests/devices-queries.test.ts, tests/schema.test.ts.
+
+## Feature 5: Bulk Issue / Return
+
+**Verdict: client-side selection island (children-as-props), NOT URL params; one tx per batch in movements.ts reusing the guard-UPDATE loop of returnAllDevices; all-or-nothing semantics.**
+
+### Selection state: client island, explicitly NOT a URL param
+
+- Selection is ephemeral UI state, not a filter. Adding `sel` to query-params.ts would corrupt THE filter vocabulary (a non-filter in DeviceFilters; every parse/strip/builder site must then know it), and `?sel=1,2,3` URLs go stale the moment any selected device changes status.
+- Shape: `app/(app)/devices/selection.tsx` — a `'use client'` `SelectionProvider` holding `Set<number>` + the floating action bar. The server-rendered list passes THROUGH it as `children` (children-as-props keeps the 20 RSC rows server-rendered; only checkbox leaves are client). Per-row `SelectCheckbox` reads/writes context (Base UI checkbox exists).
+- **UI refactor (the real cost of this feature):** rows are currently a full-row `<Link>`. A checkbox inside a Link navigates on click. Restructure the row: link on the content area, checkbox as a sibling outside the anchor.
+- Scope: selection resets on navigation (provider remounts per page render) — per-page selection is accepted for v1.1; cross-page selection is a documented non-goal (typical bulk = one purchase batch on one filtered page).
+
+### Server side: two batch functions beside the single transitions
+
+`db/queries/movements.ts` — `bulkAssignDevices(deviceIds, employeeId, event)` and `bulkAcceptDevices(deviceIds, event)`:
+
+- ONE `db.transaction`; loop over ids; **one movement event PER device** (append-only INSERTs — the returnAllDevices loop precedent verbatim); the guard-UPDATE (`status='in_stock'` / `status='assigned'` precondition, `.changes===0 → throw ILLEGAL_TRANSITION`) decides per device from the DB row.
+- `assertActiveEmployee` reused for bulk assign.
+- **All-or-nothing**: any guard failure rolls back the whole batch (a throw out of the tx fn rolls back — verified). Single operator, races rare; partial-success UX is deferred complexity. Error copy: «Не удалось выдать: часть выбранного уже изменена» — one string, same contract as returnAllDevices.
+- Shared occurredAt/comment for the batch (one dialog, one date — a batch is one fact); backdate rules ride the existing movement-schema pieces.
+
+Actions: `bulkAssignDeviceAction` / `bulkAcceptDeviceAction` in `app/(app)/devices/actions.ts` — requireSession, zod, refresh(). New zod in `lib/movement-schema.ts` (keystone discipline — no parallel schema lists): `{ deviceIds: z.array(z.coerce.number().int().positive()).min(1).max(50), employeeId?, occurredAt?, comment? }` — dedupe ids in the action; cap 50 (a page is 20; headroom without unbounded payloads).
+
+**Files:** NEW app/(app)/devices/selection.tsx · MODIFIED app/(app)/devices/page.tsx (row structure, provider), db/queries/movements.ts, app/(app)/devices/actions.ts, lib/movement-schema.ts, tests/movements-queries.test.ts.
 
 ## Recommended Build Order (dependency-driven)
 
-Each stage only depends on the ones before it; stages are phase-sized.
+| # | Slice | Why here |
+|---|-------|----------|
+| 1 | **Employee live search** | Foundation: creates employees/query-params.ts + `employeeSearchPredicate` + the extracted debounce hook. The palette composes its predicate. Behavior-preserving search-box refactor is safest before new UI piles on. |
+| 2 | **CSV ведомость** | Fully independent, smallest diff (2 files + tests), zero coupling — a clean warm-up; can run parallel to 1. |
+| 3 | **Clone** | Independent of 1–2; the serial-nullable decision (the only schema touch) must be resolved at planning and migrated FIRST if accepted. |
+| 4 | **Bulk issue/return** | Independent query/action layer; largest UI refactor (row structure). Doing it after clone keeps actions.ts churn in two reviewable steps. |
+| 5 | **⌘K palette** | LAST by dependency: composes `searchDevices` (exists) + `searchEmployees` (slice 1) behind the new /api/search route; pure additive UI + one route. Delivers the headline UX once both backends exist. |
 
-```
-1. Skeleton + DB + Auth        ── everything is gated; schema laid down up front
-       │
-2. Employees directory         ── zero dependencies; FK target for everything else
-       │
-3. Device registry             ── types + devices + per-type forms + list/pagination
-       │
-       ├── 4. Movement history ── needs devices + employees; the transactional core
-       └── 5. Photos           ── needs devices only (parallelizable with 4)
-               │
-6. Search + filters + warranty highlight ── needs device fields finalized (3) & custody (4)
-               │
-7. Dashboard                   ── aggregates over everything; pure read, built last
-```
+Hard dependency: 1 → 5. Everything else is soft ordering chosen for review size and risk isolation.
 
-1. **Foundation:** app skeleton, DB schema (all tables — migrations are cheap now, annoying mid-phase), login/session. Auth first because *every* route is behind it.
-2. **Employees:** trivial CRUD, required as FK target for devices/movements; also seeds the UI style (Apple-aesthetic list/detail patterns) on the simplest screen.
-3. **Device registry:** `device_types`, `devices`, `device_schema` module, type-aware create/edit forms, paginated list. The heart of the app.
-4. **Movement history:** movements table + assign/transfer/return/repair/dispose actions + device timeline + employee card custody list. (Photos could swap order with this — photos only need devices.)
-5. **Search & filters:** global search box, filter panel generated from `device_schema`, warranty-expiry highlight (a filter + a visual state, both cheap once 3 exists).
-6. **Dashboard:** counts by type/status, "у кого что", repair/disposed views, expiring-warranty block. Last because it's a pure consumer of everything above.
+## New-vs-Modified File Map (consolidated)
+
+| File | Status | Features |
+|------|--------|----------|
+| app/(app)/employees/query-params.ts | NEW | 1 |
+| app/(app)/employees/search-box.tsx | NEW | 1 |
+| components/debounced-search.ts | NEW (extracted engine) | 1 |
+| app/api/search/route.ts | NEW | 2 |
+| app/(app)/command-palette.tsx | NEW | 2 |
+| app/(app)/devices/selection.tsx | NEW | 5 |
+| drizzle/000X_*.sql (+ db/schema.ts change) | NEW, only if serial decision (b) | 4 |
+| db/queries/employees.ts | MODIFIED | 1, 2 |
+| db/queries/devices.ts | MODIFIED | 2, 3, 4 |
+| db/queries/movements.ts | MODIFIED | 5 |
+| app/(app)/employees/page.tsx | MODIFIED | 1 |
+| app/(app)/devices/search-box.tsx | MODIFIED (refactor onto hook) | 1 |
+| app/(app)/devices/page.tsx | MODIFIED | 5 |
+| app/(app)/devices/actions.ts | MODIFIED | 4, 5 |
+| app/(app)/layout.tsx | MODIFIED (mount palette) | 2 |
+| app/api/devices/export/route.ts | MODIFIED (4 columns) | 3 |
+| lib/device-schema.ts | MODIFIED (only per serial decision / clone payload) | 4 |
+| lib/movement-schema.ts | MODIFIED (bulk schemas) | 5 |
+| lib/csv.ts, filter-bar.tsx, proxy.ts, db/index.ts | UNCHANGED | — |
+
+## Anti-Patterns to Avoid (this codebase's specific drift paths)
+
+1. **Second URL parser/builder** (employees local buildQuery growing q ad hoc, or a palette-private param encoding) — every second parse path is the drift the phase-5 refactor killed. Each list gets exactly one pure params module its islands import.
+2. **Second device predicate for the palette** — `searchDevices` MUST compose the existing `searchPredicate`; a re-spelled LIKE with different escaping/caps will diverge from the list («палитра находит, список — нет» is the cardinal bug of this milestone).
+3. **Second CSV endpoint for «ведомость»** — parallel-table regression against D-18; extend exportDevices/route instead.
+4. **Selection in the URL** — non-filter state in the filter vocabulary; stale ids in shareable links.
+5. **Per-device server action calls in a JS loop for bulk** — N round trips, N transactions, partial states on failure; one tx, one event per device, `.changes` guard.
+6. **Copying serial/inventory into clones** — UNIQUE normalized columns are business conditions (D-17); collision must be structurally impossible (per-clone serials, computed inventory), with uniqueCodeOf as backstop, never the mechanism.
+7. **Inventing inventory numbers when the source has none** — D-16: inventory is 1C-assigned; auto-increment only extends an existing digit-suffixed number.
+8. **cmdk import before measuring** — a dependency for ~150 lines the Base UI dialog + a flat index already cover; the project's hand-rolled rule exists for exactly this size of need.
 
 ## Scaling Considerations
 
-This app will never face scaling pressure in its stated lifetime — one user, LAN, hundreds of devices. The honest table:
+Not a concern at this scale (single operator, hundreds of rows — phase-5 measured 0.76 ms @ 600 rows), but two design points keep headroom free: palette queries are LIMIT-capped scans (an FTS5 index over devices/employees is the drop-in upgrade if the registry ever reaches tens of thousands), and the bulk tx is capped at 50 devices per call (bounded statements per transaction, no unbounded payloads). Nothing else in these five features has a scaling dimension worth engineering for now.
 
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| Hundreds of devices / 1 user (the actual case) | Nothing. Plain SQL, offset pagination, sequential-scan search. |
-| ~10K devices / a few concurrent users | Add partial index on `warranty_until`, keyset pagination if pages feel slow, FTS5/`pg_trgm` if search needs fuzz. Still one process, one DB. |
-| 100K+ devices / multi-site | Not this product. At that point you're buying Snipe-IT, not building it. |
+## Open Questions for Planning
 
-**First bottleneck (theoretical):** photo storage growth if someone uploads originals — solved at upload time by client-side downscaling, not by architecture.
-
-## Anti-Patterns
-
-### Anti-Pattern 1: EAV / user-defined attribute constructor
-
-**What people do:** `fields(id, name)`, `values(device_id, field_id, value)` "for flexibility."
-**Why it's wrong:** every filter becomes a self-join pivot, types vanish, validation scatters. The project explicitly rejected the constructor — EAV is its database shadow.
-**Do this instead:** wide table with typed nullable columns + code-defined per-type schema (Pattern 3).
-
-### Anti-Pattern 2: Mutable history
-
-**What people do:** one `assignments` row per device, overwritten on each transfer; or "fixing" wrong entries by editing old movement rows.
-**Why it's wrong:** destroys the custody timeline that is the app's reason to exist; "кто когда имел" becomes unanswerable.
-**Do this instead:** append-only `movements`; corrections are new events (or an explicit edit of the last event by the single trusted user).
-
-### Anti-Pattern 3: SPA + separate API for an internal form app
-
-**What people do:** React frontend + REST/GraphQL backend "because modern."
-**Why it's wrong:** two deployables on an internal server, dual auth (sessions + tokens), CORS, duplicated validation, for an app whose richest interaction is a filter panel.
-**Do this instead:** server-rendered monolith; HTMX/Alpine for the handful of dynamic bits.
-
-### Anti-Pattern 4: External search engine
-
-**What people do:** stand up Elasticsearch/Meilisearch alongside the app.
-**Why it's wrong:** a second service to run, back up, and sync — for a corpus where `LIKE` over three columns returns in single-digit milliseconds.
-**Do this instead:** SQL `LIKE` now; FTS5/`pg_trgm` inside the same DB if fuzzy matching is ever wanted.
-
-### Anti-Pattern 5: Photos as raw static files (or unbounded uploads)
-
-**What people do:** drop uploads into a web-server-served `static/uploads/` folder.
-**Why it's wrong:** bypasses auth entirely — device photos leak to anyone on the LAN; original-size phone photos bloat storage.
-**Do this instead:** stream through an auth-checked route; downscale client-side; cap size/mime at upload.
-
-### Anti-Pattern 6: The 30-table "complete ITAM" schema
-
-**What people do:** copy an enterprise reference model (locations, cost centers, procurement states, licenses).
-**Why it's wrong:** PROJECT.md explicitly excludes procurement workflow, software licenses, and multi-user roles; every orphan table is form-and-query surface area to maintain.
-**Do this instead:** the six tables above; schema grows when a requirement does.
-
-## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| None (by design) | — | No clouds allowed; no HR/AD/SSO source was mentioned. If the company later runs LDAP/AD, login can be swapped behind the auth service without touching domain modules. |
-| Backup target | cron: DB dump + `files/` rsync to internal share | The only operational integration the deploy constraint requires. |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| routes ↔ services | direct function calls | Only movements, device_schema, and filters justify service modules |
-| services ↔ db | repo/query functions | Raw SQL (or thin query builder) — no ORM glamour needed at this size; either is fine |
-| app ↔ photo store | filesystem paths under `files/` (or blobs) | Auth-checked streaming route is the boundary |
-| movements ↔ devices | same-transaction write | The one cross-module invariant; keep it in `services/movements` |
+1. **Serial-nullable migration (Feature 4)** — accept (b) or ship (a)? Decides whether the milestone has a schema touch at all.
+2. **`received` event on clone (and on plain create?)** — timeline/feed consistency vs. scope discipline.
+3. **Archived employees in the palette** — show with «архив» badge (recommended) or active-only?
+4. **Bulk cap (50?) and cross-page selection** — confirm cap; cross-page selection documented non-goal unless the operator objects.
+5. **CSV typed columns** — 4 sparse columns (recommended) vs one merged «Конфигурация» text column.
 
 ## Sources
 
-- [Asset Management Database Design — Stack Overflow](https://stackoverflow.com/questions/4417511/asset-management-database-design)
-- [IT Asset Management Database Structure and Schema — DatabaseSample](https://databasesample.com/database/it-asset-management-database-database)
-- [Building an Object Schema for ITAM — Atlassian](https://support.atlassian.com/assets/docs/building-an-object-schema-for-it-assets-management-itam/)
-- [Table Inheritance Patterns: Single Table vs Class Table vs Concrete — Medium](https://medium.com/@artemkhrenov/table-inheritance-patterns-single-table-vs-class-table-vs-concrete-table-inheritance-1aec1d978de1)
-- [When To Avoid JSONB In A PostgreSQL Schema — Heap Engineering](https://www.heap.io/blog/when-to-avoid-jsonb-in-a-postgresql-schema)
-- [Postgres JSONB Columns and TOAST — Snowflake Engineering](https://www.snowflake.com/en/blog/engineering/postgres-jsonb-columns-and-toast/)
-- [Don't design new tables using Single Table Inheritance — GitLab docs](https://docs.gitlab.com/development/database/single_table_inheritance/)
-- [Multiple Tables or JSONB — r/PostgreSQL](https://www.reddit.com/r/PostgreSQL/comments/1lmls53/multiple_tables_or_jsonb/)
-- [Event Sourcing Pattern — Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing)
-- [Inserting State Transitions in Postgres — thoughtbot](https://thoughtbot.com/blog/inserting-state-transitions-in-postgres)
-- [Implementing System-Versioned Tables in Postgres — hypirion](https://hypirion.com/musings/implementing-system-versioned-tables-in-postgres)
-- [Archibus — Tracking an Asset's Chain of Custody](https://help.archibus.com/user_en/Subsystems/webc/Content/asset_mngmt/custody/chain_of_custody_concept.htm)
-- [Postgres Full Text Search vs the rest — Supabase](https://supabase.com/blog/postgres-full-text-search-vs-the-rest)
-- [PostgreSQL FTS 8× slower than SQLite FTS5 — Stack Overflow](https://stackoverflow.com/questions/66244830/postgresql-full-text-search-8-times-slower-than-sqlite-fts-search)
-- [Storing uploaded photos — filesystem vs database BLOB — Stack Overflow](https://stackoverflow.com/questions/1105429/storing-uploaded-photos-and-documents-filesystem-vs-database-blob)
-- [Is it better to store images in a BLOB or just the URL? — DBA Stack Exchange](https://dba.stackexchange.com/questions/736/is-it-better-to-store-images-in-a-blob-or-just-the-url)
-- [For smaller projects just storing images as BLOBs works well — Hacker News](https://news.ycombinator.com/item?id=37325379)
-- [Session vs Token Based Authentication — Authgear](https://www.authgear.com/post/session-vs-token-authentication/)
-- [JWT vs Session Authentication — LoginRadius](https://www.loginradius.com/blog/identity/jwt-vs-session-based-authentication)
-- [SSR vs SPA — vike.dev](https://vike.dev/SSR-vs-SPA)
+- Codebase (HIGH, read this run): db/queries/devices.ts, employees.ts, movements.ts; db/index.ts; db/schema.ts; drizzle/0000_amusing_talon.sql (movements triggers); app/(app)/devices/{page,filter-bar,search-box,query-params,actions}.*; app/(app)/employees/page.tsx; app/(app)/layout.tsx, nav.tsx; app/api/devices/export/route.ts; lib/{csv,normalize.mjs,device-schema,movement-schema}.ts; proxy.ts; tests/helpers.ts; package.json.
+- better-sqlite3 v13 transaction.js from installed node_modules (HIGH — source read: rollback only on exception propagation).
+- Next.js 16.3.3 bundled docs node_modules/next/dist/docs (HIGH for this version): proxy.md (middleware→proxy rename), server-actions.md (refresh/revalidatePath semantics), route-handlers.md.
+- Web: cmdk ecosystem fragmentation (LOW, single source, non-load-bearing) — [cmdk-base](https://www.npmjs.com/package/cmdk-base), [dip/cmdk](https://github.com/dip/cmdk), [react-cmdk](https://react-cmdk.com/).
 
 ---
-*Architecture research for: internal IT asset tracking (Barahlo)*
-*Researched: 2026-08-31*
+*Architecture research for: Barahlo v1.1 «Скорость и удобство»*
+*Researched: 2026-09-15*

@@ -1,144 +1,121 @@
-# Stack Research
+# Stack Research — v1.1 «Скорость и удобство» (milestone delta)
 
-**Domain:** Internal IT asset-tracking web app (single manager, 50–200 employees, hundreds of devices, LAN-deployed, Russian UI)
-**Researched:** 2026-08-31
-**Confidence:** HIGH overall (core choices verified against npm registry + official docs on 2026-08-31; see per-section confidence and Sources)
+**Domain:** Stack additions for 5 new features on the existing Barahlo app (corporate device registry, single operator, Russian UI, LAN Docker deploy)
+**Researched:** 2026-09-15
+**Confidence:** HIGH overall — every claim cross-checked against the actual codebase (`package.json`, `components/ui/*`, `db/queries/*`, `lib/csv.ts`, route handlers) and npm registry on 2026-09-15
 
-## Recommended Stack
+## Executive Verdict
 
-One Next.js app, one SQLite file, one Docker container. Everything else follows from three facts: one writer user, hundreds of rows, internal server. Any technology that solves multi-user, multi-server, or internet-scale problems is dead weight here.
+**Zero new npm dependencies for the entire v1.1 milestone.** All five features are compositions of already-installed, already-UAT-proven capabilities. `npm install` runs zero times this milestone; the Docker image and the sharp-from-source native build are untouched. The one genuinely contentious call — ⌘K palette: cmdk vs Base UI — resolves firmly to the Base UI primitives already wrapped in `components/ui/` (rationale below). What this milestone buys is *code*, not *packages*: two search islands, one palette component, one server action + NULL-inventory rule, one selection island + two bulk actions, and ~4 extra columns in the CSV route.
 
-### Core Technologies
+## Recommended Stack (delta by feature)
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Next.js (App Router) | 16.3.3 | Full-stack framework: pages, API, mutations in one codebase | The 2025/2026 default for solo-built CRUD apps. App Router + Server Components + Server Actions means no separate REST layer to design and maintain — a form submits straight into a typed server function that writes to SQLite. Turbopack is now the stable default bundler (2–5x faster builds). Best-documented self-hosting story of any React framework, with an official maintained Docker example. Verified: nextjs.org blog (Oct 21 2025) + npm registry. **Confidence: HIGH** |
-| React + TypeScript | 19.2.x / ≥5.1 | UI runtime; type safety end-to-end | Next 16 requires TS ≥5.1 and ships React 19.2 (View Transitions available if wanted for the Apple-like feel). create-next-app scaffolds TS + Tailwind + ESLint in one command. **Confidence: HIGH** |
-| SQLite + better-sqlite3 | 3.x / 13.0.3 | Database | Correct at this scale by official criteria: SQLite allows unlimited readers and exactly one writer at a time — with a single manager user, the "limitation" is simply not a problem. Zero administration, backup = copy one file (`VACUUM INTO` for a consistent hot backup). sqlite.org itself serves ~400–500K requests/day on SQLite. WAL mode gives smooth read-during-write. better-sqlite3 is the mature driver (sync API is faster and simpler than async for this workload, prebuilt binaries for Node 24). `node:sqlite` built into Node is only a Release Candidate — not yet for production. **Confidence: HIGH** |
-| Drizzle ORM + drizzle-kit | 0.45.2 / latest | Type-safe queries and schema migrations | Typed schema that doubles as documentation; `drizzle-kit push` during dev, `generate`+`migrate` for prod upgrades. Lighter than Prisma (no query-engine binary, no generate step, sync native driver). Keeps the Postgres escape hatch: schema/query changes on a future Postgres move are near-mechanical. **Confidence: HIGH** |
-| Tailwind CSS | 4.3.3 | Styling | v4 is current (CSS-first config, no tailwind.config.js needed). Default in create-next-app. The sole realistic choice for hand-tuned Apple-like design: utility classes give precise control over spacing/typography that component-kit admin themes cannot. **Confidence: HIGH** |
-| shadcn/ui | CLI v4 (2026) | Accessible component primitives | Copy-in components (table, dialog, dropdown, command palette) built on Base UI (default since Jul 2026; Radix/React Aria also supported) — accessible behavior without imposing visual design. You restyle with Tailwind to Apple aesthetics instead of fighting a theme. Init: `pnpm dlx shadcn@latest init -t next`. **Confidence: HIGH** |
+### 1. Employee live search — existing stack sufficient
 
-### Supporting Libraries
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `DeviceSearchBox` island pattern (copy) | in-repo (`app/(app)/devices/search-box.tsx`) | Debounced input island | 300 ms debounce, `router.replace`, URL-as-state, `lastSynced`/`inFlight` reconciliation — all three UAT keystroke-loss bugs (G-5-1, G-5-2, CR-01) are already fixed in this pattern. Copy it; do not write a second debounce from scratch. |
+| Employees `query-params` module (new, ~30 lines) | in-repo pattern (`devices/query-params.ts`) | `q` param parse/normalize | Same sentinel-strip discipline as devices. **Confidence: HIGH** (pattern proven in-repo). |
+| `norm()` UDF in WHERE | better-sqlite3 13.0.3, registered in `db/index.ts:25` | Fold name/department at query time | Same approach as model search (Key Decision, probe-verified). Employees ≤200 rows + departments — sub-ms. **No schema change, no migration** (employees get no `*_normalized` twin; the UDF-in-WHERE pattern is the sanctioned one). |
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| jose | 6.2.10 | Sign/verify session token (JWT, HS256) | Auth: issue a signed session cookie at login; verify in `proxy.ts`/layout. Tiny, edge-and-node safe, ESM. Note: ESM-only — fine under Next bundling. |
-| bcryptjs | latest | Password hashing | Hash the single manager's password (env var or seeded DB row). Pure JS — no native build issues in Docker. (argon2 is stronger but native; unnecessary for one account behind a LAN.) |
-| zod | 4.5.4 | Validation in Server Actions and forms | Validate device/employee payloads server-side before touching SQLite; v4 is current. |
-| sharp | 0.35.4 | Resize/compress photo uploads | At upload: produce a ~1600px web image + ~400px thumbnail, store both on disk; keep SQLite rows referencing paths. Never store blobs in the DB file. |
-| papaparse | 5.7.0 | CSV import parsing (future-proofing) | Mature RFC-4180 parser. PROJECT.md defers spreadsheet import, but CSV **export** is in scope — see Stack Patterns. |
-| lucide-react | latest | Icons | Standard icon set shipped by shadcn/ui; thin-stroke style fits Apple aesthetics. |
-| react-hook-form + @hookform/resolvers | latest | Complex form state | Only for the device card form (many typed fields incl. per-type attributes). Simple forms can use Server Actions + `useActionState` alone — do not add RHF everywhere. |
+**Integration points:** `listEmployees` in `db/queries/employees.ts` gains an optional `{ q }`; `employees/page.tsx` mounts the island; `loading.tsx` already exists for the swap.
 
-### Development Tools
+### 2. ⌘K global palette — existing stack sufficient (the decision that matters)
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| create-next-app | Project scaffold | `npx create-next-app@latest` — App Router, TS, Tailwind v4, ESLint, Turbopack by default |
-| drizzle-kit | Schema push / migrations / studio | `drizzle-kit push` in dev; `generate` + `migrate` for prod; `drizzle-kit studio` for a quick data GUI |
-| Docker + compose | Deployment unit | Official `examples/with-docker` Dockerfile: multi-stage, `node:24-slim`, non-root, `output: "standalone"`, ships a `compose.yml` |
-| nginx or Caddy | Reverse proxy on the internal server | Official self-hosting guidance recommends a proxy in front (payload limits, malformed requests). Caddy: 5-line config, auto-renews certs if HTTPS-on-LAN ever wanted. Optional but recommended. |
-| Biome or ESLint | Lint/format | `next lint` was removed in Next 16 — run ESLint directly or use Biome |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `components/ui/dialog.tsx` | @base-ui/react 1.7.0 (installed; latest 1.8.0) | Modal shell | Full wrapper already present (Portal/Overlay/Content/Title/Description). |
+| `components/ui/combobox.tsx` | @base-ui/react 1.7.0 | Search input + grouped results + keyboard nav | Already exports `ComboboxGroup`, `ComboboxGroupLabel`, `ComboboxEmpty`, `ComboboxCollection` — the exact anatomy of a palette (Устройства / Сотрудники groups, empty state, arrow-key highlight). **Combobox-inside-Dialog is already in production** (`movement-dialogs.tsx`, `employee-dialog.tsx`) with the UAT-proven items-on-Root + `ComboboxCollection` contract (Key Decision 7e400c9). |
+| Plain `useEffect` keydown listener | React 19.2.8 | ⌘K / Ctrl+K toggle | ~10 lines. `metaKey` (macOS) / `ctrlKey`, ignore when a text input owns focus or open. |
+| Server action or `GET /api/search` route | Next 16.3.3 (in-repo) | Debounced result fetch | Both transports already exist in the app (`app/(app)/*/actions.ts`, `app/api/devices/export`). Route handler GET + `<a>`-style navigation has one less moving part; server action avoids a new route. Either is a roadmap detail. |
+| Query: LIKE over `norm()`-folded columns | better-sqlite3 13 | Match model/serial/inventory + name/department | Reuses the devices search predicate shape; hundreds of rows → sub-ms (validated 0.76 ms @ 600 rows). Results jump via `router.push('/devices/[id]' | '/employees/[id]')` — both card routes exist. |
+
+**Confidence: HIGH** — composition verified in-repo; @base-ui/react 1.8.0 exists on npm but 1.7.0 already ships every primitive used here; the 1.7→1.8 bump is optional and should not ride along with this milestone.
+
+### 3. CSV ведомость полного контекста — existing stack sufficient, no new dep (confirmed)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `lib/csv.ts` (`esc`, `buildCsv`, `csvResponseHeaders`) | in-repo, vitest-pinned | The entire file format layer | BOM, «;», CRLF, CWE-1236 tab-prefix guard, RFC 5987 dual filename — done and tested. **The v1.1 delta is data, not code.** |
+| `exportDevices` + `/api/devices/export` route | in-repo | Add columns | Current export already carries: Тип, Модель, Серийник, Инвентарник, Статус, Держатель, Отдел, RAM, RAM апгрейдена, SSD, Дата закупки, Стоимость, Поставщик, Гарантия до, Заметки. Missing only the per-type fields the schema already stores: `screenDiagonal`, `panelType` (мониторы), `portCount` (доки), `peripheralKind` (периферия). Extend the select + HEADER + cells — route-file change only, zero-drift contract (one parser, one `deviceWhere`) untouched. |
+
+papaparse/json2csv/csv-stringify remain prohibited (v1.0 decision T-05-SC stands): the injection guard must stay hand-rolled anyway, so a parser adds supply-chain surface for nothing.
+
+### 4. Device clone with inventory auto-increment — existing stack sufficient; one product decision to surface
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| New `cloneDeviceAction` server action | Next 16.3.3 + drizzle 0.45.2 | Copy row inside `db.transaction` | Reads `getDevice(id)`, strips identity fields, calls `createDevice` — both exist. Photo attachments are **not** cloned (they live on disk under `data/uploads/`; copying rows without bytes would 404). |
+
+**The auto-increment conflict (flag for roadmap, not a stack gap):** D-16 says inventory numbers are *manual, assigned by 1C*; D-17 puts a UNIQUE index on `inventoryNormalized`. SQLite UNIQUE allows multiple NULLs, so **cloning with `inventoryNumber = NULL` requires zero migration and violates nothing** — the operator backfills real numbers from 1C. Generating numbers (`MAX+1`) would (a) reverse Key Decision D-16 and (b) squat or collide with 1C's numbering space. Verdict: implement clone-with-NULL and treat "автоприрост" as a *numbering-policy* decision the owner must make; if a placeholder is wanted, render «не присвоен» in UI from NULL — do not synthesize a stored number.
+
+### 5. Bulk issue/return — existing stack sufficient
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `components/ui/checkbox.tsx` | @base-ui/react 1.7.0 | Row + header select-all checkboxes | Already wrapped and in production (`device-dialog.tsx` ramUpgraded). No selection library justified for a 20-row server-rendered page. |
+| One client island holding `Set<number>` | React 19.2.8 (`useTransition`) | Selection state across the table region | Server renders rows as today; the island wraps the table (or uses per-row checkbox islands + a bulk-bar island via a tiny context). Selection is scoped to the current page — cross-page "select all matching filter" re-resolves ids server-side from the shared filter predicate if the roadmap wants it. |
+| New `bulkAssignAction(ids, employee)` / `bulkAcceptAction(ids)` | Next 16.3.3 + drizzle | Loop existing per-device logic in one `db.transaction` | better-sqlite3 is synchronous with a single connection — N movements (N ≤ 20, one page) in one transaction is atomic and single-digit ms. Each iteration records a movement row, preserving the timeline invariant. Validate every id server-side (status must permit the transition) — never trust the client batch. |
+
+TanStack Table, react-select-style multi-select, or a job queue are all massive overkill for one operator and one page of rows.
 
 ## Installation
 
 ```bash
-# Scaffold (App Router + TS + Tailwind v4 + ESLint)
-npx create-next-app@latest barahlo
-
-# Core app deps
-npm install drizzle-orm@0.45 better-sqlite3@13 jose bcryptjs zod@4 sharp
-
-# Supporting
-npm install papaparse lucide-react
-npm install react-hook-form @hookform/resolvers   # only when building the device card form
-
-# Dev dependencies
-npm install -D drizzle-kit @types/better-sqlite3 @types/papaparse
+# Nothing to install. Zero new dependencies this milestone.
+# (Optional, standalone, not required for any v1.1 feature:)
+# npm install @base-ui/react@1.8.0   # minor bump; verify combobox data-* hooks against globals.css overrides if taken
 ```
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Next.js 16 | SvelteKit 2 | Solo dev who prefers Svelte and doesn't need the React/shadcn ecosystem; smaller component library selection makes Apple-like polish more manual |
-| Next.js 16 | React Router 7 (Remix) | Excellent framework, but smaller self-hosting docs/community and no comparable copy-in component ecosystem |
-| Next.js 16 | Laravel / Django | If the solo maintainer were a PHP/Python shop; wrong runtime here — adds a second language and templating world |
-| SQLite | PostgreSQL 17/18 | Only if: several staff will write concurrently, the app will grow past one server, or a company Postgres instance already exists and is free to piggyback on. Revisit at multi-user — Drizzle makes the move cheap |
-| Drizzle | Prisma | Prisma is fine, but its engine binary + generate step is heavier in Docker and its async client adds no value over better-sqlite3's sync API at this scale |
-| Hand-rolled cookie session (jose) | Better Auth 1.7.2 | The moment a second user/role appears — Auth.js has been folded into Better Auth, making it the successor standard. Do not start with it for one account; its setup/config outweighs a ~50-line session module |
-| Next.js Docker (official example) | Bare `node server.js` + systemd | If Docker cannot be installed on the internal server. Standalone output runs as plain Node — `node .next/standalone/server.js` under a systemd unit is a legitimate fallback |
-| shadcn/ui | Mantine / Ant Design / react-admin | Mantine if you want batteries-included over design control; Ant/react-admin actively fight the Apple aesthetic ("admin from 2010") |
+| Recommended | Alternative | When the Alternative Would Win |
+|-------------|-------------|-------------------------------|
+| Base UI Dialog + Combobox palette (in-repo) | **cmdk 1.1.1** (npm-verified 2026-09-15) | Apps needing built-in fuzzy ranking, hierarchical submenu commands, or vim-style bindings across many roots. Here it is strictly worse: cmdk hard-depends on `@radix-ui/react-dialog` ^1.1.6, `@radix-ui/react-id`, `@radix-ui/react-primitive`, `@radix-ui/react-compose-refs` — dragging the Radix overlay/focus stack into a Base UI-only app (two dialog systems, duplicated a11y layers, ~+15 kB) for functionality the existing combobox wrapper already has. Note: shadcn/ui's `command` component — *including its "base" variant* (verified ui.shadcn.com/docs/components/base/command) — is still cmdk-backed, so `shadcn add command` does NOT avoid Radix. |
+| ~10-line `useEffect` hotkey listener | react-hotkeys-hook 5.3.3 | Apps with dozens of bindings, scopes, or callback refs. One global ⌘K does not justify a dep. |
+| LIKE + `norm()` UDF | **SQLite FTS5** (`unicode61`/trigram) | ≥10k rows, token/prefix semantics, or BM25 ranking. At hundreds of rows a linear scan is sub-ms; FTS5 is token-based (loses substring matching — the product's search is substring-first), trigram requires ≥3-char queries, and unicode61 folds differently from the project's homoglyph-aware `norm()`. Would also add a virtual table + triggers to the frozen generate+migrate discipline for zero perceivable gain. |
+| Hand-rolled `lib/csv.ts` (status quo) | papaparse / json2csv / csv-stringify | Only if CSV *import* ever leaves Out-of-Scope. Export already works and the CWE-1236 guard must stay hand-rolled regardless. |
+| Base UI checkbox island on server-rendered rows | TanStack Table v8 | Client-side sort/filter/pagination over large datasets. This app paginates server-side with URL-filters — TanStack would fight the architecture. |
+| Server actions + transitions | TanStack Query / SWR for the palette fetch | If the palette ever needed cache-deduped cross-view fetching. A debounced single-endpoint call doesn't. |
 
 ## What NOT to Use
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| NextAuth / Auth.js v5 | Still beta (`5.0.0-beta` docs; stable npm tag is legacy 4.24.15) and the project has merged into Better Auth — adopting it now means migrating later | ~50-line session: login form → `bcryptjs.compare` → `jose`-signed HttpOnly cookie; verify in `proxy.ts`/layouts |
-| PostgreSQL (now) | A second service to install, monitor, back up, and upgrade on an internal server — for one writer and hundreds of rows | SQLite + WAL; keep Drizzle so the door stays open |
-| Prisma | Query-engine binary + codegen step complicate the Docker image for zero benefit over Drizzle here | Drizzle ORM |
-| `node:sqlite` (built-in) | Stability 1.2 "Release candidate" as of Node 25.7+ — not production-stable on the LTS line you'll run | better-sqlite3 13 |
-| Alpine-based Node images with better-sqlite3 | musl libc breaks/slow-paths native module builds; the official Next.js example deliberately chooses `node:24-slim` (glibc) | `node:24-slim` |
-| next-intl / i18n libraries | Single Russian locale; i18n routing/message machinery is pure overhead | Russian strings inline; `Intl.DateTimeFormat('ru-RU')` / `Intl.NumberFormat('ru-RU')` for dates/currency |
-| Refine, react-admin, Ant Design, Bootstrap templates | They impose an admin-dashboard look — the explicit opposite of the Apple-minimal requirement | Tailwind v4 + shadcn/ui primitives restyled per the `apple-design` skill |
-| Tailwind v3 + tailwind.config.js | v3 is the previous major; shadcn/ui has supported v4 since Feb 2025 | Tailwind v4 (CSS-first `@theme`) |
-| Storing photos as BLOBs in SQLite | Bloats the DB file, complicates backup/streaming | sharp-resized files under a volume-mounted `data/uploads/`, paths in DB |
-| Redis / any session store | One user, one process | Signed cookie holds the session |
-| Client-side data fetching (TanStack Query + REST) | Doubles the data layer for a server-rendered CRUD app | Server Components read SQLite directly; Server Actions mutate; `updateTag`/`refresh` (Next 16) for cache freshness |
+| cmdk + any `@radix-ui/*` package | Second overlay system beside Base UI; 4 transitive deps; shadcn "base" command is still cmdk underneath | `components/ui/dialog.tsx` + `components/ui/combobox.tsx` composition |
+| FTS5 / trigram indexes | Wrong semantics (token vs substring), Cyrillic fold mismatch with `norm()`, migration weight, no measurable win at hundreds of rows | LIKE over `norm()`-folded values (existing pattern) |
+| papaparse / json2csv / csv-stringify | Export is solved; injection guard must stay hand-rolled (CWE-1236) | `lib/csv.ts` as-is |
+| Selection/table libraries (TanStack Table, react-data-grid) | 20 rows/page, server-rendered, URL-filtered — a library would own state the URL already owns | Checkbox island + `Set<number>` |
+| Any new native dependency | sharp is already built from source in the Docker image; each added native module re-risks the Ubuntu amd64 build for zero feature value | — (this milestone adds none) |
+| Stored auto-generated inventory numbers | Reverses D-16 (1C-assigned) and risks D-17 UNIQUE collisions/squatting | Clone with NULL inventory; UI renders «не присвоен» |
 
 ## Stack Patterns by Variant
 
-**CSV export (in scope):**
-- Generate RFC-4180 CSV server-side (string building is enough at hundreds of rows), prepend UTF-8 BOM `\uFEFF`, `Content-Type: text/csv; charset=utf-8`
-- Use `;` as the delimiter — Russian Excel localizes the list separator to semicolon (comma is the decimal mark); papaparse on import if it ever arrives
-- Filename via `Content-Disposition` with RFC 5987 encoding for the Cyrillic name
+**⌘K result ranking:** single combined query, devices first then employees, cap ~8 per group; fold via `norm()`. If ranking is ever needed, rank in JS over the ≤16 candidates — not in SQL.
 
-**Photo uploads:**
-- Route Handler or Server Action receives `FormData` → validate MIME + size (≤~10 MB) → `sharp` resize to web + thumb → UUID filenames under `data/uploads/` → DB stores paths
-- Serve via same-origin relative URLs; then `next/image` optimization works with zero config under `next start`. Next 16 blocks optimization of LAN-IP URLs by default (`images.dangerouslyAllowLocalIP`) — only relevant if images are referenced by IP, which this design avoids
+**Palette fetch transport:** prefer one server action `searchAll(q: string)` returning `{ devices: [...], employees: [...] }` (zod-validated, `requireSession` in action). A GET route handler is the fallback if the action's POST-per-keystroke debounce feels heavy — both are in-repo patterns.
 
-**Auth shape (single user):**
-- Credentials in env (`AUTH_PASSWORD_HASH`, `AUTH_SECRET`) or a seeded `user` table
-- Login Server Action → bcrypt compare → jose HS256 JWT (e.g. 7-day expiry) in `HttpOnly; SameSite=Lax` cookie (add `Secure` if HTTPS on LAN)
-- Gate the app in the root layout / `proxy.ts` (Next 16 proxy runs on the Node runtime, so the JWT verify is trivial there)
+**Bulk transaction shape:** `db.transaction((tx) => { for (const id of ids) { validate(tx, id); move(tx, id, ...) } })` — hoist the existing `assignDevice`/`acceptDevice` query functions to accept a `Tx` handle (the `resolveDepartmentId(tx, …)` precedent exists in `db/queries/employees.ts`).
 
-**Deployment:**
-- `output: "standalone"` + official multi-stage Dockerfile (`node:24-slim`, non-root) + `compose.yml`
-- Volume mounts: `data/app.db` (SQLite) and `data/uploads/` (photos) — the entire state of the system, backup = copy both
-- `docker compose up -d --build` to update; nginx/Caddy in front on port 80
-
-**If Docker is unavailable on the server:**
-- Standalone build runs as plain Node: systemd unit → `node /opt/barahlo/server.js` with `NODE_ENV=production`; identical state layout
+**Clone field policy:** copy model/type/per-type fields/supplier/notes; reset status → «на складе» (or current default), holder → NULL, warranty/purchase per roadmap decision (warranty usually starts per unit — likely keep, flag for spec), photos never copied.
 
 ## Version Compatibility
 
 | Package A | Compatible With | Notes |
 |-----------|-----------------|-------|
-| next@16.3.3 | react@19.2.x, react-dom@19.2.x, TS ≥5.1, Node ≥20.9 | Pin Node 24 LTS (Active, EOL ~Apr 2028); Node 20 is EOL since Mar 2026 |
-| drizzle-orm@0.45.x | drizzle-kit (install latest of both together) | Always bump the pair in lockstep |
-| better-sqlite3@13 | Node 24 | Prebuilt binaries for LTS; needs glibc — hence `node:24-slim`, not Alpine. Rebuild not needed in Docker since the image ships prebuilds |
-| tailwindcss@4.3.x | shadcn/ui (v4 support since Feb 2025), create-next-app default | No config-file migration needed on new project |
-| zod@4.x | @hookform/resolvers latest, Server Actions | zod v4 is current; older resolvers versions target v3 — install resolvers@latest |
-| jose@6 | Next.js server runtime | ESM-only package — fine under Next/Turbopack bundling; do not import it in `scripts/` run with bare CJS |
-| Next 16 middleware patterns | `proxy.ts` | `middleware.ts` is deprecated (removed in a future major); export `proxy`, runs on Node runtime |
+| @base-ui/react 1.7.0 (installed) | react 19.2.8, latest on npm: 1.8.0 | 1.7.0 ships every primitive this milestone needs; bump optional, verify token overrides in `globals.css` after any bump |
+| cmdk 1.1.1 (rejected) | @radix-ui/react-dialog ^1.1.6 + 3 radix transitives | Would introduce Radix into a Base UI project — rejected |
+| next 16.3.3 (custom build) | Server actions callable from client islands | Verified in-repo (`search-box.tsx` comment contract; `movement-dialogs.tsx`); do not consult public Next docs for behavior — use `node_modules/next/dist/docs/` if a question arises during implementation |
+| better-sqlite3 13.0.3 | `norm()` UDF (`deterministic: true`) usable inside WHERE/ORDER BY | Already used by model search — same mechanism the new searches reuse |
 
 ## Sources
 
-- npm registry (fetched 2026-08-31, authoritative for versions): next 16.3.3, react 19.2.8, drizzle-orm 0.45.2, better-sqlite3 13.0.3, tailwindcss 4.3.3, next-auth 4.24.15, better-auth 1.7.2, jose 6.2.10, iron-session 9.0.1, papaparse 5.7.0, zod 4.5.4, sharp 0.35.4
-- https://nextjs.org/blog/next-16 — Next 16 features, breaking changes, Node/TS minimums (official, Oct 2025)
-- https://nextjs.org/docs/app/guides/self-hosting — reverse proxy, image optimization, standalone (official, lastUpdated 2026-08-25)
-- https://github.com/vercel/next.js/tree/canary/examples/with-docker — official Docker example: standalone, node:24-slim, non-root, compose.yml
-- https://www.sqlite.org/whentouse.html — official SQLite vs client/server criteria (one writer, readers unlimited, <100K hits/day fine)
-- https://orm.drizzle.team/docs/get-started-sqlite — Drizzle SQLite drivers and drizzle-kit workflow (official)
-- https://authjs.dev/getting-started — v5 beta status; "Auth.js project is now part of Better Auth" (official)
-- https://ui.shadcn.com/docs/installation/next and /docs/changelog — CLI v4, Base UI default (Jul 2026), Tailwind v4 support (Feb 2025)
-- https://nodejs.org/en/about/previous-releases — v24 Active LTS, v22 Maintenance, v20 EOL
-- https://nodejs.org/api/sqlite.html — node:sqlite Stability 1.2 Release candidate
-- https://www.tinybird.co/blog/postgres-vs-sqlite and r/django thread — community cross-check of SQLite-for-single-user consensus (MEDIUM)
-
-**Confidence note:** Versions are HIGH (two independent official sources: npm registry + vendor docs). The SQLite-over-Postgres and avoid-NextAuth calls are HIGH (official guidance + ecosystem status verified 2026-08-31). CSV delimiter/BOM guidance for Russian Excel is MEDIUM (well-established but not verified against a Microsoft doc). Overall stack direction: HIGH.
+- Codebase (highest confidence, read 2026-09-15): `package.json`, `components/ui/{dialog,combobox,checkbox}.tsx`, `app/(app)/devices/search-box.tsx`, `db/queries/{devices,employees}.ts`, `db/queries` transaction precedent, `lib/csv.ts`, `app/api/devices/export/route.ts`, `db/schema.ts` (D-16/D-17 constraints), `db/index.ts` (norm UDF)
+- npm registry (fetched 2026-09-15): @base-ui/react 1.8.0, cmdk 1.1.1 (+ its dependency manifest showing 4 @radix-ui packages), react-hotkeys-hook 5.3.3 — **Confidence: HIGH**
+- ui.shadcn.com/docs/components/base/command — the "base" Command component is cmdk-backed, not Base UI primitives (fetched 2026-09-15) — **Confidence: HIGH**
+- base-ui.com/react/components/combobox — Combobox+Dialog composition as the palette pattern — **Confidence: HIGH** (cross-checked with in-repo usage)
+- sqlite.org/fts5.html + community threads — FTS5 vs LIKE scale crossover (~100k docs) and unicode61 Cyrillic folding vs ASCII-only LIKE — **Confidence: MEDIUM** (scale claim is community consensus, not benchmarked here; irrelevant at this dataset size either way, since `norm()` already supersedes the folding concern)
 
 ---
-*Stack research for: Barahlo — internal IT asset tracking (single manager, LAN-deployed)*
-*Researched: 2026-08-31*
+*Stack research for: Barahlo v1.1 «Скорость и удобство» milestone delta*
+*Researched: 2026-09-15*
