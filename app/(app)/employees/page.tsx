@@ -9,6 +9,7 @@ import {
   parseEmployeesSearchParams,
 } from './query-params'
 import { EmployeeDialog } from './employee-dialog'
+import { EmployeeSearchBox } from './search-box'
 
 export const metadata: Metadata = {
   title: 'Сотрудники',
@@ -88,6 +89,12 @@ export default async function EmployeesPage({
           Архив
         </Link>
       </nav>
+
+      {/* Live-search field (FIND-05, D-09): the page's ONLY client island —
+          a plain server-rendered mount (filter-bar pattern), positioned
+          between the segment nav (mt-6) and the list/empty card (mt-4):
+          rhythm 24 → 16 (the field's own mt-4) → 16 (UI-SPEC layout). */}
+      <EmployeeSearchBox q={q} filter={filter} />
 
       {rows.length === 0 ? (
         /* Empty states, copy verbatim from the UI-SPEC copywriting contract:
