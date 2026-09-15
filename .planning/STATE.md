@@ -5,15 +5,15 @@ milestone_name: Скорость и удобство
 current_phase: 7
 current_phase_name: Live-поиск по сотрудникам
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-09-15T18:26:29.288Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-09-15T19:00:29.642Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 7 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-15)
 ## Current Position
 
 Phase: 7 (Live-поиск по сотрудникам) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-09-15 — Phase 7 execution started
 
-Progress: [███░░░░░░░] 33%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ Progress: [███░░░░░░░] 33%
 | Phase 06 P01 | 21min | 1 tasks | 5 files |
 | Phase 6 P2 | 19min | 3 tasks | 4 files |
 | Phase 07 P01 | 13min | 2 tasks | 7 files |
+| Phase 07 P02 | 29min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 6/План 2: подписи счётчиков рендерятся одним шаблонным литералом (один текст-узел) — smoke-иглы непрерывны сквозь SSR-сплит; smoke-dashboard на :3119 сеет ноль устройств — Pitfall 8 стал ассертом
 - [Phase ?]: Фаза 7/План 1: Ё/ё-фолд поиска сотрудников садится на ЛАТИНСКУЮ E/e (не кириллическую Е) — типированная базовая «е» доходит до латинской E через гомоглиф-карту normalizeNumber, поэтому хранимая «Ё» (norm() её не трогает) обязана фолдиться на тот же кодпоинт — «елкин» находит «Ёлкин» (SC 2); рецепт плана с кириллической Е давал 0 строк
 - [Phase ?]: Фаза 7/План 1: хук useDebouncedSearchQuery генеричен по target-типу (buildQuery: (f: T & { q: string }) => string) — форма Omit<Q,'q'> из плана не проходит tsc на спред-пуше ({ ...target, q } ≠ Q); поверхность API (имена, роли аргументов, возврат) не изменилась (UI-SPEC Default 9)
+- [Phase ?]: Фаза 7/План 2: «Сбросить поиск» построен реальным API билдера 07-01 — buildEmployeesQuery({ filter, q: '' }, 1): q снимается omission-правилом билдера, сегмент сохраняется (D-08); нотация плана { filter, page: 1 } не типчекается против (f, page = 1)
+- [Phase ?]: Фаза 7/План 2: матрица D-10 зелёная при нулевом прод-диффе (предикат 07-01 уже покрывал); tracer-ассерты переведены на membership-форму — файл сеет всю базу при collection до запуска тестов, абсолютные тоталы дрейфуют; parity-walk ограничен probe.pages (сервер клампит страницы за последней — неограниченный walk до пустой не терминируется)
 
 ### Pending Todos
 
@@ -150,8 +153,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T18:26:29.275Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-09-15T19:00:29.636Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
