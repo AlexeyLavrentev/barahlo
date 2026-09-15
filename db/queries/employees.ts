@@ -1,6 +1,7 @@
-import { asc, count, eq, sql } from 'drizzle-orm'
+import { and, asc, count, eq, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { departments, employees } from '@/db/schema'
+import { normalizeNumber } from '@/lib/normalize'
 
 // Employee data-access (EMP-01/EMP-03). Pure sync functions over the
 // module-level db — no framework imports at all (Pitfall 7): Server Actions
@@ -33,20 +34,67 @@ type Tx = Parameters<Parameters<DbHandle['transaction']>[0]>[0]
 // Replace Ё/ё→Е/е in ORDER BY; employees.id is the stable tiebreaker.
 const ruSortKey = sql`replace(replace(${employees.name}, 'Ё', 'Е'), 'ё', 'е')`
 
+// FIND-05 employee search predicate (phase 7). The query folds through the
+// SAME normalizeNumber the write path uses, then a LOCAL Ё/ё→E/e replace —
+// the fold lives here, never in lib/normalize.mjs or the norm() UDF (D-01:
+// device search and the write-side fold stay byte-identical). The replace
+// target is the LATIN E/e, not the Cyrillic Е/е: a typed base «е» reaches
+// the Latin E through the homoglyph map inside normalizeNumber (and norm()
+// on the column side maps the stored «Е» the same way), so the stored «Ё»
+// — which norm() leaves untouched — must fold onto that same Latin E for
+// «елкин» to find «Ёлкин» (SC 2); a Cyrillic Е would never match it.
+// norm uppercases/trims/collapses whitespace and maps the 11 homoglyph
+// pairs, so the lowercase ё cannot survive — the 'ё' replace is a harmless
+// symmetric guard per the ruSortKey recipe. Split AFTER the fold (norm
+// collapses whitespace runs), capped at 20 tokens (sanitary ceiling,
+// research A2). D-03/D-04: every token must match (AND), and each token
+// matches the employee name OR the department name — «пётр бух» finds
+// «Ёлкин Пётр» in «Бухгалтерия». LIKE wildcards backslash/percent/underscore
+// are escaped and every LIKE carries escape '\\' — '%' stays literal;
+// drizzle binds every pattern as a parameter, q never enters SQL text
+// (T-05-01 class). An empty/whitespace q means NO predicate (the full
+// list). Exported because Phase 11's ⌘K palette reuses it whole, fold
+// included (D-01).
+export function employeeSearchPredicate(rawQ: string | undefined) {
+  const folded = normalizeNumber(rawQ ?? '').replaceAll('Ё', 'E')
+  const tokens = folded.split(' ').filter(Boolean).slice(0, 20)
+  if (tokens.length === 0) return undefined
+  const escapeLike = (token: string) =>
+    `%${token.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
+  return and(
+    ...tokens.map((token) =>
+      or(
+        sql`replace(replace(norm(${employees.name}), 'Ё', 'E'), 'ё', 'e') like ${escapeLike(token)} escape '\\'`,
+        sql`replace(replace(norm(${departments.name}), 'Ё', 'E'), 'ё', 'e') like ${escapeLike(token)} escape '\\'`,
+      ),
+    ),
+  )
+}
+
 export function listEmployees({
   filter,
   page,
   pageSize,
+  q,
 }: {
   filter: EmployeeFilter
   page: number
   pageSize: number
+  q?: string
 }): { rows: EmployeeListItem[]; total: number; page: number; pages: number } {
   const isActive = filter === 'active' ? 1 : 0
+  // One where shared by the count and the rows query (Pitfall 5 property):
+  // the segment guard and the search predicate compose into a single and().
+  const where = and(eq(employees.isActive, isActive), employeeSearchPredicate(q))
+  // The SAME where spans departments (q matches the department name), so the
+  // count query carries the same innerJoin — counting without it would let
+  // total drift from the list when q searches departments (Pitfall 1). The
+  // join is on the departments primary key, it cannot multiply rows.
   const total = db
     .select({ value: count() })
     .from(employees)
-    .where(eq(employees.isActive, isActive))
+    .innerJoin(departments, eq(employees.departmentId, departments.id))
+    .where(where)
     .get()!.value
   const pages = Math.max(1, Math.ceil(total / pageSize))
   // Clamp into [1, pages] — never render a page beyond the last one
@@ -61,7 +109,7 @@ export function listEmployees({
     })
     .from(employees)
     .innerJoin(departments, eq(employees.departmentId, departments.id))
-    .where(eq(employees.isActive, isActive))
+    .where(where)
     .orderBy(ruSortKey, asc(employees.id))
     .limit(pageSize)
     .offset((current - 1) * pageSize)

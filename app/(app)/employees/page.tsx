@@ -4,6 +4,10 @@ import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import { listEmployees, listDepartments } from '@/db/queries/employees'
 import { pluralEmployees } from '@/lib/ru'
+import {
+  buildEmployeesQuery,
+  parseEmployeesSearchParams,
+} from './query-params'
 import { EmployeeDialog } from './employee-dialog'
 
 export const metadata: Metadata = {
@@ -16,15 +20,6 @@ type EmployeesSearchParams = {
   [key: string]: string | string[] | undefined
 }
 
-// Links always rebuild the FULL query string — a bare `?page=2` would drop
-// the active filter (Pitfall 3); switching the filter resets to page 1.
-function buildQuery(filter: 'active' | 'archive', page: number): string {
-  const params = new URLSearchParams()
-  params.set('filter', filter)
-  params.set('page', String(page))
-  return `?${params.toString()}`
-}
-
 export default async function EmployeesPage({
   searchParams,
 }: {
@@ -33,16 +28,19 @@ export default async function EmployeesPage({
   await requireSession() // defense-in-depth: proxy + in-app guard
   const sp = await searchParams
   // searchParams is untyped user input — validate, never trust (T-02-02):
-  // filter via enum, page via Number + integer guard (a fractional ?page=
-  // would bind a non-integer OFFSET and crash the query — WR-01); the
-  // query still clamps into [1, pages].
-  const filter: 'active' | 'archive' = sp.filter === 'archive' ? 'archive' : 'active'
+  // filter/q degrade to their sentinels in the ONE parser
+  // (parseEmployeesSearchParams, query-params.ts); page via Number +
+  // integer guard (a fractional ?page= would bind a non-integer OFFSET and
+  // crash the query — WR-01); the query still clamps into [1, pages].
+  const filters = parseEmployeesSearchParams(sp)
+  const { filter, q } = filters
   const parsedPage = Number(sp.page)
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1
   const { rows, total, page: current, pages } = listEmployees({
     filter,
     page,
     pageSize: PAGE_SIZE,
+    q,
   })
 
   return (
@@ -60,14 +58,15 @@ export default async function EmployeesPage({
       </div>
 
       {/* Segmented control (D-02): default «Активные», active state is the
-          white pill — never an accent color (UI-SPEC Color). Filter links
-          reset the page to 1 and carry the FULL query string (Pitfall 3). */}
+          white pill — never an accent color (UI-SPEC Color). Segment links
+          reset the page to 1 and carry the FULL query string via the ONE
+          builder — switching the segment carries q (D-05, Pitfall 3). */}
       <nav
         aria-label="Фильтр сотрудников"
         className="mt-6 inline-flex rounded-lg bg-black/5 p-1"
       >
         <Link
-          href={buildQuery('active', 1)}
+          href={buildEmployeesQuery({ filter: 'active', q })}
           aria-current={filter === 'active' ? 'page' : undefined}
           className={
             filter === 'active'
@@ -78,7 +77,7 @@ export default async function EmployeesPage({
           Активные
         </Link>
         <Link
-          href={buildQuery('archive', 1)}
+          href={buildEmployeesQuery({ filter: 'archive', q })}
           aria-current={filter === 'archive' ? 'page' : undefined}
           className={
             filter === 'archive'
@@ -139,15 +138,16 @@ export default async function EmployeesPage({
           </ul>
 
           {/* Quiet prev/next (opacity-40, no href at the boundary) + N-of-M
-              label; links rebuild the whole query string via buildQuery. A
-              zero-page is impossible: listEmployees clamps the page. */}
+              label; links rebuild the whole query string via
+              buildEmployeesQuery — q rides along (D-05). A zero-page is
+              impossible: listEmployees clamps the page. */}
           <nav
             aria-label="Страницы списка"
             className="mt-4 flex items-center justify-between"
           >
             {current > 1 ? (
               <Link
-                href={buildQuery(filter, current - 1)}
+                href={buildEmployeesQuery({ filter, q }, current - 1)}
                 className="text-sm text-ink transition-colors hover:text-ink-secondary"
               >
                 Назад
@@ -160,7 +160,7 @@ export default async function EmployeesPage({
             </span>
             {current < pages ? (
               <Link
-                href={buildQuery(filter, current + 1)}
+                href={buildEmployeesQuery({ filter, q }, current + 1)}
                 className="text-sm text-ink transition-colors hover:text-ink-secondary"
               >
                 Далее
