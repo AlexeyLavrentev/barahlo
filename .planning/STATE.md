@@ -6,7 +6,7 @@ status: planning
 last_updated: "2026-09-15T11:51:49.318Z"
 last_activity: 2026-09-15
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-08-31)
+See: .planning/PROJECT.md (updated 2026-09-15)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Planning next milestone
+**Current focus:** Phase 7 — Live-поиск по сотрудникам (первая фаза v1.1)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-09-15 — Milestone v1.1 started
+Phase: 7 of 11 (v1.1: 7–11) — Live-поиск по сотрудникам
+Plan: — (фаза ещё не планировалась)
+Status: Ready to plan
+Last activity: 2026-09-15 — Roadmap v1.1 создан (Phases 7–11, покрытие 5/5)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -81,6 +83,7 @@ Last activity: 2026-09-15 — Milestone v1.1 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap]: v1.1 = Phases 7–11 (FIND-05→7, EXP-01→8, REG-06→9, MOVE-06→10, FIND-06→11); единственная жёсткая зависимость 7→11; порядок 8–10 — изоляция рисков (CSV — нулевой diff, клон несёт единственную миграцию схемы serial→nullable — решение на плане фазы 9, bulk — крупнейший UI-рефактор)
 - [Roadmap]: Фото (REG-05) слиты в Фазу 4 (Custody) — одиночное требование, зависят только от реестра устройств; объявленная линия отреза при сдвиге сроков
 - [Roadmap]: REG-04 (статус) и EMP-02 (выданная техника) доставляются в Фазе 4 — состояние меняется только действиями; в Фазах 2–3 строятся экраны-заготовки
 - [Roadmap]: UI-01/UI-02 заякорены в Фазе 2 (первые полноценные экраны = дизайн-система), UI-03 проверяется в Фазе 5
@@ -125,8 +128,9 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 1]: выбрать механизм сессии (исследование рекомендует jose signed cookie, не NextAuth)
-- [Phase 3]: подтвердить с пользователем семантику флага `ram_upgraded` (явный булев флаг vs сравнение с базовой RAM) — ЗАКРЫТ контекстом фазы 5 (D-06: явный флаг ramUpgraded)
+- [Phase 9]: решение о миграции serial → nullable принимается на плане фазы (research: NULL-pair рецепт; decision-heavy, не research-heavy)
+- [Phase 11]: выбрать транспорт поисковой поверхности (server action vs GET-роут) — контракт load-bearing: requireSession первым действием, LIMIT-кап, перезапрос на открытие, без персистентности
+- [Phase 1]: выбрать механизм сессии (исследование рекомендует jose signed cookie, не NextAuth) — ЗАКРЫТ реализацией фазы 1
 - ~~[Phase 5]: собрать typing-test фикстуру гомоглифов (С↔C, О↔O…)~~ — ЗАКРЫТ 05-01: tests/homoglyphs-fixture.ts (11 пар, обе стороны + completeness guard)
 
 ## Deferred Items
@@ -135,14 +139,14 @@ Items acknowledged and carried forward from previous milestone close:
 
 | Category | Item | Status | Deferred At |
 |----------|------|--------|-------------|
-| v2 | V2-01..V2-07 (saved filters, ⌘K, clone, QR, bulk actions, акт приёма-передачи, warranty tile) | Tracked in REQUIREMENTS.md v2 | 2026-08-31 |
+| v2 | V2-01..V2-07 (saved filters, ⌘K, clone, QR, bulk actions, акт приёма-передачи, warranty tile) | Частично взято в v1.1 (FIND-06, REG-06, MOVE-06); остальное — см. REQUIREMENTS.md | 2026-08-31 |
 
 ## Session Continuity
 
-Last session: 2026-09-14T07:34:59.151Z
-Stopped at: Completed 06-02-PLAN.md (warranty block + Wave-0 fixtures + smoke-dashboard)
+Last session: 2026-09-15
+Stopped at: Roadmap v1.1 создан (Phases 7–11); REQUIREMENTS.md трейсабилити обновлено
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Next: /gsd:plan-phase 7

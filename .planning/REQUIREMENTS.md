@@ -53,12 +53,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| FIND-05 | Phase 7 | Pending |
+| EXP-01 | Phase 8 | Pending |
+| REG-06 | Phase 9 | Pending |
+| MOVE-06 | Phase 10 | Pending |
+| FIND-06 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 5 total
-- Mapped to phases: 0
-- Unmapped: 5 ⚠️
+- Mapped to phases: 5
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-15*
-*Last updated: 2026-09-15 after initial definition*
+*Last updated: 2026-09-15 after v1.1 roadmap creation (traceability Phases 7–11)*
