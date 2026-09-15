@@ -51,7 +51,15 @@ export default async function EmployeesPage({
           <h1 className="text-xl font-semibold tracking-tight text-ink">
             Сотрудники
           </h1>
-          <p className="text-sm text-ink-secondary">{pluralEmployees(total)}</p>
+          {/* Subtitle variant (D-08, UI-SPEC Default 6): «Найдено: …» fires
+              while q is non-empty ONLY — segment alone never switches the
+              wording; q-empty keeps the phase-2 counter byte-exact.
+              «Найдено: 0 сотрудников» above the empty state is valid output. */}
+          <p className="text-sm text-ink-secondary">
+            {q !== ''
+              ? `Найдено: ${pluralEmployees(total)}`
+              : pluralEmployees(total)}
+          </p>
         </div>
         {/* The dialog's department combobox lists the current departments
             (D-03) — fetched server-side and handed to the client island. */}
@@ -97,11 +105,33 @@ export default async function EmployeesPage({
       <EmployeeSearchBox q={q} filter={filter} />
 
       {rows.length === 0 ? (
-        /* Empty states, copy verbatim from the UI-SPEC copywriting contract:
-           zero under «Активные» invites the first employee (the CTA above
-           stays visible); zero under «Архив» explains the filter. */
+        /* Empty states, copy verbatim from the UI-SPEC copywriting contract.
+           Precedence (D-08, SC 4): a non-empty q wins over BOTH phase-2
+           states — including an empty archive reached with a q; the q-empty
+           cases keep the phase-2 copy byte-exact. */
         <div className="mt-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-hairline">
-          {filter === 'active' ? (
+          {q !== '' ? (
+            <>
+              <h2 className="text-xl font-semibold tracking-tight text-ink">
+                Ничего не найдено
+              </h2>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Проверьте раскладку и Ё/ё: „елкин“ найдёт „Ёлкин“.
+              </p>
+              {/* Plain server Link — no island, no onClick. On arrival q=''
+                  differs from the island's lastSynced ref, so its clean-input
+                  adoption clears the input without a focus jump
+                  (search-box.tsx). Deliberate divergence from the devices
+                  bare-link reset: buildEmployeesQuery drops q by omission and
+                  keeps the segment (D-08). */}
+              <Link
+                href={buildEmployeesQuery({ filter, q: '' }, 1)}
+                className="mt-4 inline-flex h-10 items-center rounded-lg bg-secondary px-3 text-sm text-secondary-foreground transition-all duration-100 ease-out hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] active:scale-[0.97]"
+              >
+                Сбросить поиск
+              </Link>
+            </>
+          ) : filter === 'active' ? (
             <>
               <h2 className="text-xl font-semibold tracking-tight text-ink">
                 Пока нет сотрудников

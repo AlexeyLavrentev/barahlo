@@ -119,3 +119,46 @@ describe('buildEmployeesQuery / parseEmployeesSearchParams round-trip (pure modu
     ).toBe(true)
   })
 })
+
+// URL matrix (SC 3, D-05/D-08): hostile/absent URLs degrade to defaults and
+// every link shape the page emits is covered — pure module, no db (same
+// discipline as devices-queries.test.ts:555).
+describe('URL matrix — absent/hostile params degrade, builder link shapes', () => {
+  it('absent values parse to the sentinels: q → "" and filter → "active"', async () => {
+    const { parseEmployeesSearchParams } = await import(
+      '@/app/(app)/employees/query-params'
+    )
+    expect(parseEmployeesSearchParams({})).toEqual({
+      filter: 'active',
+      q: '',
+    })
+  })
+
+  it('a 120-character q parses to its first 100 characters (server-side cap)', async () => {
+    const { parseEmployeesSearchParams } = await import(
+      '@/app/(app)/employees/query-params'
+    )
+    const parsed = parseEmployeesSearchParams({ q: 'a'.repeat(120) })
+    expect(parsed.q).toBe('a'.repeat(100))
+    expect(parsed.q).toHaveLength(100)
+  })
+
+  it('segment switch carries q through the builder and resets page by omission (D-05)', async () => {
+    const { buildEmployeesQuery } = await import(
+      '@/app/(app)/employees/query-params'
+    )
+    const href = buildEmployeesQuery({ filter: 'archive', q: 'елкин' }, 1)
+    expect(href).toContain('filter=archive')
+    expect(href).toContain('q=')
+    expect(href).not.toContain('page=')
+  })
+
+  it('empty q emits no q fragment and page 1 no page fragment (reset-by-omission, Pitfall 5)', async () => {
+    const { buildEmployeesQuery } = await import(
+      '@/app/(app)/employees/query-params'
+    )
+    const href = buildEmployeesQuery({ filter: 'active', q: '' })
+    expect(href).toBe('?filter=active')
+    expect(href).not.toContain('page=')
+  })
+})
