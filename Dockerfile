@@ -38,6 +38,16 @@ RUN --mount=type=cache,target=/root/.npm \
     echo "No lockfile found." && exit 1; \
   fi
 
+# Сборка sharp из исходников: пребилды sharp >= 0.33 требуют CPU x86-64-v2 (SSE4.2/POPCNT),
+# wasm-фолбэк — WASM SIMD; на сервере без v2 оба пути отпадают (wasm падает с codeless-ошибкой,
+# которая маскируется в TypeError 'endsWith' — см. sharp/dist/sharp.mjs:115). Собранный биндинг
+# ложится в src/build/Release/, откуда лоадер грузит его в первую очередь. На v2-CPU тоже
+# корректно — просто медленнее (слой кэшируется по lockfile). python3/make/g++ стоят выше.
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-save --no-audit --no-fund node-addon-api node-gyp @img/sharp-libvips-dev \
+ && export PATH=/app/node_modules/.bin:$PATH \
+ && cd node_modules/sharp && node install/build.js && cd /app
+
 # ============================================
 # Stage 2: Build Next.js application in standalone mode
 # ============================================
@@ -94,6 +104,10 @@ COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 # bcryptjs — для create-admin.mjs внутри контейнера (собственных зависимостей нет).
 COPY --from=builder --chown=node:node /app/node_modules/bcryptjs ./node_modules/bcryptjs
+# sharp: сборный биндинг (src/build/*.node) и @img/* (runtime-libvips) не попадают в
+# standalone-трейсинг — require там динамические (шаблонные строки в лоадере sharp).
+COPY --from=builder --chown=node:node /app/node_modules/sharp ./node_modules/sharp
+COPY --from=builder --chown=node:node /app/node_modules/@img ./node_modules/@img
 
 # Расширение 3 (права тома, Pitfall 4): каталог состояния должен существовать
 # и быть доступен пользователю node (uid 1000), иначе SQLITE_CANTOPEN.
