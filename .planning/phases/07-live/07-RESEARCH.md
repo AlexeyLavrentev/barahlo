@@ -345,16 +345,18 @@ const { listEmployees, createEmployee } = await import('@/db/queries/employees')
 
 Все прочие утверждения — [VERIFIED: in-repo code/docs] или [CITED: локальные доки Next 16.3.3].
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> Resolved by planner 2026-09-15 — see 07-01-PLAN.md / 07-UI-SPEC.md Default 9.
 
 1. **A1 (композиция токен×поле)**
    - What we know: D-03 (AND слов) и D-04 (имя И отдел) по отдельности зафиксированы, их композиция не оговорена.
    - What's unclear: cross-field AND («Пётр Бухг») желателен или AND-в-пределах-поля?
-   - Recommendation: per-token (name OR department) — покрывает оба примера D-03 и даёт «Пётр Бухг» бесплатно; зафиксировать тестом, сверить на UAT.
+   - Recommendation: per-token (name OR department) — покрывает оба примера D-03 и даёт «Пётр Бухг» бесплатно; зафиксировать тестом, сверить на UAT. — RESOLVED: per-token (name OR department) принят в 07-01-T1 с тестами + UAT-сценарий 4 (07-03), fallback оговорён.
 
-2. **Имя/путь хука и точная сигнатура** — дискрешен (CONTEXT). Рекомендация: Pattern 2 (данные + стабильная ссылка билдера); имя `useDebouncedSearchQuery`, `lib/use-search-param.ts`. Фаза 11 — консумер; API не менять послеDevices-рефакторинга (reversibility: costly по D-07).
+2. **Имя/путь хука и точная сигнатура** — RESOLVED: Pattern 2 принят в 07-01 (данные + стабильная ссылка билдера), имя `useDebouncedSearchQuery`. Исходная рекомендация: Pattern 2 (данные + стабильная ссылка билдера); имя `useDebouncedSearchQuery`, `lib/use-search-param.ts`. Фаза 11 — консумер; API не менять послеDevices-рефакторинга (reversibility: costly по D-07).
 
-3. ** employees/query-params.ts vs inline buildQuery** — рекомендация: отдельный модуль по образцу devices (единственный парсер/билдер — установленный принцип фазы 5); но в модуле всего 2 параметра, инлайн тоже защитим. План решает.
+3. ** employees/query-params.ts vs inline buildQuery** — RESOLVED: отдельный модуль `app/(app)/employees/query-params.ts` создан в 07-01. Исходная рекомендация: отдельный модуль по образцу devices (единственный парсер/билдер — установленный принцип фазы 5); но в модуле всего 2 параметра, инлайн тоже защитим. План решает.
 
 ## Environment Availability
 

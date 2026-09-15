@@ -4,15 +4,15 @@ milestone: v1.1
 milestone_name: Скорость и удобство
 current_phase: 7
 current_phase_name: "v1.1: 7–11"
-status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-09-15T16:49:31.663Z"
+status: executing
+stopped_at: Phase 7 UI-SPEC approved
+last_updated: "2026-09-15T18:03:06.703Z"
 last_activity: 2026-09-15
 last_activity_desc: Roadmap v1.1 создан (Phases 7–11, покрытие 5/5)
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-15)
 
 Phase: 7 of 11 (v1.1: 7–11) — Live-поиск по сотрудникам
 Plan: — (фаза ещё не планировалась)
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-09-15 — Roadmap v1.1 создан (Phases 7–11, покрытие 5/5)
 
 Progress: [░░░░░░░░░░] 0%
@@ -147,9 +147,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T16:49:31.652Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-live/07-CONTEXT.md
+Last session: 2026-09-15T17:22:55.552Z
+Stopped at: Phase 7 UI-SPEC approved
+Resume file: .planning/phases/07-live/07-UI-SPEC.md
 
 ## Operator Next Steps
 
