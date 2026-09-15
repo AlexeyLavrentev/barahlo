@@ -9,7 +9,7 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Поиск
 
-- [ ] **FIND-05**: Оператор находит сотрудника live-поиском по имени или отделу в справочнике — с фолдом Ё/ё и гомоглифов, как у устройств
+- [x] **FIND-05**: Оператор находит сотрудника live-поиском по имени или отделу в справочнике — с фолдом Ё/ё и гомоглифов, как у устройств
 - [ ] **FIND-06**: Оператор открывает глобальную палитру ⌘K одним хоткеем (работает на русской раскладке), ищет по устройствам и сотрудникам одновременно и переходит на карточку; архивные сотрудники находятся с бейджем «в архиве»
 
 ### Выгрузки
@@ -53,13 +53,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIND-05 | Phase 7 | Pending |
+| FIND-05 | Phase 7 | Complete |
 | EXP-01 | Phase 8 | Pending |
 | REG-06 | Phase 9 | Pending |
 | MOVE-06 | Phase 10 | Pending |
 | FIND-06 | Phase 11 | Pending |
 
 **Coverage:**
+
 - v1.1 requirements: 5 total
 - Mapped to phases: 5
 - Unmapped: 0 ✓
