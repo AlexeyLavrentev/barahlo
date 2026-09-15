@@ -3,7 +3,7 @@
 services:
   app:
     build: .
-    ports: ["3000:3000"]            # D-09: приложение слушает :3000
+    ports: ["80:3000"]              # наружу :80 (доменное имя в локалке) → :3000 в контейнере
     env_file: .env                  # AUTH_SECRET (openssl rand -base64 32); DATABASE_PATH=/app/data/app.db
     volumes: ["./data:/app/data"]   # всё состояние: app.db + uploads/ + backups/
     restart: unless-stopped
