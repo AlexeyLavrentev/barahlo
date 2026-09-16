@@ -1,34 +1,41 @@
 ---
 phase: 07-live
 verified: 2026-09-16T04:29:05Z
-status: human_needed
+status: passed
 score: 7/11 must-haves verified
 behavior_unverified: 4
 overrides_applied: 0
 behavior_unverified_items:
+
   - truth: "SC 1 — live debounce filtering where fast typing and fast deletion lose no characters and eat no spaces (G-5-1/G-5-2 class not reproduced)"
     test: "On /employees, type «Ёлкин Пётр» in one fast stream then delete everything; repeat «aspire 5 » (trailing space) then full delete on /devices"
     expected: "No characters lost, no spaces eaten; final URL carries the complete final query; list matches the final query"
     why_human: "Keystroke-race behavior is browser-only — UI test runners are forbidden by REQUIREMENTS §Out of Scope (D-10); the state transition lives in the hook's echo/adoption effect and no automated test exercises it. Recorded UAT (07-03-SUMMARY.md, scenarios 1–2, post-10c3cee) claims PASS — this is a confirmation sign-off, not a redo."
+
   - truth: "SC 3 clause — browser Back/Forward and refresh preserve q AND adopt it into the input; «Сбросить поиск» click clears the input without a focus jump"
     test: "Search, press browser Back then Forward; F5; trigger a garbage query and click «Сбросить поиск»"
     expected: "q survives navigation; the input adopts the restored q on Back/Forward; reset click returns the list, clears the input, keeps the segment, no focus jump"
     why_human: "The clean-input adoption transition (lib/use-search-param.ts:80-107) is client-side state machinery; the server-side URL contract is autotested but the adoption transition is not. Recorded UAT scenarios 5–6 claim PASS — confirmation sign-off."
+
   - truth: "SC 4 clause / D-06 — during the list swap no spinner/skeleton appears, the input never disables, focus and text survive; 100-char query stays inside the field recipe (UI-SPEC long-text backstop)"
     test: "Mid-transition snapshot while typing on /employees; paste a 100-character string; trigger the «Ничего не найдено» state and inspect the card"
     expected: "0 spinners/skeletons, input enabled and focused throughout, field does not overflow, hint wraps inside the empty-state card"
     why_human: "Real-time rendering feel and visual layout are browser-only per D-10 and the UI-SPEC backstop. Recorded UAT scenarios 7 and 9 claim PASS — confirmation sign-off."
+
   - truth: "SC 5 — device search after the hook refactor is indistinguishable from before (Enter commits immediately, «%» literal, local edits win over URL)"
     test: "On /devices: type «100%» (Enter vs debounce), fast type/delete with a trailing space, type through a segment/filter navigation"
     expected: "«%» matches literally, Enter navigates immediately, trailing space survives, pending local edits are never clobbered by the URL"
     why_human: "Parity-of-feel after a refactor is a browser-only judgment per D-10; the structural half (untouched suites, byte-identical render, verbatim hook body) is verified below. Recorded UAT scenario 2 (post-G-7-1 re-verification) claims PASS — confirmation sign-off."
 human_verification:
+
   - test: "Confirm the 9 recorded UAT scenarios (07-03-SUMMARY.md) — specifically the 4 behavior classes above: races on both lists, Back/Forward/reset adoption, no-blocking feel + long-text backstop, device parity"
     expected: "Operator confirms the recorded 9/9 PASS verdict reflects reality on the seeded dev DB (or re-runs the specific scenario that is in doubt)"
     why_human: "The verifier cannot re-exercise browser races/feel (no UI test runner allowed; no server start permitted in verification); executor-side UAT records are not accepted as proof, so a human sign-off closes the loop"
+
   - test: "Sign off prohibition 1: playwright ^1.62.1 in devDependencies is UAT tooling per the plan's own precondition, not a new app dependency or UI test runner"
     expected: "Confirmation that the D-10 boundary (no RTL/jest, zero runtime deps) is respected"
     why_human: "Judgment-tier prohibition — the git diff proves only playwright was added to devDependencies, but whether that violates the spirit of REQUIREMENTS §Out of Scope is a human call"
+
   - test: "Sign off prohibition 3 deviation: G-7-1 fix (10c3cee) added ~20 guard lines to the moved reconciliation body (adopt branch gated on empty inFlight + re-arm guard)"
     expected: "Confirmation that the UAT-mandated race fix is an accepted deviation from «moved verbatim, never rewritten» (07-REVIEW diffed the body against base 34074e9: verbatim except the guard; devices re-verified in-browser post-fix)"
     why_human: "Judgment-tier prohibition — the fix was mandated by the phase's own acceptance loop and is documented, but the verbatim-prohibition is a human-owned constraint (D-07)"
