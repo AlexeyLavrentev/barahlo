@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Скорость и удобство
-current_phase: 8
+current_phase: 08
 current_phase_name: CSV-ведомость полного контекста
-status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-09-16T07:06:55.590Z"
+status: verifying
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-09-16T08:38:00.253Z"
 last_activity: 2026-09-16
-last_activity_desc: Phase 7 complete, transitioned to Phase 8
+last_activity_desc: Phase 08 execution started
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
-  percent: 20
+  completed_plans: 4
+  percent: 40
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-15)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 7 — Live-поиск по сотрудникам
+**Current focus:** Phase 08 — CSV-ведомость полного контекста
 
 ## Current Position
 
-Phase: 8 — CSV-ведомость полного контекста
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-09-16 — Phase 7 complete, transitioned to Phase 8
+Phase: 08 (CSV-ведомость полного контекста) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-09-16 — Phase 08 execution started
 
 Progress: [██████████] 100%
 
@@ -83,6 +83,7 @@ Progress: [██████████] 100%
 | Phase 07 P01 | 13min | 2 tasks | 7 files |
 | Phase 07 P02 | 29min | 2 tasks | 2 files |
 | Phase 07 P03 | 45min | 1 tasks | 1 files |
+| Phase 08 P01 | 83 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,9 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 7/План 3]: G-7-1 — adopt-branch требует пустой inFlight: чужой q может прийти только когда ничего нашего не в полёте; реарм-гвард (inFlight непуст И value.trim() === lastSynced.current.trim()) гасит дублирующий пуш уже отправленного текста; фикс 10c3cee найден UAT-сценарием 1, общий хук защищает и устройства
 - [Phase ?]: [Phase 7/План 3]: UAT выполнен оркестратором через Playwright MCP по D-10 (паттерн фазы 5); все 9 сценариев прошли (SC 1–5, семантика A1 D-03×D-04, D-05/D-06/D-08, long-text backstop), оператор одобрил; финальный гейт 341/341 + build green + lint 0 ошибок/1 предупреждение (exhaustive-deps, router стабилен — не блокирует)
 - [Phase ?]: [Phase 7/План 3]: предсуществующее React duplicate-key предупреждение консоли в combobox отдела EmployeeDialog (код диалога v1.0, фазой не трогался) отложено в бэклог (phases/07-live/deferred-items.md) — не дефект фазы 7
+- [Phase ?]: [Phase 8/План 1]: D-02 механизм — метки CSV-колонок деривируются из кейстоуна (keystoneLabel по CONFIG_EXPORT_KEYS через DEVICE_TYPES; PER_TYPE_FIELDS не экспортируется, DEVICE_TYPES несёт те же массивы), throw на неизвестном ключе — правка метки в PER_TYPE_FIELDS меняет и форму, и файл — Параллельный CSV-словарь меток отклонён владельцем (D-02); кейстоун остаётся единственным источником
+- [Phase ?]: [Phase 8/План 1]: Диагональ — запятая-десятичная («21,5»/«23,8», целые «27»): dot-decimal RU-Excel читает как дату «21.мая» (research Pitfall 1); первая дробная колонка в истории файла — Консистентно с RU-контрактом файла («;», BOM); ручная RU-Excel проверка — end-of-phase, записана в WINDOWS.md (unrun-verify)
+- [Phase ?]: [Phase 8/План 1]: Файловый маппинг живёт в pure lib/device-csv.ts, route.ts — thin composer (today = displayTodayUtc() один на запрос): роут не vitest-импортируем (next/headers), вынос дал позиционный пин 20 колонок тестом — Дисциплина pure-модулей lib/warranty.ts; TDD RED c7e095a → GREEN 51bb5c9 → матрица 7584bfc; 370/370 suite
 
 ### Pending Todos
 
@@ -158,9 +162,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-16T06:18:46.357Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-csv/08-CONTEXT.md
+Last session: 2026-09-16T08:37:00.709Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

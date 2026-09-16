@@ -14,7 +14,7 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Выгрузки
 
-- [ ] **EXP-01**: Оператор выгружает CSV-ведомость полного контекста: к существующим колонкам добавлены 4 типизированных конфиг-поля типа (диагональ/матрица/порты/вид периферии) и текстовый статус гарантии; выгрузка без фильтров = весь парк
+- [x] **EXP-01**: Оператор выгружает CSV-ведомость полного контекста: к существующим колонкам добавлены 4 типизированных конфиг-поля типа (диагональ/матрица/порты/вид периферии) и текстовый статус гарантии; выгрузка без фильтров = весь парк
 
 ### Реестр
 
@@ -54,7 +54,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FIND-05 | Phase 7 | Complete |
-| EXP-01 | Phase 8 | Pending |
+| EXP-01 | Phase 8 | Complete |
 | REG-06 | Phase 9 | Pending |
 | MOVE-06 | Phase 10 | Pending |
 | FIND-06 | Phase 11 | Pending |
