@@ -1,7 +1,7 @@
 ---
 phase: 08-csv
 verified: 2026-09-16T09:00:35Z
-status: human_needed
+status: passed
 score: 8/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,9 +9,11 @@ re_verification:
   previous_status: none
   note: "Initial verification — no previous VERIFICATION.md existed"
 human_verification:
+
   - test: "Открыть выгрузку /api/devices/export на dev-инстансе в RU-Excel/Numbers (или Numbers с RU-регионом): колонка «Диагональ, ″» со значением 21,5 должна читаться как ЧИСЛО 21,5, а не как дата «21.май»"
     expected: "«21,5» распознаётся числом; «23,8» аналогично; целые «27»/«3»/«11» без изменений; файл в целом (BOM, «;», CRLF, ISO-даты) открывается корректно"
     why_human: "Поведение локали Excel при открытии CSV не воспроизводимо в vitest (research Pitfall 1, 4 внешних источника, MEDIUM confidence); запятая-десятичная ячейка запинена unit-тестами (diagonalCell 21.5→'21,5'), но факт открытия проверяет оператор. Записано в .planning/WINDOWS.md #8 (unrun-verify, open) и 08-VALIDATION.md"
+
   - test: "РЕШЕНИЕ (Escalation Gate): подтвердить или отклонить отсрочку WR-01 (08-REVIEW) — route.ts «Object.fromEntries(searchParams)» схлопывает дублированные query-параметры, страница деградирует их в неактивные сентинелы; на malformed URL (напр. ?type=laptop&type=monitor) CSV ≠ страница"
     expected: "Осознанное решение разработчика: (а) принять отсрочку до Фазы 11 (как записано в .planning/phases/08-csv/deferred-items.md) — но тогда добавить фикс в скоуп Фазы 11 явно, поскольку SC Фазы 11 его не упоминают; или (б) закрыть сейчас однострочным шейпингом массивов перед parseDevicesSearchParams (фикс предложен в 08-REVIEW.md WR-01)"
     why_human: "Строка предсуществующая (фаза 5, git: route.ts:57 → :43 без изменения содержимого), фаза 8 была обязана её заморозить (D-18/WR-01); но это единственный найденный прокол контракта «файл = реестр» (SC 2) на malformed-входе — решение о сроках принимает разработчик, не верификатор"
@@ -125,6 +127,7 @@ Orphaned requirements: нет — REQUIREMENTS.md отображает на Phas
 Gaps (блокирующих) не найдено: все 4 SC роадмапа и все 8 истин плана верифицированы — 20-колоночный файл с разреженным конфиг-блоком D-01 и статусом гарантии D-05 существует, собран единственным esc-гвард-путём, parity с цветом сайта через тот же warrantyState, файл = реестр (row-count pin), requireSession-first сохранён, сайт не тронут. Коммиты фазы (c7e095a RED → 51bb5c9 GREEN → 7584bfc матрица) трогают ровно 4 заявленных файла; полный suite 370/370, lint 0 errors.
 
 Статус **human_needed** (не passed) по двум пунктам, ни один не является провалом must-have:
+
 1. Ручная проверка RU-Excel — плановая end-of-phase проверка (WINDOWS.md #8), поведенческий слой SC 3, недоступный vitest.
 2. Решение по WR-01 — предсуществующий edge фазы 5, всплывший в ревью; требует явного решения «отложить (с фиксацией в Фазе 11) или починить сейчас», чтобы не потеряться.
 
