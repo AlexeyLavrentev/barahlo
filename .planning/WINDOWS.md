@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 7
 waived_count: 0
 fixed_count: 0
-total_count: 6
-last_updated: 2026-09-01T18:24:39.021Z
+total_count: 7
+last_updated: 2026-09-16T03:49:21.374Z
 ---
 
 # Broken Windows Ledger
@@ -21,6 +21,7 @@ last_updated: 2026-09-01T18:24:39.021Z
 | 4 | 01 | unrun-verify | README.md |  | 01-05 human-check: серверные шаги чек-листа «Приёмка фазы 1» (2)-(8) выполняет оператор на end-of-phase приёмке фазы | open |  | 2026-09-01T03:56:13.220Z |  |
 | 5 | 02 | stub | app/(app)/employees/[id]/page.tsx | 63 | «Пока ничего не выдано» — осознанная контентная заглушка «Техники» (EMP-02 строится в Фазе 4), секция уже в макете карточки | open |  | 2026-09-01T17:55:36.171Z |  |
 | 6 | 02 | deviation | app/(app)/(card)/employees/[id]/page.tsx |  | Card segment lives in route group (card): a parent segment loading.tsx streams the subtree and flushes 200 before notFound(), so /employees/{99999,abc} lost their 404; card loading skeleton intentionally omitted (conflict documented in 02-03-SUMMARY) | open |  | 2026-09-01T18:24:39.021Z |  |
+| 7 | 07 | lint-warning | lib/use-search-param.ts | 124 | react-hooks/exhaustive-deps warning (flagged dep is the stable Next router — reviewed non-blocking in 07-03 gate); first recorded at plan 07-03 final gate | open |  | 2026-09-16T03:49:21.374Z |  |
 
 ````json
 [
@@ -94,6 +95,18 @@ last_updated: 2026-09-01T18:24:39.021Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-01T18:24:39.021Z",
+    "resolved_at": null
+  },
+  {
+    "id": 7,
+    "kind": "lint-warning",
+    "phase": "07",
+    "file": "lib/use-search-param.ts",
+    "line": 124,
+    "description": "react-hooks/exhaustive-deps warning (flagged dep is the stable Next router — reviewed non-blocking in 07-03 gate); first recorded at plan 07-03 final gate",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-16T03:49:21.374Z",
     "resolved_at": null
   }
 ]
