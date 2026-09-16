@@ -23,6 +23,8 @@
 
 ### Validated
 
+- ✓ Поиск по сотрудникам: live-поиск по имени/отделу с фолдом Ё/ё и гомоглифов (FIND-05) — Phase 7
+
 - ✓ Вход по логину+паролю, всё за авторизацией — Phase 1 (ACC-01/ACC-02)
 - ✓ Данные в одном SQLite с автоматическими бэкапами и отрепетированным восстановлением — Phase 1 (ACC-03)
 - ✓ Справочник сотрудников (имя + отдел, архив вместо удаления, русский UI, Apple-эстетика) — Phase 2 (EMP-01, EMP-03, UI-01, UI-02)
@@ -42,7 +44,6 @@
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Поиск по сотрудникам: live-поиск по имени/отделу в справочнике
 - [ ] ⌘K глобальный поиск: устройства + сотрудники одним хоткеем
 - [ ] CSV-ведомость полного контекста: владелец, отдел, конфигурация, гарантия, стоимость
 - [ ] Клон устройства с автоприростом инвентарного номера
@@ -97,6 +98,8 @@
 | CSV-экспорт в фазе 5 (D-18) | защита от «параллельной таблицы»; requireSession-first, общий deviceWhere со страницей, CWE-1236 guard | ✓ Good |
 | Гарантийные счётчики дашборда = композиция warrantyPredicate (injectable today) | parity by construction, не тестом (code review WR-01, a8c2bf7); фильтр-хит ≠ цвет невозможен структурно | ✓ Good |
 | Дашборд на `/` без loading.tsx | (app)-level loading ломал 404-матрицу фазы 2 (RESEARCH, phase-2 прецедент); queries single-digit ms — скелетон не нужен | ✓ Good |
+| Общий useDebouncedSearchQuery — вынос дословно, API заморожен после фазы | устройства, сотрудники и ⌘K Фазы 11 — консюмеры одного хука (D-07, reversibility: costly); adopt-ветка получила inFlight-guard (G-7-1, 10c3cee) после того как UAT поймал бесконечный ping-pong ?q↔без q | ✓ Good |
+| Ё/ё-фолд живёт в employee-предикате, не в normalize.mjs | устройства остаются байт-в-байт «как раньше» (SC 5 структурно, D-01); фолд по Latin E/e — набранная «е» доходит до Latin E через гомоглиф-карту | ✓ Good |
 
 ## Evolution
 
@@ -116,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-15 after v1.1 milestone start*
+*Last updated: 2026-09-16 after Phase 7 (live-поиск сотрудников)*
