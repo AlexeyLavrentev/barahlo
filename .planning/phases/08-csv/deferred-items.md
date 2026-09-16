@@ -13,3 +13,7 @@ pre-existing issues in files this phase did not touch are not auto-fixed).
 (exhaustive-deps, use-search-param — уже в WINDOWS.md #7). Пять unused-vars
 предупреждений существуют в файлах, фазой 8 не тронутых; ESLint-конфиг/счётчик
 фазы 7 их не репортил. Дефект фазы 8 не является — 0 errors, exit 0.
+
+## WR-01 (08-REVIEW.md, warning) — defer
+
+Дублированный query-параметр (`?type=laptop&type=monitor`): route берёт `Object.fromEntries(searchParams)` (последнее значение), страница передаёт массивы в общий парсер (деградация в inactive-сентинел) → на malformed URL CSV ≠ страница. Предсуществующая строка фазы 5 (route.ts:43, фазой не менялась); фикс — шейпинг массивов до `parseDevicesSearchParams` в route.ts. Решение до Фазы 11 (вместе с WR-01 фазы 7 — dedup пушей хука).
