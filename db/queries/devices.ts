@@ -94,6 +94,13 @@ export type DeviceExportRow = {
   ramGb: number | null
   ramUpgraded: number | null
   ssdGb: number | null
+  // Phase 8 (EXP-01, D-01): the per-type config block of the file. Naming and
+  // nullability mirror DeviceRow — the columns already existed, zero migration.
+  // Sparse is structural: createDevice writes `?? null` for foreign-type keys.
+  screenDiagonal: number | null
+  panelType: string | null
+  portCount: number | null
+  peripheralKind: string | null
   purchaseDate: Date | null
   purchasePrice: number | null
   supplier: string | null
@@ -475,6 +482,12 @@ export function exportDevices({
       ramGb: devices.ramGb,
       ramUpgraded: devices.ramUpgraded,
       ssdGb: devices.ssdGb,
+      // Phase 8 (EXP-01): the 4 config columns, mirroring getDevice() — the
+      // file carries each type's own configuration sparsely (D-01).
+      screenDiagonal: devices.screenDiagonal,
+      panelType: devices.panelType,
+      portCount: devices.portCount,
+      peripheralKind: devices.peripheralKind,
       purchaseDate: devices.purchaseDate,
       purchasePrice: devices.purchasePrice,
       supplier: devices.supplier,

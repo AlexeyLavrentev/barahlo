@@ -1,9 +1,9 @@
 import type { NextRequest } from 'next/server'
 import { requireSession } from '@/lib/auth'
 import { exportDevices } from '@/db/queries/devices'
-import { deviceStatusLabel, deviceTypeName } from '@/lib/device-schema'
-import { formatWarrantyDate } from '@/lib/warranty-date'
-import { buildCsv, csvResponseHeaders } from '@/lib/csv'
+import { displayTodayUtc } from '@/lib/warranty'
+import { buildDeviceCsv } from '@/lib/device-csv'
+import { csvResponseHeaders } from '@/lib/csv'
 import {
   parseDevicesSearchParams,
   toDeviceListFilters,
@@ -31,26 +31,12 @@ import {
 // its inactive sentinel — T-03-04 discipline), so the happy path is the only
 // path; an unexpected failure surfaces as Next's generic 500 (V7).
 
-// CSV columns (A3 discretion, RESEARCH Pattern 5): the registry's visible
-// fields as a superset of the six list columns — the file is the registry,
-// not a richer parallel table (D-18 column discipline).
-const HEADER = [
-  'Тип',
-  'Модель',
-  'Серийный номер',
-  'Инвентарный номер',
-  'Статус',
-  'Держатель',
-  'Отдел',
-  'RAM, ГБ',
-  'RAM апгрейдена',
-  'SSD, ГБ',
-  'Дата закупки',
-  'Стоимость',
-  'Поставщик',
-  'Гарантия до',
-  'Заметки',
-]
+// CSV columns (phase 8, EXP-01): 20 columns — the registry's visible fields
+// plus the cross-type config block (Диагональ, ″ / Тип матрицы / Количество
+// портов / Вид, D-01) and the warranty verdict «Статус гарантии» (D-03/D-05).
+// The header array and the per-row cells mapping live in lib/device-csv (pure,
+// vitest-importable — D-02 labels are derived from the PER_TYPE_FIELDS
+// keystone there); this route stays a thin composer.
 
 export async function GET(request: NextRequest) {
   await requireSession()
@@ -64,32 +50,14 @@ export async function GET(request: NextRequest) {
   // The full scan: every page of the current filters, canonical order, holder
   // + holder's department joined (D-09 semantics visible in the file).
   const rows = exportDevices({ type: filters.type, filters: listFilters })
-  const cells = rows.map((r) => [
-    deviceTypeName(r.typeKey),
-    r.model,
-    r.serialNumber,
-    r.inventoryNumber,
-    deviceStatusLabel(r.status),
-    r.holder,
-    r.departmentName,
-    r.ramGb,
-    // D-06 semantics as text: 1 = upgraded, 0 = explicitly not, null = the
-    // checkbox was never touched («без отметки» renders empty, edge 5).
-    r.ramUpgraded === null ? null : r.ramUpgraded === 1 ? 'да' : 'нет',
-    r.ssdGb,
-    // UTC-midnight timestamps render dd.mm.yyyy through the ONE module-level
-    // UTC formatter (formatWarrantyDate — plan 05-03 blessed the reuse; a
-    // second date formatter would be a second way to disagree).
-    r.purchaseDate ? formatWarrantyDate(r.purchaseDate) : null,
-    r.purchasePrice,
-    r.supplier,
-    r.warrantyUntil ? formatWarrantyDate(r.warrantyUntil) : null,
-    r.notes,
-  ])
-  // BOM + «;» + CRLF + the esc() injection guard all live in buildCsv (D-18,
-  // T-05-10); the header set (dual filename, nosniff, no-store) in
-  // csvResponseHeaders (T-05-11). Filename date = today UTC (A7).
-  const body = buildCsv(HEADER, cells)
+  // One today per request (per-render hoist discipline): the warranty verdict
+  // column composes the shared warrantyState — the SAME calculation behind the
+  // site color, so file text and site color cannot drift (WR-01, D-03).
+  const today = displayTodayUtc()
+  // BOM + «;» + CRLF + the esc() injection guard all live in buildCsv via
+  // buildDeviceCsv (D-18, T-05-10); the header set (dual filename, nosniff,
+  // no-store) in csvResponseHeaders (T-05-11). Filename date = today UTC (A7).
+  const body = buildDeviceCsv(rows, today)
   const isoDate = new Date().toISOString().slice(0, 10)
   return new Response(body, { headers: csvResponseHeaders(isoDate) })
 }
