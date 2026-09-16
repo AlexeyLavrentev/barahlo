@@ -1,36 +1,27 @@
 ---
-status: testing
+status: complete
 phase: 08-csv
 source: [08-VERIFICATION.md]
 started: 2026-09-16T09:00:00Z
-updated: 2026-09-16T09:00:00Z
+updated: 2026-09-16T09:20:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: RU-Excel — «Диагональ, ″» с запятой-десятичной читается числом, не датой
-expected: |
-  Скачать CSV-ведомость (с фильтром или без) на dev/проде, открыть в Excel/Numbers
-  с русской локалью. Колонка «Диагональ, ″» для монитора с диагональю 21.5"
-  показывает 21,5 как ЧИСЛО (выравнивание вправо, арифметика работает), а не дату
-  «21.май» и не текст. Целые значения (RAM, SSD, порты) не изменились. Остальные
-  19 колонок на месте: конфиг-блок после «SSD, ГБ» (D-01), «Статус гарантии»
-  сразу после «Гарантия до» (D-05), даты в ISO yyyy-mm-dd (D-06).
-awaiting: user response
+[testing complete]
 
 ## Tests
 
 ### 1. RU-Excel — «21,5» число, не «21.май»
 expected: Колонка «Диагональ, ″» с дробной диагональю читается Excel'ом как число при RU-локали (запятая-десятичная ячейка); dot-вариант «21.5» датой НЕ возвращается.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 1
-passed: 0
+passed: 1
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
