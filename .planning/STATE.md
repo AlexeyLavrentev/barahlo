@@ -4,15 +4,15 @@ milestone: v1.1
 milestone_name: Скорость и удобство
 current_phase: 8
 current_phase_name: CSV-ведомость полного контекста
-status: planning
+status: executing
 stopped_at: Phase 8 context gathered
-last_updated: "2026-09-16T06:18:46.370Z"
+last_updated: "2026-09-16T07:06:55.590Z"
 last_activity: 2026-09-16
 last_activity_desc: Phase 7 complete, transitioned to Phase 8
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
+  total_plans: 4
   completed_plans: 3
   percent: 20
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-15)
 
 Phase: 8 — CSV-ведомость полного контекста
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-09-16 — Phase 7 complete, transitioned to Phase 8
 
 Progress: [██████████] 100%
