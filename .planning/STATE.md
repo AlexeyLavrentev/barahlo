@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: Скорость и удобство
 current_phase: 7
 current_phase_name: Live-поиск по сотрудникам
-status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-09-15T19:00:29.642Z"
+status: verifying
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-09-16T03:50:07.602Z"
 last_activity: 2026-09-15
 last_activity_desc: Phase 7 execution started
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 20
 ---
 
 # Project State
@@ -30,10 +30,10 @@ See: .planning/PROJECT.md (updated 2026-09-15)
 
 Phase: 7 (Live-поиск по сотрудникам) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-15 — Phase 7 execution started
 
-Progress: [███████░░░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ Progress: [███████░░░] 67%
 | Phase 6 P2 | 19min | 3 tasks | 4 files |
 | Phase 07 P01 | 13min | 2 tasks | 7 files |
 | Phase 07 P02 | 29min | 2 tasks | 2 files |
+| Phase 07 P03 | 45min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,9 @@ Recent decisions affecting current work:
 - [Phase ?]: Фаза 7/План 1: хук useDebouncedSearchQuery генеричен по target-типу (buildQuery: (f: T & { q: string }) => string) — форма Omit<Q,'q'> из плана не проходит tsc на спред-пуше ({ ...target, q } ≠ Q); поверхность API (имена, роли аргументов, возврат) не изменилась (UI-SPEC Default 9)
 - [Phase ?]: Фаза 7/План 2: «Сбросить поиск» построен реальным API билдера 07-01 — buildEmployeesQuery({ filter, q: '' }, 1): q снимается omission-правилом билдера, сегмент сохраняется (D-08); нотация плана { filter, page: 1 } не типчекается против (f, page = 1)
 - [Phase ?]: Фаза 7/План 2: матрица D-10 зелёная при нулевом прод-диффе (предикат 07-01 уже покрывал); tracer-ассерты переведены на membership-форму — файл сеет всю базу при collection до запуска тестов, абсолютные тоталы дрейфуют; parity-walk ограничен probe.pages (сервер клампит страницы за последней — неограниченный walk до пустой не терминируется)
+- [Phase ?]: [Phase 7/План 3]: G-7-1 — adopt-branch требует пустой inFlight: чужой q может прийти только когда ничего нашего не в полёте; реарм-гвард (inFlight непуст И value.trim() === lastSynced.current.trim()) гасит дублирующий пуш уже отправленного текста; фикс 10c3cee найден UAT-сценарием 1, общий хук защищает и устройства
+- [Phase ?]: [Phase 7/План 3]: UAT выполнен оркестратором через Playwright MCP по D-10 (паттерн фазы 5); все 9 сценариев прошли (SC 1–5, семантика A1 D-03×D-04, D-05/D-06/D-08, long-text backstop), оператор одобрил; финальный гейт 341/341 + build green + lint 0 ошибок/1 предупреждение (exhaustive-deps, router стабилен — не блокирует)
+- [Phase ?]: [Phase 7/План 3]: предсуществующее React duplicate-key предупреждение консоли в combobox отдела EmployeeDialog (код диалога v1.0, фазой не трогался) отложено в бэклог (phases/07-live/deferred-items.md) — не дефект фазы 7
 
 ### Pending Todos
 
@@ -153,8 +157,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-15T19:00:29.636Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-09-16T03:50:07.591Z
+Stopped at: Completed 07-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
