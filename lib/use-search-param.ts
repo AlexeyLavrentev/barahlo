@@ -78,6 +78,7 @@ export function useDebouncedSearchQuery<T extends object>(args: {
       // effect never returns with value.trim() !== q.trim() and no timer
       // armed — that is exactly how the old adopt branch lost text forever.
     } else if (
+      inFlight.current.length === 0 &&
       value.trim() === lastSynced.current.trim() &&
       q !== lastSynced.current
     ) {
@@ -91,12 +92,31 @@ export function useDebouncedSearchQuery<T extends object>(args: {
       // foreign navigation keeps their text — it re-arms below and pushes
       // (G-5-1). `target` in the push comes fresh from props, so a reset
       // of OTHER filters still lands.
+      //
+      // inFlight guard (G-7-1): while OUR OWN push is in flight the q prop
+      // still holds the PRE-push URL — the transition keeps the old page
+      // mounted until the flight lands, and any re-render in that window
+      // (fresh `target` identity) re-runs this effect. Without the guard
+      // that stale q classified as an external change and the adopt branch
+      // wiped the input mid-flight; the wiped value then pushed the opposite
+      // query, whose echo re-adopted the original text — an endless
+      // replace-loop between ?q=X and the bare URL. A foreign q can only
+      // arrive when we have nothing in flight.
       lastSynced.current = q
       setValue(q)
       return
     }
     // Input already matches the URL — no-op skip (Pitfall 6).
     if (value === q) return
+    // Our own push is still in flight and the input carries exactly the
+    // pushed text: nothing new to say — re-arming would fire a duplicate
+    // navigation for the same query (G-7-1).
+    if (
+      inFlight.current.length > 0 &&
+      value.trim() === lastSynced.current.trim()
+    ) {
+      return
+    }
     // We are initiating: arm the push. lastSynced and inFlight are stamped
     // INSIDE the callback — at push time, not arm time — so an older
     // push's echo landing during a newer arm window is classified as our
