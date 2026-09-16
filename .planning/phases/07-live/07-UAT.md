@@ -3,7 +3,7 @@ status: resolved
 phase: 07-live
 source: [07-VERIFICATION.md]
 started: 2026-09-16T04:35:00Z
-updated: 2026-09-16T04:50:00Z
+updated: 2026-09-16T05:05:00Z
 ---
 
 ## Current Test
@@ -25,11 +25,11 @@ result: pass
 
 ### 2. Sign off prohibition: playwright ^1.62.1 devDependency = UAT tooling
 expected: Confirmation that the D-10 boundary is respected — playwright is UAT tooling per the plan precondition, not a new app dependency and not a UI test runner (no RTL/jest)
-result: [pending]
+result: pass
 
 ### 3. Sign off deviation: G-7-1 fix (10c3cee) added guard lines to the moved reconciliation body
 expected: Confirmation that the UAT-mandated race fix (adopt branch gated on empty inFlight + re-arm guard) is an accepted deviation from «moved verbatim, never rewritten» (D-07). 07-REVIEW diffed the body against base 34074e9: verbatim except the guard; devices re-verified in-browser post-fix
-result: [pending]
+result: pass
 
 ## Summary
 
