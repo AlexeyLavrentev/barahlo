@@ -40,7 +40,8 @@ created: 2026-09-16
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (заполняется планировщиком) | 01 | 1 | EXP-01 | T-08-01 | новые ячейки под esc()-гвардом (CWE-1236) | unit | `npx vitest run tests/csv-export.test.ts` | ✅ | ⬜ pending |
+| 08-01-T1 (tracer) | 01 | 1 | EXP-01 | T-08-01, T-08-02 | requireSession-first сохранён; все 20 ячеек + заголовок под esc()-гвардом (CWE-1236); ISO-даты D-06; parity статуса через warrantyState | unit (temp SQLite + buildDeviceCsv) | `npx vitest run tests/csv-export.test.ts` | ✅ | ⬜ pending |
+| 08-01-T2 | 01 | 1 | EXP-01 | T-08-01 | инъекция через новые колонки (panelType) TAB-префиксована; дневная арифметика только в lib/warranty.ts; row-count pin SC 2 | unit (temp SQLite) | `npx vitest run tests/csv-export.test.ts tests/warranty.test.ts tests/devices-queries.test.ts` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
