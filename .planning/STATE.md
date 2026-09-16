@@ -158,10 +158,12 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-16T03:50:07.591Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-09-16T05:10:00Z
+Stopped at: Phase 7 complete (verified + secured + signed off), ready to plan Phase 8
 Resume file: None
 
 ## Operator Next Steps
 
-- Next: /gsd:plan-phase 7
+- Next: /gsd-discuss-phase 8 (CONTEXT.md ещё нет) или сразу /gsd-plan-phase 8
+- Deferred: WR-01 hook push dedup — решение до Фазы 11 (.planning/phases/07-live/deferred-items.md, патч в 07-REVIEW.md)
+- Временный пароль админа uatpass2026 — смени через node scripts/reset-admin.mjs
