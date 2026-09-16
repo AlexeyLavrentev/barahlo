@@ -12,8 +12,8 @@
 //   duplicated (D-02: one edit to a keystone label changes the form AND
 //   the file).
 // - Warranty status text MAPS states, it never re-derives them: the
-//   dictionary wraps warrantyState() output. No WARRANTY_WARN_DAYS, no
-//   86_400_000 day arithmetic here — the boundary lives only in
+//   dictionary wraps warrantyState() output. No warn-boundary constant and
+//   no day-count arithmetic live here — the boundary lives only in
 //   lib/warranty.ts, and the file stays in parity with the site color
 //   by construction (WR-01).
 // - Dates render ISO through ONE formatter (D-06). Stored purchaseDate/
@@ -63,7 +63,7 @@ export function keystoneLabel(key: DeviceFieldKey): string {
 // D-03/D-04: the ONE state→text dictionary of the file. 'none' renders text,
 // never an empty cell — the status column answers in every row. No day
 // numbers in the text (the boundary is visible as the date next door and must
-// not duplicate WARRANTY_WARN_DAYS into strings).
+// not leak the warn threshold into strings).
 export const WARRANTY_STATE_LABELS: Record<WarrantyState, string> = {
   ok: 'Действует',
   warn: 'Истекает',

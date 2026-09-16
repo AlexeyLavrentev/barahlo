@@ -15,11 +15,23 @@ process.env.DATABASE_PATH = join(tmpDir, 'csv.db')
 const { db } = await import('@/db')
 applyMigrations(db.$client)
 const queries = await import('@/db/queries/devices')
-const { createDevice, listDevices, exportDevices } = queries
+const { createDevice, listDevices, exportDevices, totalDeviceCount } = queries
 const { createEmployee } = await import('@/db/queries/employees')
 const { esc, buildCsv, csvResponseHeaders } = await import('@/lib/csv')
-const { addDaysUtc, displayTodayUtc } = await import('@/lib/warranty')
-const { buildDeviceCsv } = await import('@/lib/device-csv')
+const { addDaysUtc, displayTodayUtc, warrantyState } = await import(
+  '@/lib/warranty'
+)
+const {
+  buildDeviceCsv,
+  CONFIG_EXPORT_KEYS,
+  deviceCsvHeader,
+  diagonalCell,
+  isoFileDate,
+  keystoneLabel,
+  WARRANTY_STATE_LABELS,
+} = await import('@/lib/device-csv')
+const { DEVICE_TYPES } = await import('@/lib/device-schema')
+import type { DeviceField, DeviceFieldKey, DeviceTypeKey } from '@/lib/device-schema'
 
 afterAll(() => {
   db.$client.close()
@@ -111,6 +123,8 @@ function seedExport(
     notes: string | null
     inventoryNumber: string | null
     purchaseDate: Date | null
+    ramGb: number
+    ssdGb: number
     screenDiagonal: number
     panelType: string
     portCount: number
@@ -128,6 +142,8 @@ function seedExport(
     warrantyUntil: o.warrantyUntil ?? null,
     notes: o.notes ?? null,
     ramUpgraded: o.ramUpgraded ?? null,
+    ramGb: o.ramGb ?? null,
+    ssdGb: o.ssdGb ?? null,
     screenDiagonal: o.screenDiagonal ?? null,
     panelType: o.panelType ?? null,
     portCount: o.portCount ?? null,
@@ -260,6 +276,41 @@ seedExport('EXP-INJ-P', {
   typeKey: 'monitor',
   model: 'Трейсер Инжектор',
   panelType: '=1+1',
+})
+
+// ─── Phase 8 Task 2 fixtures: sparse matrix + parity + ISO ──────────────────
+// One seed per DEVICE_TYPES key; each fills ONLY the config keys its type
+// really declares in the keystone (PER_TYPE_FIELDS via DEVICE_TYPES) —
+// sparseness is verified, never created by branching. Laptops declare none of
+// the 4 export config keys (RAM/SSD live in the common block), so all 4 of
+// their config cells stay empty — the honest structural truth.
+seedExport('EXP-SPARSE-L', {
+  model: 'Трейсер Sparse Ноут',
+  ramGb: 16,
+  ramUpgraded: 0,
+  ssdGb: 512,
+})
+seedExport('EXP-SPARSE-M', {
+  typeKey: 'monitor',
+  model: 'Трейсер Sparse Мон',
+  screenDiagonal: 27, // integer — замена точки запятой не трогает целые
+  panelType: 'OLED',
+})
+seedExport('EXP-SPARSE-D', {
+  typeKey: 'dock',
+  model: 'Трейсер Sparse Док',
+  portCount: 11,
+})
+seedExport('EXP-SPARSE-P', {
+  typeKey: 'peripheral',
+  model: 'Трейсер Sparse Периф',
+  peripheralKind: 'мышь',
+})
+// ISO (D-06): both file dates on ONE fixed calendar day.
+seedExport('EXP-ISO', {
+  model: 'Трейсер ISO',
+  purchaseDate: new Date('2026-01-05'),
+  warrantyUntil: new Date('2026-01-05'),
 })
 
 const parityFilters = {
@@ -410,6 +461,186 @@ describe('buildDeviceCsv — 20-колоночный файл (Phase 8 tracer)',
 
   it('инъекция через новую свободно-текстовую колонку закрыта построением (CWE-1236, T-08-01)', () => {
     expect(rowOf('EXP-INJ-P')[11]).toBe('\t=1+1')
+  })
+})
+
+// ─── Phase 8 Task 2: матрица паритета и безопасности файла ──────────────────
+// Positional file parser shared by the matrix describes: BOM stripped, CRLF
+// rows, «;» cells. Positional-safe for the rows parsed here (no parsed cell
+// carries «;»; LF-only newlines in quoted notes never produce CRLF).
+function parseFile() {
+  const body = buildDeviceCsv(exportDevices({ type: 'all' }), today)
+  const lines = body.split('\r\n')
+  const header = lines[0].replace(/^\uFEFF/, '').split(';')
+  const rowOf = (serial: string): string[] => {
+    const line = lines.find((l) => l.includes(serial))
+    expect(line, `row ${serial} present in the file`).toBeTruthy()
+    return line!.split(';')
+  }
+  return { header, rowOf }
+}
+
+// Export cell index of each config key — CONFIG_EXPORT_KEYS starts at 10
+// (right after «SSD, ГБ», D-01); the cross-check with the header lives in the
+// pure-units describe below.
+const CONFIG_CELL_OF: Record<string, number> = {
+  screenDiagonal: 10,
+  panelType: 11,
+  portCount: 12,
+  peripheralKind: 13,
+}
+
+// Keys the keystone declares for one type — expectations derive from the
+// keystone (D-02), never from a hand-written list.
+function declaredKeys(typeKey: DeviceTypeKey): readonly DeviceFieldKey[] {
+  const out: DeviceFieldKey[] = []
+  for (const t of DEVICE_TYPES) {
+    if (t.key !== typeKey) continue
+    const fields: readonly DeviceField[] = t.fields
+    for (const f of fields) out.push(f.key)
+  }
+  return out
+}
+
+describe('sparse-матрица — каждый тип заполняет только свои конфиг-колонки (SC 1)', () => {
+  const { header, rowOf } = parseFile()
+
+  it('CONFIG_CELL_OF matches the D-01 header positions (config block right after «SSD, ГБ»)', () => {
+    CONFIG_EXPORT_KEYS.forEach((key, i) => {
+      expect(header[10 + i]).toBe(keystoneLabel(key))
+      expect(CONFIG_CELL_OF[key]).toBe(10 + i)
+    })
+  })
+
+  it.each([
+    ['laptop', 'EXP-SPARSE-L'],
+    ['monitor', 'EXP-SPARSE-M'],
+    ['dock', 'EXP-SPARSE-D'],
+    ['peripheral', 'EXP-SPARSE-P'],
+  ])('%s: свои конфиг-ячейки заполнены, чужие пустые — по кейстоуну', (typeKey, serial) => {
+    const keys = declaredKeys(typeKey as DeviceTypeKey)
+    const cells = rowOf(serial)
+    for (const [key, idx] of Object.entries(CONFIG_CELL_OF)) {
+      if (keys.includes(key as DeviceFieldKey)) {
+        expect(cells[idx], `${typeKey}.${key} заполнен`).not.toBe('')
+      } else {
+        expect(cells[idx], `${typeKey}.${key} пуст`).toBe('')
+      }
+    }
+  })
+
+  it('ноутбук: своё рендерится в общих колонках, все 4 конфиг-ячейки пусты (честная структурная истина)', () => {
+    const cells = rowOf('EXP-SPARSE-L')
+    expect(cells[7]).toBe('16') // RAM, ГБ
+    expect(cells[8]).toBe('нет') // RAM апгрейдена = 0
+    expect(cells[9]).toBe('512') // SSD, ГБ
+    expect(cells[10]).toBe('')
+    expect(cells[11]).toBe('')
+    expect(cells[12]).toBe('')
+    expect(cells[13]).toBe('')
+  })
+
+  it('монитор: целая диагональ без изменений (27), матрица проходит дословно', () => {
+    const cells = rowOf('EXP-SPARSE-M')
+    expect(cells[10]).toBe('27')
+    expect(cells[11]).toBe('OLED')
+  })
+
+  it('док и периферия: порты и вид — точные значения', () => {
+    expect(rowOf('EXP-SPARSE-D')[12]).toBe('11')
+    expect(rowOf('EXP-SPARSE-P')[13]).toBe('мышь')
+  })
+})
+
+describe('parity статуса гарантии — файл = цвет сайта (SC 1, D-03/D-04, WR-01)', () => {
+  it.each([
+    [0, 'Истекает'],
+    [59, 'Истекает'],
+    [60, 'Истекает'],
+    [61, 'Действует'],
+    [-1, 'Истекла'],
+  ])('граница wu = today + %s дней → %s (граничные кейсы warranty.test.ts)', (days, expected) => {
+    expect(WARRANTY_STATE_LABELS[warrantyState(addDaysUtc(today, days), today)]).toBe(expected)
+  })
+
+  it('null → «Без гарантии» — словарь поверх состояния, не пустая ячейка (D-04)', () => {
+    expect(WARRANTY_STATE_LABELS[warrantyState(null, today)]).toBe('Без гарантии')
+  })
+
+  it('end-to-end: ячейка [18] собранного файла = композиция словарь∘warrantyState на всех 4 состояниях', () => {
+    const { rowOf } = parseFile()
+    expect(rowOf('EXP-TRACER-L')[18]).toBe('Истекает') // today+30 (warn)
+    expect(rowOf('EXP-FAR-1')[18]).toBe('Действует') // today+90 (ok)
+    expect(rowOf('EXP-EXP-1')[18]).toBe('Истекла') // today−1 (expired)
+    expect(rowOf('EXP-SPARSE-P')[18]).toBe('Без гарантии') // null (none)
+  })
+})
+
+describe('ISO-даты файла (D-06, SC 3)', () => {
+  it('«2026-01-05» появляется ровно в позициях [14]/[17]', () => {
+    const { rowOf } = parseFile()
+    const cells = rowOf('EXP-ISO')
+    expect(cells[14]).toBe('2026-01-05')
+    expect(cells[17]).toBe('2026-01-05')
+  })
+
+  it('null-даты — пустые ячейки, а статус всё равно отвечает (D-04)', () => {
+    const { rowOf } = parseFile()
+    const cells = rowOf('EXP-SPARSE-L')
+    expect(cells[14]).toBe('')
+    expect(cells[17]).toBe('')
+    expect(cells[18]).toBe('Без гарантии')
+  })
+})
+
+describe('инъекция через новые колонки (SC 3, T-08-01)', () => {
+  it('panelType «=1+1» — TAB-префиксован в теле (гвард по построению, нового кода гварда нет)', () => {
+    const { rowOf } = parseFile()
+    expect(rowOf('EXP-INJ-P')[11]).toBe('\t=1+1')
+  })
+
+  it('числовая и enum конфиг-колонки проходят без изменений', () => {
+    const { rowOf } = parseFile()
+    expect(rowOf('EXP-SPARSE-D')[12]).toBe('11')
+    expect(rowOf('EXP-SPARSE-P')[13]).toBe('мышь')
+  })
+})
+
+describe('diagonalCell / isoFileDate / keystoneLabel — чистые единицы', () => {
+  it('диагональ: запятая-десятичная (RU-Excel, Pitfall 1), целые не тронуты, null → null', () => {
+    expect(diagonalCell(21.5)).toBe('21,5')
+    expect(diagonalCell(23.8)).toBe('23,8')
+    expect(diagonalCell(27)).toBe('27')
+    expect(diagonalCell(null)).toBeNull()
+  })
+
+  it('isoFileDate: UTC-midnight штамп round-trips календарный день на любом хосте (CR-01, D-06)', () => {
+    expect(isoFileDate(new Date(Date.UTC(2026, 0, 5)))).toBe('2026-01-05')
+    expect(isoFileDate(new Date('2026-01-05'))).toBe('2026-01-05')
+  })
+
+  it('keystoneLabel: метки дословно из кейстоуна (включая U+2033); неизвестный ключ бросает (D-02)', () => {
+    expect(keystoneLabel('screenDiagonal')).toBe('Диагональ, ″')
+    expect(keystoneLabel('panelType')).toBe('Тип матрицы')
+    expect(keystoneLabel('portCount')).toBe('Количество портов')
+    expect(keystoneLabel('peripheralKind')).toBe('Вид')
+    expect(() => keystoneLabel('unknownKey' as DeviceFieldKey)).toThrow(
+      /unknown config field key/,
+    )
+  })
+
+  it('deviceCsvHeader: ровно 20 колонок, конфиг-метки = keystoneLabel(CONFIG_EXPORT_KEYS[i]) — метки живут только в кейстоуне (D-02)', () => {
+    const header = deviceCsvHeader()
+    expect(header).toHaveLength(20)
+    CONFIG_EXPORT_KEYS.forEach((key, i) => {
+      expect(header[10 + i]).toBe(keystoneLabel(key))
+    })
+  })
+})
+
+describe('row-count pin — файл = реестр (SC 2)', () => {
+  it('без фильтров экспорт содержит весь парк: строк экспорта === totalDeviceCount()', () => {
+    expect(exportDevices({ type: 'all' }).length).toBe(totalDeviceCount())
   })
 })
 
