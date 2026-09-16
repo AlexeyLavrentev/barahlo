@@ -19,6 +19,7 @@ const { createDevice, listDevices, exportDevices } = queries
 const { createEmployee } = await import('@/db/queries/employees')
 const { esc, buildCsv, csvResponseHeaders } = await import('@/lib/csv')
 const { addDaysUtc, displayTodayUtc } = await import('@/lib/warranty')
+const { buildDeviceCsv } = await import('@/lib/device-csv')
 
 afterAll(() => {
   db.$client.close()
@@ -101,7 +102,7 @@ function seedExport(
   serial: string,
   o: Partial<{
     model: string
-    typeKey: 'laptop' | 'monitor'
+    typeKey: 'laptop' | 'monitor' | 'dock' | 'peripheral'
     ramUpgraded: 0 | 1 | null
     warrantyUntil: Date | null
     status: string
@@ -109,6 +110,11 @@ function seedExport(
     supplier: string | null
     notes: string | null
     inventoryNumber: string | null
+    purchaseDate: Date | null
+    screenDiagonal: number
+    panelType: string
+    portCount: number
+    peripheralKind: string
   }> = {},
 ): number {
   const id = createDevice({
@@ -116,12 +122,16 @@ function seedExport(
     model: o.model ?? 'Делл Латитюд',
     serialNumber: serial,
     inventoryNumber: o.inventoryNumber ?? null,
-    purchaseDate: null,
+    purchaseDate: o.purchaseDate ?? null,
     purchasePrice: null,
     supplier: o.supplier ?? null,
     warrantyUntil: o.warrantyUntil ?? null,
     notes: o.notes ?? null,
     ramUpgraded: o.ramUpgraded ?? null,
+    screenDiagonal: o.screenDiagonal ?? null,
+    panelType: o.panelType ?? null,
+    portCount: o.portCount ?? null,
+    peripheralKind: o.peripheralKind ?? null,
   })
   if (o.status) {
     // Production custody actions set holder+status together; fixtures mirror that.
@@ -220,6 +230,38 @@ seedExport('EXP-INJ-M', {
   notes: 'строка1\nстрока2',
 })
 
+// ─── Phase 8 fixtures: the 20-column file (tracer) ──────────────────────────
+// Models deliberately avoid «делл» — the parity q must not pull these decoys
+// into the 25-member parity set pinned above. The laptop intentionally carries
+// config values in keys foreign to its type (pass-through is structural —
+// no branching); the monitor fills only its own keystone keys.
+seedExport('EXP-TRACER-L', {
+  model: 'Трейсер Бук',
+  status: 'assigned',
+  holderId: empA.id,
+  warrantyUntil: addDaysUtc(today, 30),
+  purchaseDate: new Date('2026-01-05'),
+  screenDiagonal: 21.5,
+  panelType: 'IPS',
+  portCount: 3,
+})
+seedExport('EXP-TRACER-M', {
+  typeKey: 'monitor',
+  model: 'Трейсер Монитор',
+  status: 'assigned',
+  holderId: empA.id,
+  warrantyUntil: addDaysUtc(today, 30),
+  screenDiagonal: 23.8,
+  panelType: 'VA',
+})
+// The free-text panelType is the realistic injection vector through the NEW
+// columns (T-08-01): esc() must neutralize it like every other cell.
+seedExport('EXP-INJ-P', {
+  typeKey: 'monitor',
+  model: 'Трейсер Инжектор',
+  panelType: '=1+1',
+})
+
 const parityFilters = {
   q: 'делл',
   status: 'assigned' as const,
@@ -311,6 +353,63 @@ describe('csvResponseHeaders — dual filename + security headers (V5/V7, T-05-1
   it('nosniff and no-store are present (MIME confusion and caching are dead)', () => {
     expect(headers['X-Content-Type-Options']).toBe('nosniff')
     expect(headers['Cache-Control']).toBe('no-store')
+  })
+})
+
+// ─── Phase 8 tracer: the 20-column file (D-01/D-02/D-04/D-05/D-06) ──────────
+describe('buildDeviceCsv — 20-колоночный файл (Phase 8 tracer)', () => {
+  // The tracer asserts the FILE assembled exactly as the route assembles it:
+  // buildDeviceCsv over the full-park scan. No parsed-here fixture cell
+  // carries «;» (quoted cells stay on their line — LF-only newlines never
+  // produce CRLF), so «;»/CRLF splitting is positional-safe for these rows.
+  const body = buildDeviceCsv(exportDevices({ type: 'all' }), today)
+  const lines = body.split('\r\n')
+  const header = lines[0].replace(/^\uFEFF/, '').split(';')
+  const rowOf = (serial: string): string[] => {
+    const line = lines.find((l) => l.includes(serial))
+    expect(line, `row ${serial} present in the file`).toBeTruthy()
+    return line!.split(';')
+  }
+
+  it('BOM + ровно 20 колонок заголовка; конфиг-блок одним куском после «SSD, ГБ» (D-01)', () => {
+    expect(body.charCodeAt(0)).toBe(0xfeff)
+    expect(header).toHaveLength(20)
+    expect(header[9]).toBe('SSD, ГБ')
+    expect(header[10]).toBe('Диагональ, ″') // U+2033 verbatim, не прямая кавычка
+    expect(header[11]).toBe('Тип матрицы')
+    expect(header[12]).toBe('Количество портов')
+    expect(header[13]).toBe('Вид')
+    expect(header[14]).toBe('Дата закупки')
+  })
+
+  it('«Статус гарантии» стоит сразу после «Гарантия до» (D-05)', () => {
+    expect(header[17]).toBe('Гарантия до')
+    expect(header[18]).toBe('Статус гарантии')
+    expect(header[19]).toBe('Заметки')
+  })
+
+  it('строка ноутбука позиционно: запятая-десятичная диагональ, ISO-даты, статус (D-03/D-06)', () => {
+    const cells = rowOf('EXP-TRACER-L')
+    expect(cells).toHaveLength(20)
+    expect(cells[10]).toBe('21,5') // dot-decimal прочитался бы RU-Excel как дата
+    expect(cells[11]).toBe('IPS')
+    expect(cells[12]).toBe('3')
+    expect(cells[13]).toBe('') // «Вид» — не его ключ: пустая ячейка
+    expect(cells[14]).toBe('2026-01-05')
+    expect(cells[17]).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(cells[18]).toBe('Истекает') // warrantyUntil = today+30 — как цвет сайта
+  })
+
+  it('строка монитора: свои конфиг-ячейки заполнены, чужие пустые (разреженность структурна)', () => {
+    const cells = rowOf('EXP-TRACER-M')
+    expect(cells[10]).toBe('23,8')
+    expect(cells[11]).toBe('VA')
+    expect(cells[12]).toBe('')
+    expect(cells[13]).toBe('')
+  })
+
+  it('инъекция через новую свободно-текстовую колонку закрыта построением (CWE-1236, T-08-01)', () => {
+    expect(rowOf('EXP-INJ-P')[11]).toBe('\t=1+1')
   })
 })
 
