@@ -450,7 +450,11 @@ export const bulkAcceptSchema = z.strictObject({
 | A4 | Три-стейт клик-семантика (indeterminate → «снять всё» vs «выбрать всё») — discretion UI-фазы; зафиксирован вариант «частично → снять всё» | Pattern 2 | Низкий: чисто UX-выбор |
 | A5 | Отсутствующий id в превалидации лучше показывать blocker'ом с `not_found`, а не generic-ошибкой | Pitfall 7 | Низкий: альтернатива — generic «Не удалось…» |
 
-## Open Questions
+## Open Questions (RESOLVED — 2026-09-17, plan 10-01)
+
+1. Две функции vs одна kind-параметризованная → **две**: bulkAssignDevices / bulkAcceptDevices (зеркалят assignDevice/acceptDevice).
+2. Отдельный bulk-dialogs.tsx vs расширение movement-dialogs → **отдельный файл** (в files_modified плана; прецедент clone-dialog).
+3. Источник ФИО в отчёте → **клиентский выбор пикера** (Task 1 step 6).
 
 1. **Форма bulk-функций: две функции или одна с kind-параметром**
    - What we know: одиночные аналоги — отдельные функции (assignDevice/acceptDevice); события и preconditions различаются.
