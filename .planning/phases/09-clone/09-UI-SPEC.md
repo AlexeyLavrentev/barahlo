@@ -151,26 +151,30 @@ All UI copy is Russian, inline strings, no i18n library. Existing strings reused
 
 ## UI Considerations
 
-> State coverage for the new surface. Empty/error COPY lives in the Copywriting Contract above and is referenced, not restated.
+> UI-consideration probe (auto): 31 applicable → 10 covered, 2 backstop, 19 unresolved-assumptions. Copy lives in ## Copywriting Contract — this section covers state shape and references those rows.
 
-Applicable state considerations resolved: 10 covered, 2 backstop, 0 unresolved
+### Covered (acceptance criteria derivable from this spec)
+- **E1 empty/disposed:** карточка со статусом `disposed` НЕ рендерит триггер «Дублировать» (A1); активные статусы — рендерит (assert по наличию/отсутствию кнопки в разметке).
+- **E2 empty/defaults:** диалог открывается с количеством «1» и префиллом «следующий по шаблону»; нераспознанный шаблон → пустой инпут, placeholder «Из 1С, если присвоен», ничего не дописывается (SC 3).
+- **E2+E4 error:** коллизия — byte-exact «…уже есть» под полем; количество — «Укажите количество от 1 до 100»; длина — «Не длиннее 80 символов»; общий сбой — «Не удалось создать копии. Попробуйте ещё раз.»; после неудачи введённые значения эхом возвращаются в форму (echo values, 4886f6a).
+- **E2+E5 loading/pending:** сабмит неактивен, пока экшен в полёте; повторный клик не создаёт дублей.
+- **E2 long-text:** инвентарник ограничен 80 символами (maxLength + zod), копи ошибки зафиксировано.
+- **E2 overflow:** каркас диалога фиксирован (max-w-md p-6, space-y-4/2 — рецепт movement-dialogs), контент не переполняет контейнер.
+- **E3 populated + zero-one-many:** линия успеха «Создано {pluralDevices(n)}» — готовый plural-хелпер покрывает 1/2/5/21.
+- **E3 default/empty-of-message:** до успеха линии нет; после успеха — ровно одна линия с data-clone-created.
 
-| Category | Element(s) | Status | Resolution / Reason |
-|----------|------------|--------|---------------------|
-| empty | inventory suggestion (original inventory empty, or no trailing number) | ✅ covered | Field renders empty with placeholder «Из 1С, если присвоен»; nothing auto-appended, ever (SC 3 / D-02 silent rule); submitting empty is legal → NULL/NULL copies |
-| loading | submit pending | ✅ covered | Primary button disabled + «Создаём копии…»; the insert is one sync better-sqlite3 transaction (~ms at N≤100) — no spinner, no skeleton, no progress bar (nothing new invented) |
-| error | count out of 1..100; inventory >80 chars | ✅ covered | Field-level red copy under the control, `aria-invalid`, submitted values echoed (React 19 reset); dialog stays open |
-| error | UNIQUE inventory collision (against existing rows or inside the batch) | ✅ covered | Server rolls back the WHOLE batch (D-06), maps to `uniqueFieldError` → inventoryNumber field error «…уже есть» byte-exact; values echoed; nothing half-written (SC 1) |
-| error | source device deleted between open and submit; hostile payload | ✅ covered | Generic form error «Не удалось создать копии. Попробуйте ещё раз.» + echo (research action contract: `getDevice` miss → CLONE_ERROR); internal SQLITE codes never surface (V7) |
-| partial | mid-batch failure | ✅ covered | One transaction → all-or-nothing; UI never renders a partial-success state; the operator retries from a clean dialog session (WR-01 unmount) |
-| populated | N = 100 copies | ✅ covered | Single sync transaction, zod-capped; success line «Создано 100 устройств»; copies visible in the registry under «на складе» filter after `refresh()` |
-| zero-one-many | success line | ✅ covered | `pluralDevices` (`Intl.PluralRules('ru')`); n=1 reads «Создано 1 устройство» |
-| interaction | failed submit loses typed values | ✅ covered | Echo-values contract (4886f6a): count + inventory re-appear; dialog session itself never remounts mid-submission |
-| interaction | dialog reuse race (open → close → open) | ✅ covered | WR-01 portal unmount resets form state per session; wrapper clears the previous success line on open |
-| long-text | 80-char inventory in `max-w-md` dialog | 🧪 backstop | Held-out visual test: an 80-char mono value fits the input (native scroll) and the error/hint lines wrap inside the dialog without breaking the recipe |
-| long-text / overflow | success line beside `flex-wrap` row on narrow screens | 🧪 backstop | Held-out visual test: «Создано 100 устройств» renders as its own wrapped line below the action row (`mt-2`) without shifting the buttons |
+### Backstop (browser-check at UAT)
+- statement: Триггер «Дублировать» виден в ряду действий активной карточки, secondary-вариант, порядок «Редактировать → Дублировать → custody → Списать» сохранён; линия успеха под рядом, нейтральный ink — визуальный рендер (E1 populated, E3 shape)
+  verification: backstop
+- statement: Визуал disabled-сабмита в полёте и очистка линии успеха при следующем открытии диалога (E5 visual, E3 lifecycle)
+  verification: backstop
 
----
+### ⚠ Unresolved — planner must treat as assumptions
+- E1 loading/error/partial/overflow/zero-one-many/long-text — статичный текстовый триггер: состояний загрузки/ошибок/партиальности у него нет; переполнение — поведение системного буттона (7)
+- E2 partial — форма из двух полей, «частичные данные» неприменима (1)
+- E3 loading/error/partial/overflow — инлайн-линия рендерится синхронно после action-state, отдельных loading/error-состояний у неё нет (4)
+- E4 empty/loading/partial — ошибки живут внутри E2-формы, отдельных сурфейсов не образуют (3)
+- E5 empty/error/partial/long-text — pending-состояние сабмита не имеет собственных empty/error/partial/long-text форм (4)
 
 ## Registry Safety
 
