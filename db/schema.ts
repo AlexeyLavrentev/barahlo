@@ -64,9 +64,15 @@ export const devices = sqliteTable(
       .notNull()
       .references(() => deviceTypes.key, { onDelete: 'restrict' }),
     model: text('model').notNull(),
-    serialNumber: text('serial_number').notNull(),
+    // D-08 (migration 0001): a device may exist WITHOUT a serial — clones are
+    // born with the NULL/NULL pair written directly by the query layer. The
+    // manual create/edit form still REQUIRES a serial (zod min(1) in
+    // lib/device-schema CommonFields is untouched); multiple NULL pairs are
+    // legal and never collide on the unique index below (plain UNIQUE on a
+    // nullable column only constrains non-null values).
+    serialNumber: text('serial_number'),
     // D-17: normalized (upper case, collapsed spaces, homoglyphs mapped) — written by app code
-    serialNormalized: text('serial_normalized').notNull(),
+    serialNormalized: text('serial_normalized'),
     // D-16: inventory number is manual only, assigned by 1C — nullable until entered
     inventoryNumber: text('inventory_number'),
     inventoryNormalized: text('inventory_normalized'),

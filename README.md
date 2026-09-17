@@ -18,9 +18,8 @@ cp .env.example .env
 # сгенерируйте секрет для подписи сессий и впишите его в .env (AUTH_SECRET):
 openssl rand -base64 32
 
-# 2. Примените схему БД (создаёт ./data/app.db — каталог data/ должен существовать)
-mkdir -p data
-npx drizzle-kit migrate
+# 2. Примените схему БД (создаёт ./data/app.db — каталог data/ создастся сам)
+node scripts/migrate.mjs
 
 # 3. Создайте единственную учётку (CLI, веб-экрана создания нет)
 node scripts/create-admin.mjs
@@ -128,8 +127,8 @@ curl -s -o /dev/null -w '%{http_code}' -H "Cookie: session=$TOKEN" http://localh
 ### Требования к серверу
 
 - **Docker + compose plugin** — основной путь деплоя (D-08). Docker не нужен на хосте для Node-кода: сборка и работа — в контейнере. В Ubuntu 24.04 `apt install docker.io` compose-плагин НЕ ставит — нужен пакет `docker-compose-v2` (или официальный репозиторий Docker).
-- **Host Node ≥ 22** — нужен только для шага миграции: `drizzle-kit` — devDependency, миграция выполняется на хосте против `./data/app.db` через том (standalone-образ devDeps не содержит). ≥22, а не ≥20.9: `better-sqlite3@13` объявляет engines `>=22` (Node 18 из apt Ubuntu 24.04 не подходит).
-  - *Фолбэк при отсутствии host-Node:* разовый compose-сервис миграции из deps-стадии (там есть devDeps) — задокументированная альтернатива; при деплое заменить шаг `npx drizzle-kit migrate` на `docker compose run --rm --no-deps migrate`. Встроенного такого сервиса в `compose.yml` нет — добавляется при необходимости.
+- **Host Node ≥ 22** — нужен только для шага миграции: `node scripts/migrate.mjs` выполняется на хосте против `./data/app.db` через том (standalone-образ devDeps не содержит). ≥22, а не ≥20.9: `better-sqlite3@13` объявляет engines `>=22` (Node 18 из apt Ubuntu 24.04 не подходит).
+  - *Фолбэк при отсутствии host-Node:* разовый compose-сервис миграции из deps-стадии (там есть devDeps) — задокументированная альтернатива; при деплое заменить шаг `node scripts/migrate.mjs` на `docker compose run --rm --no-deps migrate`. Встроенного такого сервиса в `compose.yml` нет — добавляется при необходимости.
 - **Canonical remote** — `origin`, приватный репозиторий https://github.com/AlexeyLavrentev/barahlo.git; `git pull` деплоя тянется оттуда. (D-15 изначально называл корпоративный GitLab — решением владельца от 2026-09-01 канонический remote перенесён в приватный GitHub; публичных зеркал нет, код и `.planning/` остаются в частной зоне.)
 
 ### Первый деплой
@@ -154,9 +153,9 @@ bash scripts/deploy.sh
 ### Что делает `scripts/deploy.sh`
 
 1. `git pull origin main` — обновление кода (без настроенного origin — предупреждение и продолжение)
-2. `npm ci` — devDeps на хосте для мигратора (шаг 4), уже по свежему lockfile после `git pull`
+2. `npm ci` — node_modules на хосте для раннера миграций (шаг 4, `better-sqlite3`), уже по свежему lockfile после `git pull`
 3. `docker compose build` — пересборка образа
-4. `npx drizzle-kit migrate` — миграции на хосте против `./data/app.db` через том (никогда `push`)
+4. `node scripts/migrate.mjs` — миграции на хосте против `./data/app.db` через том (никогда `push`)
 5. `docker compose up -d` — перезапуск контейнера
 6. Идемпотентная установка cron-строки ночного бэкапа (`0 2 * * *`, `docker compose exec -T app node scripts/backup.mjs`) — повторный запуск не плодит дублей
 
@@ -189,7 +188,7 @@ curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/        # → 307 (
 
 ## Важные правила
 
-- Схема БД меняется только миграциями: `npx drizzle-kit generate` → проверить SQL руками → `npx drizzle-kit migrate`. Никогда не использовать `drizzle-kit push`.
+- Схема БД меняется только миграциями: `npx drizzle-kit generate` → проверить SQL руками → `node scripts/migrate.mjs`. Никогда не использовать `drizzle-kit push`. Раннер ставит `PRAGMA foreign_keys=OFF` до транзакции — recreation-миграции (пересоздание таблицы) на заполненной базе через `drizzle-kit migrate` молча падают (RESTRICT от дочерних строк; единственная миграция вехи 0001 уже применена раннером).
 - История перемещений (`movements`) append-only: UPDATE/DELETE рвутся триггерами БД.
 - Учётка — только через CLI (`scripts/create-admin.mjs`); повторное создание невозможно.
 - Бэкап: `data/` — всё состояние системы (БД + uploads + backups).

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Одно-командный деплой/обновление на внутреннем сервере (D-10):
-#   git pull origin main → npm ci → docker compose build → drizzle-kit migrate → docker compose up -d
+#   git pull origin main → npm ci → docker compose build → node scripts/migrate.mjs → docker compose up -d
 # + идемпотентная установка host-cron строки ночного бэкапа (D-07: 02:00 server-local).
-# Требования: Docker + compose; host Node >= 20.9 (для мигратора, см. README «Деплой на сервер»).
+# Требования: Docker + compose; host Node >= 22 (для раннера миграций, см. README «Деплой на сервер»).
 # Запуск из корня проекта на сервере: bash scripts/deploy.sh
 set -euo pipefail
 
@@ -11,7 +11,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
 
 # Порядок принципиален (WR-02): сначала git pull, потом npm ci — иначе миграция
-# (шаг 4) выполнялась бы новым кодом со старыми зависимостями (drizzle-kit
+# (шаг 4) выполнялась бы новым кодом со старыми зависимостями (better-sqlite3
 # предыдущего коммита), а свежий npm ci доставался бы только со следующего прогона.
 echo "==> [1/6] git pull origin main (корпоративный GitLab, D-15)"
 if git remote get-url origin >/dev/null 2>&1; then
@@ -20,17 +20,19 @@ else
   echo "предупреждение: git remote 'origin' не настроен — пропускаю git pull (настройте remote по D-15)" >&2
 fi
 
-echo "==> [2/6] npm ci (devDeps на хосте — drizzle-kit для шага миграции, уже по свежему lockfile)"
+echo "==> [2/6] npm ci (node_modules на хосте — better-sqlite3 для раннера миграций, уже по свежему lockfile)"
 npm ci
 
 echo "==> [3/6] docker compose build"
 docker compose build
 
-echo "==> [4/6] drizzle-kit migrate (host-side, против ./data/app.db через том; никогда push)"
+echo "==> [4/6] node scripts/migrate.mjs (host-side, против ./data/app.db через том; никогда push)"
 # DATABASE_PATH пинится явно: .env на сервере содержит прод-путь /app/data/app.db (для
-# контейнера), а drizzle-kit подхватывает .env — без пина host-миграция ушла бы в
-# несуществующий на сервере путь (проверено: unpinned → exit 1 SQLITE_CANTOPEN).
-DATABASE_PATH=./data/app.db npx drizzle-kit migrate
+# контейнера) и без пина раннер ушёл бы в несуществующий на сервере путь (проверено:
+# unpinned → exit 1 SQLITE_CANTOPEN). Раннер вместо drizzle-kit migrate: recreation-
+# миграции (например 0001, serial → nullable) CLI молча роняет на заполненной базе —
+# RESTRICT от дочерних строк внутри его BEGIN; раннер ставит foreign_keys=OFF ДО BEGIN.
+DATABASE_PATH=./data/app.db node scripts/migrate.mjs
 
 echo "==> [5/6] docker compose up -d"
 docker compose up -d

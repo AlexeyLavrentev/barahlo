@@ -12,6 +12,20 @@ function db(): Database.Database {
   return sqlite
 }
 
+// insertDevice twin with explicit NULL control for the D-08 mirror tests: the
+// helper's `overrides.serial ?? 'abc-123'` fallback cannot express NULL.
+function insertRow(
+  d: Database.Database,
+  serial: string | null,
+  serialNormalized: string | null,
+  status = 'in_stock',
+): void {
+  d.prepare(
+    `INSERT INTO devices (type_key, model, serial_number, serial_normalized, inventory_normalized, status, created_at, updated_at)
+     VALUES ('laptop', 'MacBook Air M1', ?, ?, NULL, ?, unixepoch(), unixepoch())`,
+  ).run(serial, serialNormalized, status)
+}
+
 afterAll(() => {
   sqlite?.close()
 })
@@ -115,5 +129,47 @@ describe('migration 0000 — full schema v1', () => {
       .map((r) => (r as { name: string }).name)
     expect(triggers).toContain('movements_no_update')
     expect(triggers).toContain('movements_no_delete')
+  })
+})
+
+// Migration 0001 (REG-06, D-08): serial → nullable. The suite above already
+// runs against the post-0001 schema (applyMigrations applies every file), so
+// the tests passing at all proves the recreation kept the 0000 semantics;
+// this describe pins the D-08 specifics that migration exists for.
+describe('migration 0001 — serial nullable (D-08, REG-06)', () => {
+  it('leaves both serial columns nullable (pragma notnull=0 — Pitfall 1 acceptance)', () => {
+    const rows = db()
+      .prepare(
+        'SELECT name, "notnull" FROM pragma_table_info(\'devices\') WHERE name LIKE \'serial%\'',
+      )
+      .all() as { name: string; notnull: number }[]
+    const byName = Object.fromEntries(rows.map((r) => [r.name, r.notnull]))
+    expect(byName).toEqual({ serial_number: 0, serial_normalized: 0 })
+  })
+
+  it('allows multiple NULL serial pairs but rejects a duplicate non-null one', () => {
+    const d = db()
+    // NULL/NULL pairs never collide — the plain UNIQUE index on a nullable
+    // column constrains non-null values only (RESEARCH Pattern 1, probe).
+    insertRow(d, null, null)
+    insertRow(d, null, null)
+    insertRow(d, 'SN-CLONE-A', 'SN-CLONE-A')
+    // Different display form, same normalized value — still collides (D-17).
+    expect(() => insertRow(d, 'sn clone a', 'SN-CLONE-A')).toThrow(
+      /UNIQUE constraint failed/,
+    )
+  })
+
+  it('keeps the append-only triggers and the status CHECK enforced after the recreation', () => {
+    const d = db()
+    const triggers = d
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'")
+      .all()
+      .map((r) => (r as { name: string }).name)
+    expect(triggers).toContain('movements_no_update')
+    expect(triggers).toContain('movements_no_delete')
+    expect(() => insertRow(d, 'SN-BOGUS', 'SN-BOGUS', 'bogus')).toThrow(
+      /devices_status_ck|CHECK constraint failed/,
+    )
   })
 })
