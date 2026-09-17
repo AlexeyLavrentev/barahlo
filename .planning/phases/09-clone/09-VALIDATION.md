@@ -40,7 +40,9 @@ created: 2026-09-16
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (заполняется планировщиком) | 01 | 1 | REG-06 | T-09-* | requireSession-first экшен; транзакция all-or-nothing | unit | `npx vitest run` | ✅ | ⬜ pending |
+| 09-01 T1 (миграция + runner) | 01 | 1 | REG-06 / D-08 | T-09-05 | runner применяет 0001 только с FK OFF до BEGIN; идемпотентен | unit (temp db) | `npx vitest run tests/schema.test.ts tests/migrate-runner.test.ts` | ❌ Wave 0 (schema.test.ts ✅ расширить; migrate-runner.test.ts новый) | ⬜ pending |
+| 09-01 T2 (ядро клона) | 01 | 1 | REG-06 / SC 1–4 | T-09-01, T-09-02 | статус/holder не из payload; N≤100 в ядре не нужен (zod в экшене); транзакция all-or-nothing | unit (temp db) | `npx vitest run tests/inventory-increment.test.ts tests/clone-queries.test.ts` | ❌ Wave 0 (оба новых) | ⬜ pending |
+| 09-01 T3 (экшен + диалог) | 01 | 1 | REG-06 / D-01..D-07 | T-09-01..T-09-04 | requireSession-first; zod-белый список 3 полей (count 1..100); '' → null; коллизия → поле | build + suite | `npm run build && npx vitest run` | ✅ (build; suite зелёный) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
