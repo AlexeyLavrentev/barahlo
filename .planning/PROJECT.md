@@ -35,6 +35,7 @@
 - ✓ Поиск по серийному и инвентарному номеру (substring, гомоглифы) и модели (norm()-UDF) — Phase 5 (FIND-01, FIND-04)
 - ✓ Фильтры: «ноуты без апгрейда RAM», тип/статус/отдел/окно гарантии, комбинируются с поиском — Phase 5 (FIND-02, FIND-03)
 - ✓ Подсветка истекающей гарантии (зелёный/жёлтый/красный, 3 сайта) — Phase 5 (WAR-01)
+- ✓ Клон устройства: диалог 1..100 копий одной транзакцией, серийник nullable (миграция через runner), автоподсказка инвентарника с инкрементом, чистая история — Phase 9 (REG-06)
 - ✓ CSV-ведомость полного контекста: 4 разреженных конфиг-колонки типа + «Статус гарантии» (parity с цветом сайта) + ISO-даты файла; без фильтров = весь парк — Phase 8 (EXP-01)
 - ✓ CSV-экспорт отфильтрованного списка (UTF-8 BOM, «;») — Phase 5 (решение roadmap-плана фазы, D-18)
 - ✓ Списки летают на сотнях устройств (0.76 мс @ 600 строк) — Phase 5 (UI-03)
@@ -46,7 +47,6 @@
 <!-- Current scope. Building toward these. -->
 
 - [ ] ⌘K глобальный поиск: устройства + сотрудники одним хоткеем
-- [ ] Клон устройства с автоприростом инвентарного номера
 - [ ] Bulk-выдача/приём нескольких единиц разом
 
 ### Out of Scope
@@ -103,6 +103,9 @@
 | CSV-конфиг-метки деривируются из кейстоуна (keystoneLabel по PER_TYPE_FIELDS) | одна правка метки меняет форму и файл; параллельный CSV-словарь = дрейф (D-02 фазы 8); U+2033 ″ байт-точно | ✓ Good |
 | Дробная диагональ в CSV — запятая-десятичная «21,5» | dot-decimal RU-Excel читает как дату «21.май» (research Pitfall 1, первое дробное число файла); целые не тронуты; pinned тестом + UAT | ✓ Good |
 | Даты CSV-файла — ISO yyyy-mm-dd (D-06), сайт остаётся dd.mm.yyyy | SC 3 буквально; сортировка в Excel локале-независима; один файловый форматтер в lib/device-csv.ts (route не vitest-импортируем) | ✓ Good |
+| Миграция serial → nullable — обычный UNIQUE остаётся + раннер scripts/migrate.mjs | nullable-колонка УЖЕ допускает NULL-пары (partial/expression index не нужны — probe); голый `drizzle-kit migrate` молча падает на заполненной базе (FK RESTRICT внутри BEGIN, better-sqlite3 13 включил FK) — только PRAGMA OFF до BEGIN | ✓ Good |
+| Инкремент инвентарника — Number.isSafeInteger гвард | хвост > 2^53 давал самоколлизию/scientific-notation (WR-01, эмпирически доказано ревью); непредставимый хвост → SC 3 silent-empty (c4b2e2d) | ✓ Good |
+| Клоны — ноль movement-событий, in_stock хардкодом query-слоя | создание ≠ перемещение (append-only custody); статус/holder никогда из payload (T-04-02) | ✓ Good |
 
 ## Evolution
 
@@ -122,4 +125,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-16 after Phase 8 (CSV-ведомость полного контекста)*
+*Last updated: 2026-09-17 after Phase 9 (Клон устройства)*
