@@ -48,4 +48,21 @@ describe('nextInventoryNumber', () => {
     })
     expect(series).toEqual(['AB-099', 'AB-100', 'AB-101'])
   })
+
+  it('degrades precision-unsafe digit tails to silent-empty (WR-01, SC 3)', () => {
+    // 2^53 is exact in a double but NOT a safe integer: without the guard the
+    // old code returned the SAME string and a 2-copy batch self-collided on
+    // devices_inventory_norm_uq instead of silently suggesting nothing.
+    expect(nextInventoryNumber('9007199254740992')).toBe('')
+    expect(nextInventoryNumber('AB-9007199254740992')).toBe('')
+    // Incrementing MAX_SAFE_INTEGER would land on 2^53 — guarded too.
+    expect(nextInventoryNumber('AB-9007199254740991')).toBe('')
+    // 22+ digit tails rendered as scientific-notation garbage ('…1e+22').
+    expect(nextInventoryNumber('AB-9999999999999999999999')).toBe('')
+    expect(nextInventoryNumber('9'.repeat(22))).toBe('')
+    // Silent precision loss just past the safe range must not slip through.
+    expect(nextInventoryNumber('AB-100000000000000001')).toBe('')
+    // The last safely incrementable boundary still increments exactly.
+    expect(nextInventoryNumber('AB-9007199254740990')).toBe('AB-9007199254740991')
+  })
 })

@@ -19,7 +19,18 @@ export function nextInventoryNumber(raw: string | null | undefined): string {
   if (!match) return ''
   const [, prefix, digits] = match
   // padStart keeps zero padding; a rollover widens naturally ('AB-099' →
-  // 'AB-100'). Number (not BigInt) is enough: tails ≤ 80 chars are far below
-  // 2^53, and the zod cap rejects absurd lengths before this runs.
-  return prefix + String(Number(digits) + 1).padStart(digits.length, '0')
+  // 'AB-100'). Number (not BigInt) stays exact only inside the safe-integer
+  // range. Past 2^53 − 1 precision is lost silently (Number('9007199254740992')
+  // + 1 still equals 2^53 — the SAME string came back and a 2-copy batch
+  // self-collided on UNIQUE), and far larger tails render as scientific
+  // notation via String() ('…1e+22'). The zod cap bounds tail LENGTH, not
+  // value, so it does not protect here. An unrepresentable tail is not a
+  // reliably incrementable pattern — degrade to the same silent-empty
+  // contract as a non-numeric tail (SC 3): suggest nothing rather than
+  // invent a wrong number.
+  const value = Number(digits)
+  if (!Number.isSafeInteger(value)) return ''
+  const next = value + 1
+  if (!Number.isSafeInteger(next)) return ''
+  return prefix + String(next).padStart(digits.length, '0')
 }
