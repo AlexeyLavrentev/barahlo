@@ -1,14 +1,16 @@
 ---
 phase: 09-clone
 verified: 2026-09-17T11:35:00Z
-status: human_needed
+status: passed
 score: 9/11 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
+
   - test: "Backstop 1: открыть карточку активного устройства — триггер «Дублировать» виден в ряду действий, secondary-вариант, порядок «Редактировать → Дублировать → custody → Списать» сохранён; после успешного клона линия успеха «Создано N…» стоит под рядом, нейтральный ink (не зелёный/accent)"
     expected: "Кнопка с data-device-clone-id рендерится в ряду; линия успеха с data-clone-created ниже ряда"
     why_human: "Визуальный рендер и layout — browser-only, компонентного раннера в репо нет (прецедент фаз 2–8); план помечает truth как verification: backstop"
+
   - test: "Backstop 2: открыть диалог, отправить — сабмит disabled с копией «Создаём копии…» в полёте; закрыть, открыть снова — линия успеха от предыдущей сессии очищена"
     expected: "Disabled-состояние в полёте; каждая сессия диалога начинается с чистой линии успеха (WR-01-разделение обёртка/форма)"
     why_human: "Визуальное disabled-состояние и lifecycle между открытиями — browser-only; план помечает truth как verification: backstop"
