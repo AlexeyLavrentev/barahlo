@@ -4,15 +4,15 @@ milestone: v1.1
 milestone_name: Скорость и удобство
 current_phase: 10
 current_phase_name: Bulk-выдача и приём
-status: planning
-stopped_at: Phase 10 UI-SPEC approved
-last_updated: "2026-09-17T09:54:09.440Z"
+status: executing
+stopped_at: "10-01 Tasks 1-2 committed (8ae36a2/62659f8/0ba52a7/b4984d5); Task 3 UAT-гейт возвращён оркестратору (checkpoint:human-verify)"
+last_updated: "2026-09-17T10:51:16.238Z"
 last_activity: 2026-09-17
-last_activity_desc: Phase 09 complete, transitioned to Phase 10
+last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 5
+  total_plans: 6
   completed_plans: 5
   percent: 60
 ---
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-15)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 09 — Клон устройства
+**Current focus:** Phase 10 — Bulk-выдача и приём
 
 ## Current Position
 
-Phase: 10 — Bulk-выдача и приём
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-09-17 — Phase 09 complete, transitioned to Phase 10
+Phase: 10 (Bulk-выдача и приём) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 10
+Last activity: 2026-09-17 — Phase 10 execution started
 
 Progress: [██████████] 100%
 
@@ -143,6 +143,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 8/План 1]: D-02 механизм — метки CSV-колонок деривируются из кейстоуна (keystoneLabel по CONFIG_EXPORT_KEYS через DEVICE_TYPES; PER_TYPE_FIELDS не экспортируется, DEVICE_TYPES несёт те же массивы), throw на неизвестном ключе — правка метки в PER_TYPE_FIELDS меняет и форму, и файл — Параллельный CSV-словарь меток отклонён владельцем (D-02); кейстоун остаётся единственным источником
 - [Phase ?]: [Phase 8/План 1]: Диагональ — запятая-десятичная («21,5»/«23,8», целые «27»): dot-decimal RU-Excel читает как дату «21.мая» (research Pitfall 1); первая дробная колонка в истории файла — Консистентно с RU-контрактом файла («;», BOM); ручная RU-Excel проверка — end-of-phase, записана в WINDOWS.md (unrun-verify)
 - [Phase ?]: [Phase 8/План 1]: Файловый маппинг живёт в pure lib/device-csv.ts, route.ts — thin composer (today = displayTodayUtc() один на запрос): роут не vitest-импортируем (next/headers), вынос дал позиционный пин 20 колонок тестом — Дисциплина pure-модулей lib/warranty.ts; TDD RED c7e095a → GREEN 51bb5c9 → матрица 7584bfc; 370/370 suite
+- [Phase 10]: Диалоги партии смонтированы рядом с FloatingPanel (не внутри size>0 блока): clear() в ok-эффекте опустошает Set — панель исчезает за открытым диалогом, отчёт «Записано: N» остаётся; EmployeePicker-копия в bulk-dialogs расширена onPick (ФИО отчёта из клиентского выбора — Open Question 3); blockers едут union-ом как данные, throw {code} — только guard-UPDATE (.changes===0: in-batch дубликат/гонка)
 
 ### Pending Todos
 
@@ -165,9 +166,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-17T09:54:09.425Z
-Stopped at: Phase 10 UI-SPEC approved
-Resume file: .planning/phases/10-bulk/10-UI-SPEC.md
+Last session: 2026-09-17T10:50:30.014Z
+Stopped at: 10-01 Tasks 1-2 committed (8ae36a2/62659f8/0ba52a7/b4984d5); Task 3 UAT-гейт возвращён оркестратору (checkpoint:human-verify)
+Resume file: .planning/phases/10-bulk/10-01-SUMMARY.md
 
 ## Operator Next Steps
 
