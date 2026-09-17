@@ -37,7 +37,8 @@ export type MovementEventView = {
 export type IssuedDeviceView = {
   id: number
   model: string
-  serialNumber: string
+  // D-08: nullable since migration 0001 — clones are born without a serial.
+  serialNumber: string | null
   warrantyUntil: Date | null
   issuedAt: Date | null
 }
@@ -396,7 +397,8 @@ export type RecentMovementView = {
   occurredAt: Date
   deviceId: number
   model: string
-  serialNumber: string
+  // D-08: nullable since migration 0001 — clones are born without a serial.
+  serialNumber: string | null
   fromId: number | null
   fromName: string | null
   toId: number | null

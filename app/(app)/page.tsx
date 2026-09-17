@@ -176,14 +176,14 @@ function FeedRow({ event }: { event: RecentMovementView }) {
         </span>
         <Link
           href={`/devices/${event.deviceId}`}
-          title={`${movementEventLabel(event.eventType)} · ${event.model} · ${event.serialNumber}`}
+          title={`${movementEventLabel(event.eventType)} · ${event.model} · ${event.serialNumber ?? '—'}`}
           className="flex min-w-0 flex-1 items-center justify-between gap-2"
         >
           <span className="truncate text-base text-accent hover:underline underline-offset-2">
             {event.model}
           </span>
           <span className="shrink-0 font-mono text-sm text-ink-secondary">
-            {event.serialNumber}
+            {event.serialNumber ?? '—'}
           </span>
         </Link>
       </div>

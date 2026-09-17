@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { refresh } from 'next/cache'
 import { requireSession } from '@/lib/auth'
 import {
+  cloneDevices,
   createDevice,
   getDevice,
   updateDevice,
@@ -291,6 +292,107 @@ export async function updateDeviceAction(
   }
   refresh()
   return { ok: true }
+}
+
+// ─── Дублировать (REG-06, клон-диалог карточки) ────────────────────────────
+//
+// Same contract as every action above: requireSession() first, zod whitelist,
+// one transactional query, refresh() on success. The whitelist is exactly
+// THREE fields (count + the edited inventory start + the hidden deviceId —
+// T-03-02): status/currentEmployeeId/notes are absent as a class, the query
+// layer hardcodes them (T-04-02), and the server rebuilds the whole series
+// from the submitted START (Pitfall 7 — the client is never the authority).
+
+const CLONE_ERROR = 'Не удалось создать копии. Попробуйте ещё раз.'
+
+const cloneSchema = z.strictObject({
+  deviceId: z.coerce.number().int().positive(),
+  // D-03: 1..100 — a party purchase never exceeds a hundred, and the bound
+  // caps the one-writer transaction.
+  count: z.coerce.number().int().min(1).max(100),
+  inventoryNumber: z.string().min(1).max(80).optional(),
+})
+
+export type CloneFieldErrors = {
+  count?: string
+  inventoryNumber?: string
+}
+
+export type CloneFormState = {
+  ok?: boolean
+  created?: number
+  error?: string
+  fieldErrors?: CloneFieldErrors
+  // Echo of the submitted strings — same rationale as DeviceFormState.values.
+  values?: Record<string, string>
+}
+
+// Copy table of the clone dialog (UI-SPEC Copywriting Contract): the count
+// bound and the inventory length have inline copies; a garbage deviceId (or
+// any other tampering shape) falls back to the generic dialog error.
+function cloneFieldErrorsOf(error: z.ZodError): CloneFormState {
+  const fieldErrors: CloneFieldErrors = {}
+  for (const issue of error.issues) {
+    const key = String(issue.path[0])
+    if (key === 'count') {
+      fieldErrors.count = 'Укажите количество от 1 до 100'
+    } else if (key === 'inventoryNumber') {
+      // The only reachable issue is the length bound: '' is mapped to
+      // undefined before the parse (below), min(1) is unreachable.
+      fieldErrors.inventoryNumber = 'Не длиннее 80 символов'
+    } else {
+      return { error: CLONE_ERROR }
+    }
+  }
+  return { fieldErrors }
+}
+
+// Raw strings of the clone form fields — the echo payload attached to any
+// failure state (both inputs are uncontrolled and reset by React 19).
+function echoCloneValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {}
+  for (const key of ['count', 'inventoryNumber']) {
+    const raw = formData.get(key)
+    if (typeof raw === 'string' && raw !== '') values[key] = raw
+  }
+  return values
+}
+
+export async function cloneDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<CloneFormState> {
+  await requireSession()
+  const values = echoCloneValues(formData)
+  const inventory = textOf(formData, 'inventoryNumber')
+  const parsed = cloneSchema.safeParse({
+    deviceId: formData.get('deviceId'),
+    count: formData.get('count'),
+    // '' → undefined BEFORE the query layer: NULL/NULL pairs, never ''
+    // (Pitfall 5 — the same mapping as commonPayload).
+    inventoryNumber: inventory === '' ? undefined : inventory,
+  })
+  if (!parsed.success) return { ...cloneFieldErrorsOf(parsed.error), values }
+  const source = getDevice(parsed.data.deviceId)
+  if (!source) return { error: CLONE_ERROR, values }
+  let created: number
+  try {
+    created = cloneDevices(
+      source,
+      parsed.data.inventoryNumber ?? null,
+      parsed.data.count,
+    ).length
+  } catch (e) {
+    // UNIQUE collisions reuse the shared mapper — the inventory copy is the
+    // byte-exact «уже есть» line (D-06); the generic fallback is the clone's
+    // own copy (an unknown error must not say «сохранить»).
+    const mapped = uniqueFieldError(e)
+    if (mapped.fieldErrors) return { fieldErrors: mapped.fieldErrors, values }
+    return { error: CLONE_ERROR, values }
+  }
+  // Without refresh() the card/registry would not repaint (Pitfall 6).
+  refresh()
+  return { ok: true, created }
 }
 
 // ─── Custody actions (MOVE-01..03, D-08) ────────────────────────────────────

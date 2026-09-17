@@ -208,7 +208,9 @@ describe('TZ-граница — frozen MSK 00:30 (CR-01 hazard instant)', () => 
     vi.useRealTimers()
   })
 
-  function frozenSerialsOf(warranty: (typeof PRESETS)[number]): string[] {
+  function frozenSerialsOf(
+    warranty: (typeof PRESETS)[number],
+  ): (string | null)[] {
     return listDevices({
       type: 'all',
       page: 1,

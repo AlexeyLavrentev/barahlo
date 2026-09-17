@@ -67,7 +67,7 @@ function IssuedSection({ employeeId }: { employeeId: number }) {
               <Link
                 key={device.id}
                 href={`/devices/${device.id}`}
-                title={`${device.model} · ${device.serialNumber}`}
+                title={`${device.model} · ${device.serialNumber ?? '—'}`}
                 className="flex min-h-11 items-center gap-2 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
               >
                 <span className="min-w-0 flex-1">
@@ -77,7 +77,7 @@ function IssuedSection({ employeeId }: { employeeId: number }) {
                     {device.model}
                   </span>
                   <span className="mt-0.5 block truncate text-sm text-ink-secondary">
-                    <span className="font-mono">{device.serialNumber}</span>
+                    <span className="font-mono">{device.serialNumber ?? '—'}</span>
                     {device.issuedAt ? (
                       <>
                         {' · выдано '}

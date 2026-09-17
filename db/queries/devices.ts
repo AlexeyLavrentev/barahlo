@@ -46,7 +46,8 @@ export type DeviceListItem = {
   id: number
   typeKey: string
   model: string
-  serialNumber: string
+  // D-08: nullable since migration 0001 — clones are born without a serial.
+  serialNumber: string | null
   inventoryNumber: string | null
   status: string
   holder: string | null
@@ -87,7 +88,8 @@ export type DeviceExportRow = {
   id: number
   typeKey: string
   model: string
-  serialNumber: string
+  // D-08: nullable since migration 0001 — clones export an empty cell (esc()).
+  serialNumber: string | null
   inventoryNumber: string | null
   status: string
   holder: string | null

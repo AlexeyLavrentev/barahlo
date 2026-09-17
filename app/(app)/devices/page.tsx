@@ -168,7 +168,7 @@ export default async function DevicesPage({
                   title={[
                     row.model,
                     deviceTypeName(row.typeKey),
-                    row.serialNumber,
+                    row.serialNumber ?? '—',
                     row.inventoryNumber ?? '—',
                     row.holder ?? '—',
                     row.warrantyUntil
@@ -204,7 +204,7 @@ export default async function DevicesPage({
                     <span className="mt-0.5 block truncate text-sm text-ink-secondary">
                       {deviceTypeName(row.typeKey)}
                       {' · '}
-                      <span className="font-mono">{row.serialNumber}</span>
+                      <span className="font-mono">{row.serialNumber ?? '—'}</span>
                       {' · '}
                       <span className="font-mono">
                         {row.inventoryNumber ?? '—'}

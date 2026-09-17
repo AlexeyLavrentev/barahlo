@@ -21,6 +21,7 @@ import {
   DeviceDialog,
   type DeviceDialogDevice,
 } from '@/app/(app)/devices/device-dialog'
+import { CloneDialog } from '@/app/(app)/devices/clone-dialog'
 import { DeviceActions } from '@/app/(app)/devices/device-actions'
 import { displayTodayUtc } from '@/lib/warranty'
 import { WarrantyDate } from '@/lib/warranty-date'
@@ -224,7 +225,7 @@ export default async function DeviceCardPage({
         <div className="mt-1 flex flex-wrap items-center gap-2">
           <p className="text-sm text-ink-secondary">
             {deviceTypeName(device.typeKey)} ·{' '}
-            <span className="font-mono">{device.serialNumber}</span>
+            <span className="font-mono">{device.serialNumber ?? '—'}</span>
           </p>
           {device.status !== 'in_stock' ? (
             <StatusPill status={device.status} />
@@ -247,6 +248,14 @@ export default async function DeviceCardPage({
             typeConfigs={DEVICE_TYPES}
             device={dialogDeviceOf(device)}
           />
+          {/* Дублировать (REG-06, D-01): card-level island between the edit
+              dialog and the custody matrix (UI-SPEC resolution #1 — clone is
+              not a custody transition and renders for ALL non-disposed
+              statuses); RAW inventoryNumber, never normalized (Pitfall 4).
+              The whole row — this trigger included — stays hidden for
+              disposed (A1). The island's success line owns w-full and wraps
+              below the buttons. */}
+          <CloneDialog deviceId={device.id} inventoryNumber={device.inventoryNumber} />
           <DeviceActions
             deviceId={device.id}
             status={device.status}

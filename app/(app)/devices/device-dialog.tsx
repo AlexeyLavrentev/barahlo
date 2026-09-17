@@ -52,7 +52,9 @@ export type DeviceDialogDevice = {
   id: number
   typeKey: string
   model: string
-  serialNumber: string
+  // D-08: nullable since migration 0001 — a clone's edit dialog shows an
+  // empty required field; saving still requires a serial (zod min(1) stays).
+  serialNumber: string | null
   inventoryNumber: string | null
   notes: string | null
   purchaseDate: string | null

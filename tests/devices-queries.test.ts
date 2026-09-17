@@ -285,7 +285,9 @@ describe('listDevices — warranty filters (WAR-01, edge 9 filter side)', () => 
   const wPast = seedWarranty('war-past', addDaysUtc(today, -1))
   const wNone = seedWarranty('war-none', null)
 
-  function serialsOf(warranty: 'w30' | 'w60' | 'expired'): string[] {
+  function serialsOf(
+    warranty: 'w30' | 'w60' | 'expired',
+  ): (string | null)[] {
     return listDevices({
       type: 'all',
       page: 1,
@@ -416,7 +418,7 @@ describe('listDevices — the full filter matrix (FIND-02/FIND-03, edge 5/6/10/1
   function serialsOf(
     filters: Parameters<typeof listDevices>[0]['filters'],
     type: Parameters<typeof listDevices>[0]['type'] = 'all',
-  ): string[] {
+  ): (string | null)[] {
     return listDevices({ type, page: 1, pageSize: 1000, filters })
       .rows.filter((r) => r.model === M_MODEL)
       .map((r) => r.serialNumber)
