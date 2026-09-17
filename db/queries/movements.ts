@@ -422,6 +422,78 @@ export function bulkAssignDevices(
   })
 }
 
+// Принять партию (MOVE-06, D-02): источники ОБА статуса — assigned И repair
+// (двух-статусный precondition, прецедент sendToRepair; Pitfall 3 — цикл
+// одиночных acceptDevice не годится, тот требует assigned). Держатель для
+// события returned читается из tx-снапшота (прецедент acceptDevice), никогда
+// из payload; from_repair — без person slots (прецедент returnFromRepair).
+// Ta же ONE-tx форма, что bulkAssignDevices: SELECT-превалидация → blockers
+// (ноль записей) ИЛИ loop guard-UPDATE с throw-откатом всей партии.
+export function bulkAcceptDevices(
+  deviceIds: number[],
+  event: EventInput = {},
+): BulkOutcome {
+  return db.transaction((tx) => {
+    const rows = tx
+      .select({
+        id: devices.id,
+        model: devices.model,
+        status: devices.status,
+        currentEmployeeId: devices.currentEmployeeId,
+      })
+      .from(devices)
+      .where(inArray(devices.id, deviceIds))
+      .orderBy(asc(devices.id))
+      .all()
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    const blockers: BulkBlocker[] = deviceIds
+      .filter((id) => {
+        const status = byId.get(id)?.status
+        return status !== 'assigned' && status !== 'repair'
+      })
+      .map((id) => ({
+        id,
+        model: byId.get(id)?.model ?? '—',
+        status: byId.get(id)?.status ?? 'not_found',
+      }))
+    if (blockers.length > 0) return { ok: false, blockers }
+    const occurredAt = occurredOf(event)
+    const results: Array<{ deviceId: number; eventType: string }> = []
+    for (const id of deviceIds) {
+      const snapshot = byId.get(id)
+      if (!snapshot) throw { code: 'ILLEGAL_TRANSITION' }
+      const fromRepair = snapshot.status === 'repair'
+      const upd = tx
+        .update(devices)
+        .set({ status: 'in_stock', currentEmployeeId: null, updatedAt: new Date() })
+        .where(
+          and(
+            eq(devices.id, id),
+            inArray(devices.status, ['assigned', 'repair']),
+          ),
+        )
+        .run()
+      if (upd.changes === 0) throw { code: 'ILLEGAL_TRANSITION' }
+      tx
+        .insert(movements)
+        .values({
+          deviceId: id,
+          eventType: fromRepair ? 'from_repair' : 'returned',
+          fromEmployeeId: fromRepair ? null : snapshot.currentEmployeeId,
+          toEmployeeId: null,
+          comment: commentOf(event),
+          occurredAt,
+        })
+        .run()
+      results.push({
+        deviceId: id,
+        eventType: fromRepair ? 'from_repair' : 'returned',
+      })
+    }
+    return { ok: true, results }
+  })
+}
+
 // Current holder of one device — the transfer action reads it (DB, never the
 // payload) to feed the dialog's transfer-refine argument.
 export function getDeviceHolder(

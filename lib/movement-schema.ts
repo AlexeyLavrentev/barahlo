@@ -190,6 +190,15 @@ export const bulkAssignSchema = z.strictObject({
   comment: commentSchema.optional(),
 })
 
+// Принять партию — без person-полей; strictness отклоняет инъекцию
+// employeeId (прецедент acceptSchema, V5). Источники обоих статусов
+// (assigned/repair) валидирует query-слой, не payload.
+export const bulkAcceptSchema = z.strictObject({
+  deviceIds: deviceIdsSchema,
+  occurredAt: occurredAtSchema.optional(),
+  comment: commentSchema.optional(),
+})
+
 export const movementSchemas = {
   assign: assignSchema,
   accept: acceptSchema,
@@ -197,4 +206,5 @@ export const movementSchemas = {
   repair: repairSchema,
   dispose: disposeSchema,
   bulkAssign: bulkAssignSchema,
+  bulkAccept: bulkAcceptSchema,
 }

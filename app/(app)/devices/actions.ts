@@ -13,6 +13,7 @@ import {
 import {
   acceptDevice,
   assignDevice,
+  bulkAcceptDevices,
   bulkAssignDevices,
   disposeDevice,
   getDeviceHolder,
@@ -716,6 +717,37 @@ export async function bulkAssignDevicesAction(
     return { error: BULK_ASSIGN_ERROR, values }
   }
   // Неeligible партия — blockers как данные (union), не throw.
+  if (!outcome.ok) return { blockers: outcome.blockers, values }
+  refresh()
+  return { ok: true, results: outcome.results }
+}
+
+const BULK_ACCEPT_ERROR = 'Не удалось принять устройства. Попробуйте ещё раз.'
+
+// Зеркало bulkAssignDevicesAction: без employeeId-ветки (accept-схема —
+// strictObject без person-полей, инъекция = отказ парсинга, V5).
+export async function bulkAcceptDevicesAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<BulkFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.bulkAccept.safeParse(
+    bulkPayload(formData, false),
+  )
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, BULK_ACCEPT_ERROR), values }
+  }
+  let outcome: BulkOutcome
+  try {
+    outcome = bulkAcceptDevices(parsed.data.deviceIds, {
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    // ILLEGAL_TRANSITION (in-batch дубликат id / гонка) — копи-таблица (V7).
+    return { error: BULK_ACCEPT_ERROR, values }
+  }
   if (!outcome.ok) return { blockers: outcome.blockers, values }
   refresh()
   return { ok: true, results: outcome.results }

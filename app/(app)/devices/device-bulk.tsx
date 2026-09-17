@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { EmployeeOption } from '@/db/queries/movements'
-import { BulkAssignDialog } from './bulk-dialogs'
+import { BulkAcceptDialog, BulkAssignDialog } from './bulk-dialogs'
 
 // Selection-остров списка устройств (MOVE-06, D-01): первый в приложении
 // context-провайдер. Владеет Set<number> выделенных id СТРОГО в пределах
@@ -68,6 +68,7 @@ export function DeviceBulkProvider({
 }) {
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set())
   const [assignOpen, setAssignOpen] = useState(false)
+  const [acceptOpen, setAcceptOpen] = useState(false)
 
   const toggle = useCallback((id: number) => {
     setSelected((prev) => {
@@ -116,9 +117,11 @@ export function DeviceBulkProvider({
             <Button size="xl" onClick={() => setAssignOpen(true)}>
               Выдать
             </Button>
-            {/* Свой диалог (BulkAcceptDialog) кнопка получает в задаче 2 —
-                bulkAcceptDevices ещё нет; UAT-гейт стоит после задачи 2. */}
-            <Button variant="secondary" size="xl">
+            <Button
+              variant="secondary"
+              size="xl"
+              onClick={() => setAcceptOpen(true)}
+            >
               Принять
             </Button>
             <button
@@ -142,7 +145,13 @@ export function DeviceBulkProvider({
         deviceIds={[...selected]}
         onOk={clear}
       />
-      {/* BulkAcceptDialog садится сюда в задаче 2 (тот же слот механики). */}
+      <BulkAcceptDialog
+        open={acceptOpen}
+        onOpenChange={setAcceptOpen}
+        rows={rows}
+        deviceIds={[...selected]}
+        onOk={clear}
+      />
     </DeviceBulkContext.Provider>
   )
 }

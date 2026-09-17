@@ -24,7 +24,11 @@ import {
 import { pluralDevices, ruCollator } from '@/lib/ru'
 import { deviceStatusLabel } from '@/lib/device-schema'
 import type { EmployeeOption } from '@/db/queries/movements'
-import { bulkAssignDevicesAction, type BulkFormState } from './actions'
+import {
+  bulkAcceptDevicesAction,
+  bulkAssignDevicesAction,
+  type BulkFormState,
+} from './actions'
 import type { DeviceBulkRow } from './device-bulk'
 
 // Диалоги партии (MOVE-06, D-04/D-05/D-06) — четвёртая installation
@@ -371,6 +375,120 @@ export function BulkAssignDialog({
           deviceIds={deviceIds}
           onOk={onOk}
         />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Принять устройства (assigned|repair → in_stock, MOVE-06 D-02) ─────────
+
+function BulkAcceptForm({
+  rows,
+  deviceIds,
+  onOk,
+}: {
+  rows: DeviceBulkRow[]
+  deviceIds: number[]
+  onOk: () => void
+}) {
+  const [state, formAction, pending] = useActionState(
+    bulkAcceptDevicesAction,
+    {},
+  )
+  useClearOnOk(state, onOk)
+  const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows])
+
+  // Success-вью: returned → «принято на склад», from_repair → «возвращено
+  // из ремонта» (D-05 verbatim).
+  if (state.ok) {
+    const results = state.results ?? []
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-ink">Записано: {results.length}</p>
+        <div className={LIST_CLASS} data-bulk-report>
+          {results.map((result) => {
+            const row = byId.get(result.deviceId)
+            return (
+              <p key={result.deviceId} className="text-sm text-ink">
+                {row?.model ?? '—'}
+                {' · '}
+                <span className="font-mono">
+                  {row?.inventoryNumber ?? '—'}
+                </span>
+                {' · '}
+                {result.eventType === 'from_repair'
+                  ? 'возвращено из ремонта'
+                  : 'принято на склад'}
+              </p>
+            )
+          })}
+        </div>
+        <DialogFooter>
+          <DialogClose render={<Button variant="secondary" />}>
+            Закрыть
+          </DialogClose>
+        </DialogFooter>
+      </div>
+    )
+  }
+
+  return (
+    <form action={formAction} className="space-y-4">
+      {deviceIds.map((id) => (
+        <input key={id} type="hidden" name="deviceIds" value={id} />
+      ))}
+      <p className={HINT_CLASS}>
+        Отмеченные устройства вернутся на склад (единицы в ремонте —
+        «возвращено из ремонта»).
+      </p>
+      <OccurredAtField
+        id="bulk-accept-occurredAt"
+        echoValue={state.values?.occurredAt}
+        error={state.fieldErrors?.occurredAt}
+      />
+      <CommentField id="bulk-accept-comment" echoValue={state.values?.comment} />
+      {state.blockers && state.blockers.length > 0 ? (
+        <BlockerView
+          blockers={state.blockers}
+          rows={rows}
+          explanation="Принять можно устройства со статусами «Используется» и «В ремонте»."
+        />
+      ) : null}
+      {state.error ? (
+        <p className={ERROR_CLASS} role="alert">
+          {state.error}
+        </p>
+      ) : null}
+      <DialogFooter>
+        <DialogClose render={<Button variant="secondary" />}>Отмена</DialogClose>
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Приём…' : 'Принять'}
+        </Button>
+      </DialogFooter>
+    </form>
+  )
+}
+
+export function BulkAcceptDialog({
+  open,
+  onOpenChange,
+  rows,
+  deviceIds,
+  onOk,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  rows: DeviceBulkRow[]
+  deviceIds: number[]
+  onOk: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md p-6">
+        <DialogHeader>
+          <DialogTitle>Принять устройства</DialogTitle>
+        </DialogHeader>
+        <BulkAcceptForm rows={rows} deviceIds={deviceIds} onOk={onOk} />
       </DialogContent>
     </Dialog>
   )
