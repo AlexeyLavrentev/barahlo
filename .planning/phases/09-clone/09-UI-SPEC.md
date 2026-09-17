@@ -1,7 +1,8 @@
 ---
 phase: 9
 slug: clone
-status: draft
+status: approved
+reviewed_at: 2026-09-17
 shadcn_initialized: true
 preset: base-nova
 created: 2026-09-16
@@ -214,3 +215,5 @@ CONTEXT.md D-01..D-08 are user-locked and used verbatim; nothing was re-asked. T
 - [ ] Dimension 6 Registry Safety: PASS
 
 **Approval:** pending
+
+- **Noun in success line (checker rec, D-07):** CONTEXT D-07 quotes «Создано N копий»; the spec renders «Создано {pluralDevices(n)}» («Создано 2 устройства…») — grammatically ready-made plural helper instead of a new копия-family. Functional intent (count + stay on card) unchanged; substitution documented here as the accepted resolution.
