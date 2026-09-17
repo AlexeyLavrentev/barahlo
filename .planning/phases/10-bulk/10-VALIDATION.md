@@ -21,7 +21,7 @@ created: 2026-09-17
 |----------|-------|
 | **Framework** | vitest (project standard) |
 | **Config file** | `vitest.config.mts` (existing) |
-| **Quick run command** | `npx vitest run tests/movements-queries.test.ts tests/bulk-queries.test.ts` |
+| **Quick run command** | `npx vitest run tests/movements-queries.test.ts tests/movement-schema.test.ts` |
 | **Full suite command** | `npx vitest run` |
 | **Estimated runtime** | ~40 seconds (full suite, 392+ тестов) |
 
@@ -40,7 +40,9 @@ created: 2026-09-17
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (заполняется планировщиком) | 01 | 1 | MOVE-06 | T-10-* | превалидация в tx, всё-или-ничего, guard против дублей | unit | `npx vitest run` | ✅ | ⬜ pending |
+| 10-01 T1 (tracer, «Выдать») | 01 | 1 | MOVE-06 | T-10-01..05 | requireSession первым, zod strictObject 1..20, in-tx превалидация, guard-UPDATE откат, ноль утечки {code} | unit | `npx vitest run tests/movements-queries.test.ts && npx tsc --noEmit` | ✅ (расширяется) | ⬜ pending |
+| 10-01 T2 («Принять» + матрица) | 01 | 1 | MOVE-06 | T-10-01..05 | accept без employeeId (strict tamper-гейт), двух-статусный precondition, repeat-guard | unit | `npx vitest run && npx tsc --noEmit && npm run build` | ✅ (расширяется) | ⬜ pending |
+| 10-01 T3 (UAT SC 1–4 + backstops) | 01 | 1 | MOVE-06 | — | браузерные истины (чекбоксы, панель, отчёты, сброс) | manual (Playwright MCP) | — (см. Manual-Only) | — | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
