@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   acceptSchema,
   assignSchema,
+  bulkAcceptSchema,
+  bulkAssignSchema,
   isNotFutureDate,
   occurredAtFromDate,
 } from '@/lib/movement-schema'
@@ -107,5 +109,82 @@ describe('occurredAtFromDate — stored instant keeps the submitted Moscow day (
 
   it('no date at all = the passed now', () => {
     expect(occurredAtFromDate(undefined, MSK_0100)).toBe(MSK_0100)
+  })
+})
+
+// Партийные схемы (MOVE-06): границы deviceIds и strictObject-белые списки.
+// Дубли внутри массива проходят zod намеренно — дедупликация забота экшена
+// (Set до парсинга); guard-UPDATE страхует серверно.
+describe('bulk schemas — deviceIds bounds + whitelist (MOVE-06)', () => {
+  it('valid payloads pass for both schemas (coerced stringy ids)', () => {
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: ['1', '2'], employeeId: '3' })
+        .success,
+    ).toBe(true)
+    expect(bulkAcceptSchema.safeParse({ deviceIds: ['1', '2'] }).success).toBe(
+      true,
+    )
+  })
+
+  it('deviceIds: empty, zero, negative, fractional and garbage are rejected', () => {
+    expect(bulkAssignSchema.safeParse({ deviceIds: [], employeeId: '1' }).success).toBe(false)
+    expect(bulkAcceptSchema.safeParse({ deviceIds: [] }).success).toBe(false)
+    expect(bulkAssignSchema.safeParse({ deviceIds: [0], employeeId: '1' }).success).toBe(false)
+    expect(bulkAssignSchema.safeParse({ deviceIds: [-1], employeeId: '1' }).success).toBe(false)
+    expect(bulkAssignSchema.safeParse({ deviceIds: [1.5], employeeId: '1' }).success).toBe(false)
+    expect(bulkAssignSchema.safeParse({ deviceIds: ['abc'], employeeId: '1' }).success).toBe(false)
+  })
+
+  it('deviceIds: 20 passes (cap = PAGE_SIZE), 21 is rejected (Pitfall 6)', () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => i + 1)
+    const twentyOne = [...twenty, 21]
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: twenty, employeeId: '1' })
+        .success,
+    ).toBe(true)
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: twentyOne, employeeId: '1' })
+        .success,
+    ).toBe(false)
+    expect(bulkAcceptSchema.safeParse({ deviceIds: twentyOne }).success).toBe(
+      false,
+    )
+  })
+
+  it('deviceIds: duplicates pass through zod (dedup is the action\'s job)', () => {
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: [5, 5], employeeId: '1' })
+        .success,
+    ).toBe(true)
+    expect(bulkAcceptSchema.safeParse({ deviceIds: [5, 5] }).success).toBe(true)
+  })
+
+  it('bulkAccept rejects an injected employeeId (strictObject tamper gate, V5)', () => {
+    const parsed = bulkAcceptSchema.safeParse({
+      deviceIds: ['1'],
+      employeeId: '2',
+    })
+    expect(parsed.success).toBe(false)
+  })
+
+  it('a future occurredAt is rejected with the «не в будущем» copy (D-04)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(MSK_0100)
+    const parsed = bulkAssignSchema.safeParse({
+      deviceIds: ['1'],
+      employeeId: '2',
+      occurredAt: '2026-09-04',
+    })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      const occurredAt = parsed.error.issues.find((i) =>
+        i.path.includes('occurredAt'),
+      )
+      expect(occurredAt?.message).toBe('Дата не может быть в будущем')
+    }
+    expect(
+      bulkAcceptSchema.safeParse({ deviceIds: ['1'], occurredAt: '2026-09-04' })
+        .success,
+    ).toBe(false)
   })
 })

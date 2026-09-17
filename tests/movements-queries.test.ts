@@ -29,6 +29,7 @@ const {
   disposeDevice,
   returnAllDevices,
   bulkAssignDevices,
+  bulkAcceptDevices,
   listTimeline,
   listIssuedByEmployee,
   listActiveEmployees,
@@ -42,6 +43,7 @@ const {
   repairSchema,
   disposeSchema,
   bulkAssignSchema,
+  bulkAcceptSchema,
   occurredAtFromDate,
   movementEventLabel,
 } = schemaModule
@@ -816,6 +818,92 @@ describe('bulkAssignDevices — партия всё-или-ничего (MOVE-06
     ).toBe(true)
     expect(
       bulkAssignSchema.safeParse({ deviceIds: [], employeeId: '3' }).success,
+    ).toBe(false)
+  })
+})
+
+describe('bulkAcceptDevices — партия на склад, два статуса-источника (MOVE-06, D-02)', () => {
+  it('смешанная партия assigned+repair: returned от держателя + from_repair без лиц, общий occurredAt (D-06)', () => {
+    const emp = newEmployee('Партия Приём От')
+    const assignedDev = newDevice()
+    const repairDev = newDevice()
+    assignDevice(assignedDev, emp.id)
+    sendToRepair(repairDev)
+    const when = daysAgo(2)
+    const outcome = bulkAcceptDevices([assignedDev, repairDev], {
+      occurredAt: when,
+      comment: 'Акт приёма 4',
+    })
+    expect(outcome).toEqual({
+      ok: true,
+      results: [
+        { deviceId: assignedDev, eventType: 'returned' },
+        { deviceId: repairDev, eventType: 'from_repair' },
+      ],
+    })
+    // Обе проекции: in_stock, держатель очищен (Pitfall 3 закрыт — repair
+    // принимается наравне с assigned).
+    for (const dev of [assignedDev, repairDev]) {
+      const row = rawDevice(dev)
+      expect(row.status).toBe('in_stock')
+      expect(row.current_employee_id).toBeNull()
+    }
+    // assigned-единица: returned с держателем из tx-снапшота (никогда из payload).
+    const evA = rawMovements(assignedDev)
+    expect(evA[evA.length - 1].event_type).toBe('returned')
+    expect(evA[evA.length - 1].from_employee_id).toBe(emp.id)
+    expect(evA[evA.length - 1].to_employee_id).toBeNull()
+    // repair-единица: from_repair без person slots (прецедент returnFromRepair).
+    const evR = rawMovements(repairDev)
+    expect(evR[evR.length - 1].event_type).toBe('from_repair')
+    expect(evR[evR.length - 1].from_employee_id).toBeNull()
+    expect(evR[evR.length - 1].to_employee_id).toBeNull()
+    // Общие occurredAt и комментарий на всю партию (D-06).
+    expect(evA[evA.length - 1].comment).toBe('Акт приёма 4')
+    expect(evR[evR.length - 1].comment).toBe('Акт приёма 4')
+    expect(evR[evR.length - 1].occurred_at).toBe(evA[evA.length - 1].occurred_at)
+    expect(evA[evA.length - 1].occurred_at).toBe(Math.floor(when.getTime() / 1000))
+  })
+
+  it('партия с in_stock-единицей → blockers, ноль записей (D-03 всё-или-ничего)', () => {
+    const emp = newEmployee('Партия Приём Смесь')
+    const assignedDev = newDevice()
+    const inStockDev = newDevice()
+    assignDevice(assignedDev, emp.id)
+    const before = movementsCount()
+    const outcome = bulkAcceptDevices([assignedDev, inStockDev], {})
+    expect(outcome).toEqual({
+      ok: false,
+      blockers: [
+        { id: inStockDev, model: 'Custody Тестовая модель', status: 'in_stock' },
+      ],
+    })
+    expect(movementsCount()).toBe(before)
+    expect(rawDevice(assignedDev).status).toBe('assigned')
+    expect(rawDevice(inStockDev).status).toBe('in_stock')
+  })
+
+  it('повторный вызов после успеха → blockers (prevalidation-first), событий не добавилось', () => {
+    const emp = newEmployee('Партия Приём Повтор')
+    const dev = newDevice()
+    assignDevice(dev, emp.id)
+    const first = bulkAcceptDevices([dev], {})
+    expect(first.ok).toBe(true)
+    const before = movementsCount()
+    const outcome = bulkAcceptDevices([dev], {})
+    expect(outcome).toEqual({
+      ok: false,
+      blockers: [
+        { id: dev, model: 'Custody Тестовая модель', status: 'in_stock' },
+      ],
+    })
+    expect(movementsCount()).toBe(before)
+  })
+
+  it('bulkAcceptSchema: employeeId-инъекция отклонена (strictObject, V5)', () => {
+    expect(bulkAcceptSchema.safeParse({ deviceIds: ['1'] }).success).toBe(true)
+    expect(
+      bulkAcceptSchema.safeParse({ deviceIds: ['1'], employeeId: '2' }).success,
     ).toBe(false)
   })
 })
