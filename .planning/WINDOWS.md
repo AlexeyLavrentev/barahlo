@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 8
+open_count: 9
 waived_count: 0
 fixed_count: 0
-total_count: 8
-last_updated: 2026-09-16T08:33:43.243Z
+total_count: 9
+last_updated: 2026-09-17T05:24:20.905Z
 ---
 
 # Broken Windows Ledger
@@ -23,6 +23,7 @@ last_updated: 2026-09-16T08:33:43.243Z
 | 6 | 02 | deviation | app/(app)/(card)/employees/[id]/page.tsx |  | Card segment lives in route group (card): a parent segment loading.tsx streams the subtree and flushes 200 before notFound(), so /employees/{99999,abc} lost their 404; card loading skeleton intentionally omitted (conflict documented in 02-03-SUMMARY) | open |  | 2026-09-01T18:24:39.021Z |  |
 | 7 | 07 | lint-warning | lib/use-search-param.ts | 124 | react-hooks/exhaustive-deps warning (flagged dep is the stable Next router — reviewed non-blocking in 07-03 gate); first recorded at plan 07-03 final gate | open |  | 2026-09-16T03:49:21.374Z |  |
 | 8 | 08 | unrun-verify | lib/device-csv.ts |  | 08: ручная проверка end-of-phase (08-VALIDATION): открыть выгрузку на dev-инстансе в RU-Excel/Numbers — «Диагональ, ″» со значением 21,5 читается числом, а не датой «21.мая» (поведение локали Excel не воспроизводится vitest); запятая-десятичная ячейка запинена unit-тестами | open |  | 2026-09-16T08:33:43.243Z |  |
+| 9 | 09 | unrun-verify | app/(app)/devices/clone-dialog.tsx |  | 09: ручная приёмка UAT (Manual-Only из 09-VALIDATION, компонентного раннера в репо нет — прецедент фаз 2–8): карточка → «Дублировать» → N=2 → копии «на складе»; backstop-пункты must_haves (порядок ряда, disabled-сабмит, очистка линии успеха); ядро и миграция запинены 391 автотестом + pragma-ассертом | open |  | 2026-09-17T05:24:20.905Z |  |
 
 ````json
 [
@@ -120,6 +121,18 @@ last_updated: 2026-09-16T08:33:43.243Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-16T08:33:43.243Z",
+    "resolved_at": null
+  },
+  {
+    "id": 9,
+    "kind": "unrun-verify",
+    "phase": "09",
+    "file": "app/(app)/devices/clone-dialog.tsx",
+    "line": null,
+    "description": "09: ручная приёмка UAT (Manual-Only из 09-VALIDATION, компонентного раннера в репо нет — прецедент фаз 2–8): карточка → «Дублировать» → N=2 → копии «на складе»; backstop-пункты must_haves (порядок ряда, disabled-сабмит, очистка линии успеха); ядро и миграция запинены 391 автотестом + pragma-ассертом",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-17T05:24:20.905Z",
     "resolved_at": null
   }
 ]
