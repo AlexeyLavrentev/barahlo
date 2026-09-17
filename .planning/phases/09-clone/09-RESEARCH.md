@@ -399,7 +399,11 @@ export async function cloneDeviceAction(_prev: unknown, formData: FormData): Pro
 | A3 | Подтверждение «Создано N копий» — инлайн-сообщение/тост на карточке после закрытия диалога (D-07 не фиксирует механизм) | Pattern 5 | Косметика; ретаргет без ограничений |
 | A4 | Runner scripts/migrate.mjs станет постоянным способом миграций проекта (замена CLI-шага в README/deploy), а не одноразовым скриптом | Runtime State Inventory / Pattern 2 | Если оставить CLI — будущие recreation-миграции снова молча упадут; решение плана фазы |
 
-## Open Questions
+## Open Questions (RESOLVED — 2026-09-17, plan 09-01 + UI-SPEC)
+
+1. Клонирование disposed → **A1**: кнопка не рендерится на disposed-карточке (09-01-PLAN assumptions A1, Task 3; UI-SPEC Default 13).
+2. «Создано N…» механика → **A3**: инлайн-линия `data-clone-created` под рядом действий, wrapper-owned (Task 3; UI-SPEC Default 8).
+3. Судьба `drizzle-kit migrate` → **A4**: полная замена раннером `node scripts/migrate.mjs` в README + deploy.sh (Task 1 step 4); CLI для нерекреационных миграций НЕ остаётся.
 
 1. **Клонирование со списанной карточки (disposed)?**
    - What we know: ряд действий на disposed скрыт целиком (D-03 фазы 4, view-only); CONTEXT не квалифицирует статус кнопки «Дублировать».
