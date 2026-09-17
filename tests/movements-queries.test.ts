@@ -28,6 +28,7 @@ const {
   returnFromRepair,
   disposeDevice,
   returnAllDevices,
+  bulkAssignDevices,
   listTimeline,
   listIssuedByEmployee,
   listActiveEmployees,
@@ -40,6 +41,7 @@ const {
   transferSchema,
   repairSchema,
   disposeSchema,
+  bulkAssignSchema,
   occurredAtFromDate,
   movementEventLabel,
 } = schemaModule
@@ -695,6 +697,126 @@ describe('returnAllDevices — one tx, N events (D-07, RESEARCH C3)', () => {
     expect(rawDevice(devB).status).toBe('assigned')
     expect(rawDevice(devB).current_employee_id).toBe(emp.id)
     expect(movementsCount()).toBe(before)
+  })
+})
+
+describe('bulkAssignDevices — партия всё-или-ничего (MOVE-06, D-02/D-03)', () => {
+  it('happy path: партия in_stock → assigned; ровно N событий с общими occurredAt и комментарием (D-06)', () => {
+    const emp = newEmployee('Партия Кому')
+    const dev1 = newDevice()
+    const dev2 = newDevice()
+    const when = daysAgo(1)
+    const outcome = bulkAssignDevices([dev1, dev2], emp.id, {
+      occurredAt: when,
+      comment: 'Акт партии 12',
+    })
+    expect(outcome).toEqual({
+      ok: true,
+      results: [
+        { deviceId: dev1, eventType: 'assigned' },
+        { deviceId: dev2, eventType: 'assigned' },
+      ],
+    })
+    for (const dev of [dev1, dev2]) {
+      const row = rawDevice(dev)
+      expect(row.status).toBe('assigned')
+      expect(row.current_employee_id).toBe(emp.id)
+    }
+    const ev1 = rawMovements(dev1)
+    const ev2 = rawMovements(dev2)
+    expect(ev1).toHaveLength(1)
+    expect(ev2).toHaveLength(1)
+    expect(ev1[0].event_type).toBe('assigned')
+    expect(ev1[0].to_employee_id).toBe(emp.id)
+    expect(ev1[0].from_employee_id).toBeNull()
+    // Общие occurredAt и комментарий на всю партию — таймлайны согласованы.
+    expect(ev1[0].comment).toBe('Акт партии 12')
+    expect(ev2[0].comment).toBe('Акт партии 12')
+    expect(ev2[0].occurred_at).toBe(ev1[0].occurred_at)
+    expect(ev1[0].occurred_at).toBe(Math.floor(when.getTime() / 1000))
+  })
+
+  it('смесь eligible/неeligible → blockers с данными, НОЛЬ записей (D-03 всё-или-ничего)', () => {
+    const emp = newEmployee('Партия Смесь')
+    const eligible = newDevice()
+    const assigned = newDevice()
+    assignDevice(assigned, emp.id)
+    const before = movementsCount()
+    const outcome = bulkAssignDevices([eligible, assigned], emp.id)
+    expect(outcome).toEqual({
+      ok: false,
+      blockers: [
+        { id: assigned, model: 'Custody Тестовая модель', status: 'assigned' },
+      ],
+    })
+    expect(movementsCount()).toBe(before)
+    expect(rawDevice(eligible).status).toBe('in_stock')
+    expect(rawDevice(assigned).status).toBe('assigned')
+    expect(rawDevice(assigned).current_employee_id).toBe(emp.id)
+  })
+
+  it('отсутствующий id → blocker not_found с моделью «—», ноль записей (Pitfall 7)', () => {
+    const emp = newEmployee('Партия Чужой')
+    const dev = newDevice()
+    const before = movementsCount()
+    const outcome = bulkAssignDevices([dev, 424242], emp.id)
+    expect(outcome).toEqual({
+      ok: false,
+      blockers: [{ id: 424242, model: '—', status: 'not_found' }],
+    })
+    expect(movementsCount()).toBe(before)
+    expect(rawDevice(dev).status).toBe('in_stock')
+  })
+
+  it('повторный вызов после успеха → blockers (prevalidation-first), событий не добавилось', () => {
+    const emp = newEmployee('Партия Повтор')
+    const dev = newDevice()
+    const first = bulkAssignDevices([dev], emp.id)
+    expect(first.ok).toBe(true)
+    const before = movementsCount()
+    const outcome = bulkAssignDevices([dev], emp.id)
+    expect(outcome).toEqual({
+      ok: false,
+      blockers: [
+        { id: dev, model: 'Custody Тестовая модель', status: 'assigned' },
+      ],
+    })
+    expect(movementsCount()).toBe(before)
+  })
+
+  it('in-batch дубликат id → ILLEGAL_TRANSITION, полный откат (guard-UPDATE, Pitfall 4)', () => {
+    const emp = newEmployee('Партия Дубль')
+    const dev = newDevice()
+    const before = movementsCount()
+    // Второй проход guard-UPDATE по уже сменённой строке даёт .changes===0 →
+    // throw → вся партия откатывается, дубль-событие не записывается.
+    const thrown = captureThrown(() => bulkAssignDevices([dev, dev], emp.id))
+    expect(thrown).toEqual({ code: 'ILLEGAL_TRANSITION' })
+    expect(movementsCount()).toBe(before)
+    expect(rawDevice(dev).status).toBe('in_stock')
+    expect(rawDevice(dev).current_employee_id).toBeNull()
+  })
+
+  it('неактивный сотрудник → EMPLOYEE_INACTIVE, ноль записей', () => {
+    const archived = newEmployee('Партия Архив')
+    setEmployeeArchived(archived.id, true)
+    const dev = newDevice()
+    const before = movementsCount()
+    expect(
+      captureThrown(() => bulkAssignDevices([dev], archived.id)),
+    ).toEqual({ code: 'EMPLOYEE_INACTIVE' })
+    expect(movementsCount()).toBe(before)
+    expect(rawDevice(dev).status).toBe('in_stock')
+  })
+
+  it('bulkAssignSchema: валидный payload проходит, deviceIds=[] отклоняется (min 1)', () => {
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: ['1', '2'], employeeId: '3' })
+        .success,
+    ).toBe(true)
+    expect(
+      bulkAssignSchema.safeParse({ deviceIds: [], employeeId: '3' }).success,
+    ).toBe(false)
   })
 })
 
