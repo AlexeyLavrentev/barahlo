@@ -351,6 +351,77 @@ export function returnAllDevices(
   })
 }
 
+// Bulk-операции (MOVE-06): результат — discriminated union, а не throw:
+// blocker-отчёт несёт ДАННЫЕ (какая единица и почему — SC 3), которые
+// { code }-throw передать не может. Записей при blockers нет вовсе
+// (всё-или-ничего, D-03): превалидация — один SELECT всех id ВНУТРИ tx до
+// первой записи.
+export type BulkBlocker = { id: number; model: string; status: string }
+export type BulkOutcome =
+  | { ok: true; results: Array<{ deviceId: number; eventType: string }> }
+  | { ok: false; blockers: BulkBlocker[] }
+
+// Выдать партию (MOVE-06, D-02): только in_stock-единицы, один АКТИВНЫЙ
+// сотрудник на всех. ONE sync tx (module contract): SELECT-превалидация →
+// blockers (ноль записей) ИЛИ loop guard-UPDATE — условный UPDATE
+// `WHERE id AND status='in_stock'`, .changes===0 → throw → ПОЛНЫЙ откат
+// (повторный вызов после успеха и in-batch дубликат id не создают дублей,
+// Pitfall 4) + ровно одно событие assigned на единицу с ОБЩИМИ
+// occurredAt/comment (D-06; occurredAtFromDate вызывает экшен ОДИН раз на
+// партию — сюда приходит готовый Date). Обработка по возрастанию id —
+// детерминированный порядок событий (asc в SELECT и в цикле).
+export function bulkAssignDevices(
+  deviceIds: number[],
+  employeeId: number,
+  event: EventInput = {},
+): BulkOutcome {
+  return db.transaction((tx) => {
+    assertActiveEmployee(tx, employeeId)
+    const rows = tx
+      .select({ id: devices.id, model: devices.model, status: devices.status })
+      .from(devices)
+      .where(inArray(devices.id, deviceIds))
+      .orderBy(asc(devices.id))
+      .all()
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    const blockers: BulkBlocker[] = deviceIds
+      .filter((id) => byId.get(id)?.status !== 'in_stock')
+      .map((id) => ({
+        id,
+        model: byId.get(id)?.model ?? '—',
+        status: byId.get(id)?.status ?? 'not_found',
+      }))
+    if (blockers.length > 0) return { ok: false, blockers }
+    const occurredAt = occurredOf(event)
+    const results: Array<{ deviceId: number; eventType: string }> = []
+    for (const id of deviceIds) {
+      const upd = tx
+        .update(devices)
+        .set({
+          status: 'assigned',
+          currentEmployeeId: employeeId,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(devices.id, id), eq(devices.status, 'in_stock')))
+        .run()
+      if (upd.changes === 0) throw { code: 'ILLEGAL_TRANSITION' }
+      tx
+        .insert(movements)
+        .values({
+          deviceId: id,
+          eventType: 'assigned',
+          fromEmployeeId: null,
+          toEmployeeId: employeeId,
+          comment: commentOf(event),
+          occurredAt,
+        })
+        .run()
+      results.push({ deviceId: id, eventType: 'assigned' })
+    }
+    return { ok: true, results }
+  })
+}
+
 // Current holder of one device — the transfer action reads it (DB, never the
 // payload) to feed the dialog's transfer-refine argument.
 export function getDeviceHolder(

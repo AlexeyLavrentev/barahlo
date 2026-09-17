@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import { requireSession } from '@/lib/auth'
 import { listDevices } from '@/db/queries/devices'
+import { listActiveEmployees } from '@/db/queries/movements'
 import {
   DEVICE_TYPES,
   deviceStatusLabel,
@@ -13,6 +14,7 @@ import { displayTodayUtc } from '@/lib/warranty'
 import { WarrantyDate, formatWarrantyDate } from '@/lib/warranty-date'
 import { DeviceDialog } from './device-dialog'
 import { FilterBar } from './filter-bar'
+import { DeviceBulkProvider, HeaderTriState, RowCheckbox } from './device-bulk'
 import {
   buildDevicesQuery,
   parseDevicesSearchParams,
@@ -78,6 +80,8 @@ export default async function DevicesPage({
   // computed ONCE per page render (not per row) and passed down to each
   // row's WarrantyDate; boundaries are identical to the filter's.
   const today = displayTodayUtc()
+  // Опции пикера bulk-диалога выдачи (MOVE-06): активные сотрудники, RU-сорт.
+  const employees = listActiveEmployees()
 
   return (
     <section>
@@ -151,85 +155,111 @@ export default async function DevicesPage({
         </div>
       ) : (
         <>
-          <ul className="mt-4 divide-y divide-hairline overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
-            {rows.map((row) => (
-              <li key={row.id}>
-                {/* Two-line row (D-05): модель + pill on line 1; тип · серийник
-                    · инвентарник · держатель on line 2 — all six columns of the
-                    column list. Both lines truncate with a full title (overflow
-                    consideration); the numbers render mono (UI-SPEC Typography).
-                    Line 2 ends with the colored warranty segment (WAR-01 site
-                    1, D-16) — omitted entirely for «без гарантии» devices; the
-                    title carries the same segment only when it renders.
-                    href targets the (card) route from plan 03-02 — until it
-                    exists the not-found page answers, never a 500. */}
-                <Link
-                  href={`/devices/${row.id}`}
-                  title={[
-                    row.model,
-                    deviceTypeName(row.typeKey),
-                    row.serialNumber ?? '—',
-                    row.inventoryNumber ?? '—',
-                    row.holder ?? '—',
-                    row.warrantyUntil
-                      ? `гар. до ${formatWarrantyDate(row.warrantyUntil)}`
-                      : null,
-                  ]
-                    .filter((part): part is string => part !== null)
-                    .join(' · ')}
-                  className="flex min-h-11 items-center gap-3 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
-                >
-                  {/* REG-05 «thumbnails in lists»: leading cover (first
-                      photo, served by the authorized route) — devices
-                      without photos render no placeholder box, the text
-                      position varies by row (UI-SPEC Defaults #9). */}
-                  {row.coverAttachmentId ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- pre-sized thumb from the auth'd route; no optimizer hop (04-RESEARCH)
-                    <img
-                      src={`/api/attachments/${row.coverAttachmentId}?device=${row.id}&variant=thumb`}
-                      alt=""
-                      loading="lazy"
-                      className="size-10 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : null}
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-base text-ink">
-                        {row.model}
+          {/* Selection-остров (MOVE-06, D-01): key-reset по ТОМУ ЖЕ выражению
+              билдера, что и ссылки пагинации, — любой переход (пагинация,
+              фильтры, поиск) меняет ключ → остров размонтируется → выделение
+              растворяется (Pitfall 2). query-params selection'ом не расширяется
+              — он client-only. */}
+          <DeviceBulkProvider
+            key={buildDevicesQuery(filters, current)}
+            rows={rows.map((row) => ({
+              id: row.id,
+              model: row.model,
+              inventoryNumber: row.inventoryNumber,
+              status: row.status,
+            }))}
+            employees={employees}
+          >
+            {/* Карточка списка (UI-SPEC Default 5): классы бывшей <ul> живут
+                на wrapper-div, первая строка — tri-state шапка «выбрать
+                страницу», дальше строки [RowCheckbox][Link] — чекбокс СИБЛИНГ
+                анкора, никогда не внутри него (Pitfall 1). */}
+            <div className="mt-4 divide-y divide-hairline overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-hairline">
+              <HeaderTriState />
+              <ul className="divide-y divide-hairline">
+                {rows.map((row) => (
+                  <li key={row.id} className="flex items-stretch">
+                    <RowCheckbox deviceId={row.id} model={row.model} />
+                    {/* Two-line row (D-05): модель + pill on line 1; тип · серийник
+                        · инвентарник · держатель on line 2 — all six columns of the
+                        column list. Both lines truncate with a full title (overflow
+                        consideration); the numbers render mono (UI-SPEC Typography).
+                        Line 2 ends with the colored warranty segment (WAR-01 site
+                        1, D-16) — omitted entirely for «без гарантии» devices; the
+                        title carries the same segment only when it renders.
+                        href targets the (card) route from plan 03-02 — until it
+                        exists the not-found page answers, never a 500. */}
+                    <Link
+                      href={`/devices/${row.id}`}
+                      title={[
+                        row.model,
+                        deviceTypeName(row.typeKey),
+                        row.serialNumber ?? '—',
+                        row.inventoryNumber ?? '—',
+                        row.holder ?? '—',
+                        row.warrantyUntil
+                          ? `гар. до ${formatWarrantyDate(row.warrantyUntil)}`
+                          : null,
+                      ]
+                        .filter((part): part is string => part !== null)
+                        .join(' · ')}
+                      className="flex min-h-11 flex-1 items-center gap-3 px-4 py-2 transition-colors duration-150 ease-out hover:bg-page"
+                    >
+                      {/* REG-05 «thumbnails in lists»: leading cover (first
+                          photo, served by the authorized route) — devices
+                          without photos render no placeholder box, the text
+                          position varies by row (UI-SPEC Defaults #9). */}
+                      {row.coverAttachmentId ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- pre-sized thumb from the auth'd route; no optimizer hop (04-RESEARCH)
+                        <img
+                          src={`/api/attachments/${row.coverAttachmentId}?device=${row.id}&variant=thumb`}
+                          alt=""
+                          loading="lazy"
+                          className="size-10 shrink-0 rounded-lg object-cover"
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="truncate text-base text-ink">
+                            {row.model}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary">
+                            {deviceStatusLabel(row.status)}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block truncate text-sm text-ink-secondary">
+                          {deviceTypeName(row.typeKey)}
+                          {' · '}
+                          <span className="font-mono">
+                            {row.serialNumber ?? '—'}
+                          </span>
+                          {' · '}
+                          <span className="font-mono">
+                            {row.inventoryNumber ?? '—'}
+                          </span>
+                          {' · '}
+                          {row.holder ?? '—'}
+                          {/* WAR-01 site 1: the colored «гар. до …» segment —
+                              one WarrantyDate, one warrantyState calculation;
+                              renders nothing when warrantyUntil is null. */}
+                          <WarrantyDate
+                            value={row.warrantyUntil}
+                            today={today}
+                            variant="list"
+                          />
+                        </span>
                       </span>
-                      <span className="shrink-0 rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary">
-                        {deviceStatusLabel(row.status)}
-                      </span>
-                    </span>
-                    <span className="mt-0.5 block truncate text-sm text-ink-secondary">
-                      {deviceTypeName(row.typeKey)}
-                      {' · '}
-                      <span className="font-mono">{row.serialNumber ?? '—'}</span>
-                      {' · '}
-                      <span className="font-mono">
-                        {row.inventoryNumber ?? '—'}
-                      </span>
-                      {' · '}
-                      {row.holder ?? '—'}
-                      {/* WAR-01 site 1: the colored «гар. до …» segment —
-                          one WarrantyDate, one warrantyState calculation;
-                          renders nothing when warrantyUntil is null. */}
-                      <WarrantyDate
-                        value={row.warrantyUntil}
-                        today={today}
-                        variant="list"
+                      <ChevronRight
+                        size={16}
+                        className="shrink-0 text-[#C7C7CC]"
+                        aria-hidden
                       />
-                    </span>
-                  </span>
-                  <ChevronRight
-                    size={16}
-                    className="shrink-0 text-[#C7C7CC]"
-                    aria-hidden
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </DeviceBulkProvider>
 
           {/* Quiet prev/next (opacity-40, no href at the boundary) + N-of-M
               label; links rebuild the whole query string via the ONE builder

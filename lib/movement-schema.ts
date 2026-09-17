@@ -171,10 +171,30 @@ export function transferSchema(currentHolderId: number | null | undefined) {
 // card's hidden input and passes the plain positive-int gate in the action
 // (the transaction re-resolves the actual device list from the DB row).
 
+// Партийные схемы (MOVE-06, D-04): один диалог на партию — общие occurredAt
+// и comment, id-массив вместо одиночного id. Границы массива (Pitfall 6):
+// min(1) зеркалит панель («появляется» только при N>0), max(20) = PAGE_SIZE
+// списка — selection строго page-scoped (D-01), подделанный гигантский
+// массив отклоняется zod'ом до query-слоя. coerce ест строковые hidden-инпуты.
+
+const deviceIdsSchema = z
+  .array(z.coerce.number().int().positive())
+  .min(1, 'Выберите хотя бы одно устройство')
+  .max(20)
+
+// Выдать партию — единственный сотрудник на все единицы.
+export const bulkAssignSchema = z.strictObject({
+  deviceIds: deviceIdsSchema,
+  employeeId: z.coerce.number().int().positive(),
+  occurredAt: occurredAtSchema.optional(),
+  comment: commentSchema.optional(),
+})
+
 export const movementSchemas = {
   assign: assignSchema,
   accept: acceptSchema,
   transfer: transferSchema,
   repair: repairSchema,
   dispose: disposeSchema,
+  bulkAssign: bulkAssignSchema,
 }

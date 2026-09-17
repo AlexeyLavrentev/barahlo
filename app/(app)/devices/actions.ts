@@ -13,11 +13,13 @@ import {
 import {
   acceptDevice,
   assignDevice,
+  bulkAssignDevices,
   disposeDevice,
   getDeviceHolder,
   returnFromRepair,
   sendToRepair,
   transferDevice,
+  type BulkOutcome,
 } from '@/db/queries/movements'
 import {
   deviceSaveSchema,
@@ -644,4 +646,77 @@ export async function disposeDeviceAction(
   }
   refresh()
   return { ok: true }
+}
+
+// ─── Bulk-операции (MOVE-06, D-03/D-05/D-06) ────────────────────────────────
+//
+// Same contract as every action above: requireSession() first, zod
+// whitelist, ONE transactional query, refresh() on success. The bulk result
+// is richer than the single actions': неeligible партия возвращается КАК
+// ДАННЫЕ (blockers — какая единица и почему, SC 3) union'ом из query-слоя,
+// а не generic-ошибкой — прецедент расширяемого FormState
+// (CloneFormState.created). { code }-детали по-прежнему не покидают сервер
+// (V7); успех несёт по одной записи на единицу для отчёта «Записано: N».
+
+const BULK_ASSIGN_ERROR = 'Не удалось выдать устройства. Попробуйте ещё раз.'
+
+export type BulkBlockerView = { id: number; model: string; status: string }
+export type BulkResultView = { deviceId: number; eventType: string }
+
+export type BulkFormState = {
+  ok?: boolean
+  error?: string
+  fieldErrors?: MovementFieldErrors
+  // Echo of the submitted strings — same rationale as MovementFormState.values.
+  values?: Record<string, string>
+  // D-03: blockers партии (union {ok:false}), выделение и форма нетронуты.
+  blockers?: BulkBlockerView[]
+  // D-05: по одной записи на единицу для success-отчёта диалога.
+  results?: BulkResultView[]
+}
+
+// FormData → whitelisted bulk values: id-инпуты собираются getAll'ом и
+// дедуплицируются Set'ом ДО парсинга (Pitfall 6 — повтор из formData не
+// доходит до zod-капа и query); '' → undefined для опциональных — то же
+// отображение, что в movementPayload.
+function bulkPayload(formData: FormData, withEmployee: boolean) {
+  const comment = textOf(formData, 'comment')
+  const occurredAt = textOf(formData, 'occurredAt')
+  const base = {
+    deviceIds: [...new Set(formData.getAll('deviceIds'))],
+    occurredAt: occurredAt === '' ? undefined : occurredAt,
+    comment: comment === '' ? undefined : comment,
+  }
+  return withEmployee
+    ? { ...base, employeeId: formData.get('employeeId') }
+    : base
+}
+
+export async function bulkAssignDevicesAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<BulkFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.bulkAssign.safeParse(
+    bulkPayload(formData, true),
+  )
+  if (!parsed.success) {
+    return { ...movementFieldErrorsOf(parsed.error, BULK_ASSIGN_ERROR), values }
+  }
+  let outcome: BulkOutcome
+  try {
+    outcome = bulkAssignDevices(parsed.data.deviceIds, parsed.data.employeeId, {
+      // ОДИН вызов на партию — одна дата на все события (D-06).
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch {
+    // EMPLOYEE_INACTIVE / ILLEGAL_TRANSITION — копи-таблица, детали не текут (V7).
+    return { error: BULK_ASSIGN_ERROR, values }
+  }
+  // Неeligible партия — blockers как данные (union), не throw.
+  if (!outcome.ok) return { blockers: outcome.blockers, values }
+  refresh()
+  return { ok: true, results: outcome.results }
 }
