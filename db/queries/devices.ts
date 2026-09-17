@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm'
 import { db } from '@/db'
 import { attachments, departments, devices, employees } from '@/db/schema'
+import { nextInventoryNumber } from '@/lib/inventory-increment'
 import { normalizeInventory, normalizeNumber, normalizeSerial } from '@/lib/normalize'
 import { addDaysUtc, displayTodayUtc, WARRANTY_WARN_DAYS } from '@/lib/warranty'
 import type { DeviceStatusKey, DeviceTypeKey } from '@/lib/device-schema'
@@ -556,6 +557,80 @@ export function createDevice(input: { typeKey: DeviceTypeKey } & DeviceInput): n
       })
       .returning({ id: devices.id })
       .get()!.id
+  } catch (e) {
+    throw uniqueCodeOf(e)
+  }
+}
+
+// The clone's inventory series (D-02): the server folds nextInventoryNumber
+// N−1 times from the submitted start — the SAME pure function the dialog used
+// for its prefill, one source of truth (Pitfall 7: the client sends only the
+// editable START, the server recomputes the series authoritatively). The
+// first copy IS the submitted start (the dialog's suggestion is already
+// «next of the original»). An empty or UNRECOGNIZED start ('' / no trailing
+// digits) yields an all-NULL series — a batch is either fully numbered or
+// fully bare (SC 3: silent, nothing invented).
+function inventorySequence(
+  start: string | null,
+  count: number,
+): (string | null)[] {
+  if (!start) return Array.from({ length: count }, () => null)
+  const sequence: (string | null)[] = [start]
+  for (let i = 1; i < count; i += 1) {
+    const next = nextInventoryNumber(sequence[i - 1])
+    if (!next) return Array.from({ length: count }, () => null)
+    sequence.push(next)
+  }
+  return sequence
+}
+
+// Cloning (REG-06): ONE transaction writes ALL N copies — everything or
+// nothing (SC 1, D-06); a throw inside db.transaction rolls the whole batch
+// back, and UNIQUE collisions surface as { code } for the action's field copy
+// (same mapping as createDevice). Copies differ from the source by
+// IDENTIFIERS only (SC 2): the serial NULL/NULL pair is written DIRECTLY by
+// the query layer (D-05/D-08 — the manual form's zod min(1) does not apply),
+// notes are never copied, the inventory rides inventoryPair (never hand-built
+// — Pitfall 5). The purchase block and the type's OWN config fields are
+// inherited wholesale (D-04) — a copy is ready to hand out. Status is
+// hardcoded in_stock and the holder is not written at all (T-04-02: never
+// from a payload); movements are untouched — creating is not moving (D-06),
+// the copies' timeline is born clean.
+export function cloneDevices(
+  source: DeviceRow,
+  inventoryStart: string | null,
+  count: number,
+): number[] {
+  const inventories = inventorySequence(inventoryStart, count)
+  try {
+    return db.transaction((tx) =>
+      inventories.map((inventory) =>
+        tx
+          .insert(devices)
+          .values({
+            typeKey: source.typeKey,
+            model: source.model,
+            serialNumber: null,
+            serialNormalized: null,
+            ...inventoryPair(inventory),
+            purchaseDate: source.purchaseDate,
+            purchasePrice: source.purchasePrice,
+            supplier: source.supplier,
+            warrantyUntil: source.warrantyUntil,
+            notes: null,
+            ramGb: source.ramGb,
+            ramUpgraded: source.ramUpgraded,
+            ssdGb: source.ssdGb,
+            screenDiagonal: source.screenDiagonal,
+            panelType: source.panelType,
+            portCount: source.portCount,
+            peripheralKind: source.peripheralKind,
+            status: 'in_stock',
+          })
+          .returning({ id: devices.id })
+          .get()!.id,
+      ),
+    )
   } catch (e) {
     throw uniqueCodeOf(e)
   }
