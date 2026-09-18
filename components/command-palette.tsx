@@ -7,6 +7,8 @@ import { Autocomplete } from '@base-ui/react/autocomplete'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Search } from 'lucide-react'
 import { deviceTypeName } from '@/lib/device-schema'
+import { buildDevicesQuery } from '@/app/(app)/devices/query-params'
+import { buildEmployeesQuery } from '@/app/(app)/employees/query-params'
 
 // ⌘K global palette (FIND-06, phase 11) — ONE client island: the quiet
 // app-bar button and the Dialog+Autocomplete palette share the open state
@@ -31,12 +33,22 @@ import { deviceTypeName } from '@/lib/device-schema'
 // (expired session: the fetch follows the 307 to /login HTML) renders an
 // empty result set instead of crashing on res.json() (Pitfall 3).
 //
+// Rows (D-02/SC 2 parity extends to appearance): device rows copy the list
+// recipe (model / тип · mono инвентарник · держатель), employee rows carry
+// the «В архиве» chip byte-exact from the card. «Показать все» tails each
+// populated group and builds its URL ONLY through the query builders (the
+// phase-6 rule: hand-built query strings drift); the CSV row is a NATIVE
+// anchor to the existing export route (D-07) — the last keyboard stop.
+//
 // Keyboard (D-06): Base UI Autocomplete owns ↑↓ cyclic navigation
 // (loopFocus defaults to true), first-row autoHighlight and the
 // Enter-activates-highlighted wiring — no hand-rolled keydown state machine
 // (research Don't-Hand-Roll). Item onClick fires on pointer click AND on
-// Enter for the highlighted row [VERIFIED: vendored autocomplete.md Item
-// props; combobox/utils/parts.mjs clickHighlightedItem → listItem.click()].
+// Enter for the highlighted row, and Enter dispatches a real DOM click
+// [VERIFIED: vendored autocomplete.md Item props; combobox/utils/parts.mjs
+// clickHighlightedItem → listItem.click()] — the native CSV anchor therefore
+// downloads from the keyboard too (useButton leaves Enter on links to the
+// browser's native link activation).
 
 type DeviceHit = {
   id: number
@@ -63,8 +75,15 @@ type SearchResponse = {
 type PaletteItem =
   | { kind: 'device'; hit: DeviceHit }
   | { kind: 'employee'; hit: EmployeeHit }
+  | { kind: 'show-all'; target: 'devices' | 'employees' }
 
 type PaletteGroup = { value: 'Устройства' | 'Сотрудники'; items: PaletteItem[] }
+
+// The value of the CSV row — outside the groups' items, a direct child of
+// the list so ↓ lands on it after the last «Показать все» (D-07: the last
+// keyboard stop). Not navigated through `go`: the native anchor's own click
+// semantics own the download; the handler only closes the palette.
+const CSV_ITEM = { kind: 'csv' } as const
 
 const EMPTY_RESULTS: SearchResponse = { devices: [], employees: [] }
 
@@ -106,14 +125,65 @@ function deviceTitle(hit: DeviceHit): string {
     .join(' · ')
 }
 
+// Shared row skeleton: full-width hit area, two truncate lines, the
+// combobox highlight semantic byte-for-byte — the moving accent is the
+// list's ONLY accent; secondary text flips to white/80 inside the
+// highlighted row (row = `group`, UI-SPEC Default 6).
+const ROW_CLASS =
+  'group flex min-h-11 w-full cursor-default items-center gap-3 px-4 py-2 text-left select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground'
+const PRIMARY_CLASS = 'block truncate text-base text-ink'
+const SECONDARY_CLASS =
+  'mt-0.5 block truncate text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80'
+
+function PaletteRowContent({ item }: { item: PaletteItem }) {
+  if (item.kind === 'device') {
+    return (
+      <span className="min-w-0 flex-1">
+        <span className={PRIMARY_CLASS}>{item.hit.model}</span>
+        <span className={SECONDARY_CLASS}>
+          {deviceSecondaryParts(item.hit).map((part, i) => (
+            <Fragment key={i}>
+              {i > 0 ? ' · ' : null}
+              {part}
+            </Fragment>
+          ))}
+        </span>
+      </span>
+    )
+  }
+  if (item.kind === 'employee') {
+    return (
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-center gap-2">
+          <span className={`min-w-0 ${PRIMARY_CLASS}`}>{item.hit.name}</span>
+          {/* «В архиве» — the card chip recipe byte-exact (never the Badge
+              primitive); flips to white/80 inside the highlighted row like
+              every other secondary text of the palette. */}
+          {item.hit.isActive === 0 ? (
+            <span className="shrink-0 rounded-full bg-black/5 px-2 py-1 text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80">
+              В архиве
+            </span>
+          ) : null}
+        </span>
+        <span className={SECONDARY_CLASS}>{item.hit.department}</span>
+      </span>
+    )
+  }
+  // «Показать все» (D-05): the last row of each populated group — a way out
+  // of the 6+6 cap; copy 14/400 (text-sm, no weight).
+  return (
+    <span className="min-w-0 flex-1 truncate text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80">
+      Показать все
+    </span>
+  )
+}
+
 export function CommandPalette() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<SearchResponse>(EMPTY_RESULTS)
-  // Failure flag of the current session (rendered by the Task-3 error line);
-  // the setter is live from day one so the fetch pipeline owns the state.
-  const [, setFailed] = useState(false)
+  const [failed, setFailed] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // The first effect run after open is the INSTANT fetch (D-03); every
@@ -204,30 +274,54 @@ export function CommandPalette() {
 
   // Navigate AND close in one handler — the island outlives the page swap,
   // without the explicit close the card would render beneath a stuck
-  // overlay (Pitfall 9).
+  // overlay (Pitfall 9). «Показать все» URLs come ONLY from the builders:
+  // they own the sentinel-omission rules, query strings are never
+  // hand-assembled (the phase-6/D-08 discipline).
   const go = (item: PaletteItem) => {
-    if (item.kind === 'device') router.push(`/devices/${item.hit.id}`)
-    else router.push(`/employees/${item.hit.id}`)
+    if (item.kind === 'device') {
+      router.push(`/devices/${item.hit.id}`)
+    } else if (item.kind === 'employee') {
+      router.push(`/employees/${item.hit.id}`)
+    } else if (item.target === 'devices') {
+      router.push(
+        `/devices${buildDevicesQuery({
+          q,
+          type: 'all',
+          status: 'all',
+          departmentId: null,
+          warranty: 'all',
+          ramNoUpgrade: false,
+        })}`,
+      )
+    } else {
+      router.push(`/employees${buildEmployeesQuery({ filter: 'active', q })}`)
+    }
     setOpen(false)
   }
 
   // Empty groups are omitted client-side (official recipe): the label of a
-  // group with no rows would be noise above the «Показать все» tail.
+  // group with no rows would be noise — and «Показать все» renders only
+  // inside populated groups (UI Considerations). Rendered also for q=''
+  // (research Open Q 3): harmless plain-list links, keyboard-reachable.
   const groups: PaletteGroup[] = []
   if (results.devices.length > 0) {
     groups.push({
       value: 'Устройства',
-      items: results.devices.map(
-        (hit): PaletteItem => ({ kind: 'device', hit }),
-      ),
+      items: [
+        ...results.devices.map((hit): PaletteItem => ({ kind: 'device', hit })),
+        { kind: 'show-all', target: 'devices' },
+      ],
     })
   }
   if (results.employees.length > 0) {
     groups.push({
       value: 'Сотрудники',
-      items: results.employees.map(
-        (hit): PaletteItem => ({ kind: 'employee', hit }),
-      ),
+      items: [
+        ...results.employees.map(
+          (hit): PaletteItem => ({ kind: 'employee', hit }),
+        ),
+        { kind: 'show-all', target: 'employees' },
+      ],
     })
   }
 
@@ -274,7 +368,7 @@ export function CommandPalette() {
               value={q}
               onValueChange={setQ}
             >
-              <div className="relative border-b border-hairline">
+              <div className="relative">
                 <Search
                   size={16}
                   aria-hidden
@@ -282,7 +376,9 @@ export function CommandPalette() {
                 />
                 {/* Explicit Escape → close from day one (A1/Pitfall 5):
                     deterministic regardless of Autocomplete's own popup
-                    Escape semantics in inline mode; UAT asserts it. */}
+                    Escape semantics in inline mode; UAT asserts it. The
+                    maxLength mirrors the server cap — identical rules both
+                    sides (URL-layer discipline). */}
                 <Autocomplete.Input
                   data-palette-input
                   type="search"
@@ -292,69 +388,84 @@ export function CommandPalette() {
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') setOpen(false)
                   }}
-                  className="h-12 w-full rounded-none rounded-t-2xl border-0 bg-transparent px-4 pl-11 text-base text-ink outline-none placeholder:text-ink-secondary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-12 w-full rounded-none rounded-t-2xl border-0 border-b border-hairline bg-transparent px-4 pl-11 text-base text-ink outline-none transition-colors placeholder:text-ink-secondary focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </div>
               <div className="max-h-[60vh] overflow-y-auto py-2">
-                <Autocomplete.List>
-                  {groups.map((group) => (
-                    <Autocomplete.Group
-                      key={group.value}
-                      items={group.items}
-                      className=""
-                    >
-                      <Autocomplete.GroupLabel className="px-4 pt-3 pb-1 text-sm text-ink-secondary">
-                        {group.value}
-                      </Autocomplete.GroupLabel>
-                      <Autocomplete.Collection>
-                        {(item: PaletteItem) =>
-                          item.kind === 'device' ? (
-                            <Autocomplete.Item
-                              key={`d${item.hit.id}`}
-                              value={item}
-                              onClick={() => go(item)}
-                              title={deviceTitle(item.hit)}
-                              className="group flex min-h-11 w-full cursor-default items-center gap-3 px-4 py-2 text-left select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-base text-ink">
-                                  {item.hit.model}
-                                </span>
-                                <span className="mt-0.5 block truncate text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80">
-                                  {deviceSecondaryParts(item.hit).map(
-                                    (part, i) => (
-                                      <Fragment key={i}>
-                                        {i > 0 ? ' · ' : null}
-                                        {part}
-                                      </Fragment>
-                                    ),
-                                  )}
-                                </span>
-                              </span>
-                            </Autocomplete.Item>
-                          ) : (
-                            <Autocomplete.Item
-                              key={`e${item.hit.id}`}
-                              value={item}
-                              onClick={() => go(item)}
-                              title={`${item.hit.name} · ${item.hit.department}`}
-                              className="group flex min-h-11 w-full cursor-default items-center gap-3 px-4 py-2 text-left select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-base text-ink">
-                                  {item.hit.name}
-                                </span>
-                                <span className="mt-0.5 block truncate text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80">
-                                  {item.hit.department}
-                                </span>
-                              </span>
-                            </Autocomplete.Item>
-                          )
-                        }
-                      </Autocomplete.Collection>
-                    </Autocomplete.Group>
-                  ))}
-                </Autocomplete.List>
+                {/* Network/server failure replaces the list (UI-SPEC):
+                    neutral secondary ink — a failed search is a recoverable
+                    retry, never red; recovery is the next keystroke or a
+                    reopen (D-03 refetch). */}
+                {failed ? (
+                  <p
+                    role="alert"
+                    data-palette-error
+                    className="px-4 py-8 text-center text-sm text-ink-secondary"
+                  >
+                    Не удалось выполнить поиск. Попробуйте ещё раз.
+                  </p>
+                ) : (
+                  <>
+                    <Autocomplete.Empty>
+                      <p
+                        data-palette-empty
+                        className="px-4 py-8 text-center text-sm text-ink-secondary"
+                      >
+                        Ничего не найдено
+                      </p>
+                    </Autocomplete.Empty>
+                    <Autocomplete.List>
+                      {groups.map((group) => (
+                        <Autocomplete.Group key={group.value} items={group.items}>
+                          <Autocomplete.GroupLabel className="px-4 pt-3 pb-1 text-sm text-ink-secondary">
+                            {group.value}
+                          </Autocomplete.GroupLabel>
+                          <Autocomplete.Collection>
+                            {(item: PaletteItem) => (
+                              <Autocomplete.Item
+                                key={
+                                  item.kind === 'device'
+                                    ? `d${item.hit.id}`
+                                    : item.kind === 'employee'
+                                      ? `e${item.hit.id}`
+                                      : `all-${item.target}`
+                                }
+                                value={item}
+                                onClick={() => go(item)}
+                                title={
+                                  item.kind === 'device'
+                                    ? deviceTitle(item.hit)
+                                    : item.kind === 'employee'
+                                      ? `${item.hit.name} · ${item.hit.department}`
+                                      : undefined
+                                }
+                                className={ROW_CLASS}
+                              >
+                                <PaletteRowContent item={item} />
+                              </Autocomplete.Item>
+                            )}
+                          </Autocomplete.Collection>
+                        </Autocomplete.Group>
+                      ))}
+                      {/* The CSV row (D-07): last keyboard stop of the list,
+                          a NATIVE anchor — download semantics, NOT
+                          router.push; the click handler only closes the
+                          palette while the browser owns the navigation (the
+                          keyboard path works because Enter on the
+                          highlighted item dispatches a real DOM click). */}
+                      <Autocomplete.Item
+                        value={CSV_ITEM}
+                        render={<a href="/api/devices/export" />}
+                        onClick={() => setOpen(false)}
+                        className={`${ROW_CLASS} border-t border-hairline text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80`}
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          Скачать ведомость CSV
+                        </span>
+                      </Autocomplete.Item>
+                    </Autocomplete.List>
+                  </>
+                )}
               </div>
             </Autocomplete.Root>
           </DialogPrimitive.Popup>
