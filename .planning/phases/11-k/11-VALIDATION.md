@@ -4,7 +4,7 @@ slug: k
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-09-18
 ---
@@ -40,7 +40,10 @@ created: 2026-09-18
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| (заполняется планировщиком) | 01 | 1 | FIND-06 | T-11-* | requireSession-first роут, content-type гвард, LIMIT | unit | `npx vitest run` | ✅ | ⬜ pending |
+| 11-01 T1 (tracer) | 01 | 1 | FIND-06 | T-11-01/02 | requireSession-first роут, компоновка предикатов (parity SC 2), LIMIT 6+6, no-store | unit (db) | `npx vitest run tests/palette-queries.test.ts && npx tsc --noEmit` | ❌ → создаётся задачей T1 | ⬜ pending |
+| 11-01 T2 (D-08) | 01 | 1 | FIND-06 | T-11-02 | shaping дублей query-параметров в массивы (pure-хелпер), dedup пушей хука | unit | `npx vitest run tests/search-params-record.test.ts tests/device-search.test.ts tests/employee-search.test.ts && npx tsc --noEmit` | ❌ → создаётся задачей T2 | ⬜ pending |
+| 11-01 T3 | 01 | 1 | FIND-06 | T-11-03/04/05 | content-type-гвард (307→login), AbortController, инертность хоткея (клиент) | build+suite | `npx tsc --noEmit && npm run build && npx vitest run` | ✅ (тесты T1) | ⬜ pending |
+| 11-01 T4 (UAT) | 01 | 1 | FIND-06 | — | SC 1–4 браузерные истины (гейт-чекпоинт) | manual (Playwright MCP) | — (checkpoint:human-verify) | — | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
