@@ -1,11 +1,16 @@
 import { requireSession } from '@/lib/auth'
 import { logout } from './actions'
 import { AppNav } from './nav'
+import { CommandPalette } from '@/components/command-palette'
 
 // Shell of the protected zone (UI-SPEC «App shell», D-06): sticky 48px bar
 // in translucent material (apple-design §12), content column beneath it.
 // Phase 3 adds the second nav item — «Устройства» · «Сотрудники», core entity
 // first, active/inactive state from the client island's pathname.
+// Phase 11 mounts the ⌘K palette island (FIND-06) in the app-bar's right
+// group, BEFORE the logout form — the ⌘K chip sits visually left of «Выйти»
+// (UI-SPEC Default 3); the island is a portal modal, so mount position is
+// presentation-only.
 export default async function AppLayout({
   children,
 }: {
@@ -21,14 +26,17 @@ export default async function AppLayout({
             <span className="text-sm font-semibold text-ink">Учёт техники</span>
             <AppNav />
           </div>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="text-sm text-ink-secondary transition duration-100 ease-out hover:text-ink active:scale-[0.97]"
-            >
-              Выйти
-            </button>
-          </form>
+          <div className="flex items-center gap-4">
+            <CommandPalette />
+            <form action={logout}>
+              <button
+                type="submit"
+                className="text-sm text-ink-secondary transition duration-100 ease-out hover:text-ink active:scale-[0.97]"
+              >
+                Выйти
+              </button>
+            </form>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-8 md:px-6">{children}</main>

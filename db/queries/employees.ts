@@ -117,6 +117,35 @@ export function listEmployees({
   return { rows, total, page: current, pages }
 }
 
+// One ⌘K-palette page of the directory (FIND-06, phase 11): composes ONLY
+// the exported employeeSearchPredicate — NO isActive term, active AND
+// archived employees both match (the archived row carries isActive === 0 in
+// the SELECT so the island can render the «В архиве» badge; Pitfall 2).
+// The innerJoin is MANDATORY: the predicate references departments.name
+// (Pitfall 1) — a query over employees alone fails the moment q is
+// non-empty. Canonical RU-sort + id order; LIMIT is the server cap (D-01).
+export function searchPaletteEmployees({
+  q,
+  limit,
+}: {
+  q: string
+  limit: number
+}) {
+  return db
+    .select({
+      id: employees.id,
+      name: employees.name,
+      department: departments.name,
+      isActive: employees.isActive,
+    })
+    .from(employees)
+    .innerJoin(departments, eq(employees.departmentId, departments.id))
+    .where(employeeSearchPredicate(q))
+    .orderBy(ruSortKey, asc(employees.id))
+    .limit(limit)
+    .all()
+}
+
 export function getEmployee(id: number): EmployeeRow | undefined {
   return db
     .select({

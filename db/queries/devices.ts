@@ -505,6 +505,32 @@ export function exportDevices({
     .all()
 }
 
+// One ⌘K-palette page of the registry (FIND-06, phase 11): the SAME
+// deviceWhere predicate as listDevices/exportDevices (D-02 — «палитра
+// находит то, что находит список» is structural: the palette composes the
+// private predicate through a new exported function exactly like its two
+// siblings, the predicate itself stays module-private). Holder rides the
+// same leftJoin as the list; canonical RU-sort + id order; LIMIT is the
+// server cap (D-01 — the client never truncates).
+export function searchPaletteDevices({ q, limit }: { q: string; limit: number }) {
+  return db
+    .select({
+      id: devices.id,
+      typeKey: devices.typeKey,
+      model: devices.model,
+      serialNumber: devices.serialNumber,
+      inventoryNumber: devices.inventoryNumber,
+      status: devices.status,
+      holder: employees.name,
+    })
+    .from(devices)
+    .leftJoin(employees, eq(devices.currentEmployeeId, employees.id))
+    .where(deviceWhere('all', { q: q.trim().slice(0, 100) }))
+    .orderBy(ruSortKey, asc(devices.id))
+    .limit(limit)
+    .all()
+}
+
 export function getDevice(id: number): DeviceRow | undefined {
   return db
     .select({
