@@ -1,5 +1,51 @@
 # Retrospective — Barahlo
 
+## Milestone: v1.1 — «Скорость и удобство»
+
+**Shipped:** 2026-09-18
+**Phases:** 5 | **Plans:** 7 | **Tests:** 425/22 файлов (стартовали с 341)
+
+### What Was Built
+
+- Live-поиск сотрудников (?q= URL-driven, Ё/ё-фолд на Latin E через гомоглиф-карту) + общий debounce-хук useDebouncedSearchQuery — консюмеры: оба списка и ⌘K
+- CSV-ведомость полного контекста: 20 колонок, конфиг-блок с деривацией меток из кейстоуна, статус гарантии в parity с сайтом, ISO-даты, запятая-десятичная для RU-Excel
+- Клон устройства: 1..100 копий одной транзакцией, NULL-серийник (миграция 0001 через host-side runner — голый drizzle-kit migrate молча падает на заполненной базе), инкремент инвентарника с safe-integer гвардом
+- Bulk-выдача/приём: чекбоксы страницы + плавающая панель, всё-или-ничего с in-tx превалидацией (union blockers), N событий с общим occurredAt
+- ⌘K-палитра: GET /api/search поверх предикатов фаз 5/7, Base UI Dialog+Autocomplete (официальный рецепт), event.code-хоткей, оба долга WR-01 вехи закрыты с регрессионными тестами
+
+### What Worked
+
+- **Один run на фазу** (discuss→research→plan→execute→review→verify→UAT→security→transition): 4 фазы за 3 дня, ноль потерянного контекста между стадиями
+- **Research-probe'ы ловили прод-мины до кода**: drizzle-kit migrate молча падает на заполненной базе (FK в BEGIN) — runner-рецепт родился в research, а не в деплой-ночи; Base UI рецепт палитры снял весь вопрос «как писать клавиатуру»
+- **UAT оркестратором через Playwright MCP** — 10/10, 8/8, 10/10 за три фазы; оператор только sign-off'ил
+- **Text-нумерованные списки вместо AskUserQuestion** — ноль зависаний за веху (в v1.0 флакало дважды)
+
+### What Was Inefficient
+
+- Planner/verifier 600s-стаблы (2 раза) — ретрай выручал, но съедал 10 минут на попытку
+- Playwright run_code_unsafe с `networkidle`-ожиданиями и 30-секундным потолком MCP — три таймаута на фазу; лекарство: короткие вызовы + poll-циклы, сабмит-кнопки палитры звать по refs
+- Локатор «thead» для tri-state шапки — список не в table; читать DOM снапшотом ДО написания селекторов
+
+### Patterns Established
+
+- Host-side migration runner (scripts/migrate.mjs): PRAGMA foreign_keys=OFF ДО BEGIN — единственный рычаг на better-sqlite3 13
+- keystoneLabel: CSV/формы деривируют метки из одного кейстоуна — ноль параллельных словарей
+- Числа в CSV: dot-decimal читается RU-Excel'ом как дата — запятая-десятичная по умолчанию для дробных
+- In-tx SELECT-превалидация возвращает union {ok:false, blockers}, throw резервируется гонкам/in-batch дубликатам
+- Диалоговая механика WR-01 split (wrapper open-state + useActionState inner) — третья фаза подряд без нареканий
+
+### Key Lessons
+
+- Nullable-колонка с обычным UNIQUE УЖЕ допускает множественные NULL — «проблема NULL-pair» была ложной; probe прежде миграции
+- Хвост числа > 2^53 в строковом инкременте = самоколлизия или scientific-notation — Number.isSafeInteger гвард обязателен (WR-01, c4b2e2d)
+- Улучшение UX раскладки-независимости: матчить event.code, не key — иначе хоткей мёртв на ЙЦУКЕН
+
+### Cost Observations
+
+- 118 коммитов за 4 дня (2026-09-15 → 2026-09-18); 256 файлов, +18.1k/−19.2k
+- Тяжелейший проход: executor фазы 10 — 16.5М токенов/88 вызовов; researcher фазы 9 — 3.8М с probe-батареей
+- UAT-гейты в планах (checkpoint:human-verify) — оператор тратит минуты, не часы
+
 ## Milestone: v1.0 — MVP «учёт корпоративной техники»
 
 **Shipped:** 2026-09-14
@@ -51,3 +97,4 @@
 | Milestone | Phases | UAT issues → fixes | Security | Note |
 |-----------|--------|--------------------|----------|------|
 | v1.0 | 6 | 30/30 pass после 7 фиксов (picker, TZ, 2×search-box, attachments flake, RAM NULL, 404-матрица) | 63 threats, 0 open | Первый milestone |
+| v1.1 | 5 | 27/27 pass (10+8+10, включая UAT-пойманные гонки G-7-1; 1 code-review WR-01 фикс до UAT) | 27 threats, 0 open | Один run на фазу; 2 миграции ноль (runner), 1 миграция через runner |
