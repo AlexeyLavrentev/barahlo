@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Скорость и удобство
-current_phase: 11
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 11 complete (verified 6/6 + UAT 10/10 + secured) — milestone v1.1 100%
-last_updated: "2026-09-18T10:02:41.226Z"
+last_updated: "2026-09-18T10:05:01.743Z"
 last_activity: 2026-09-18
-last_activity_desc: Phase 11 complete
+last_activity_desc: Milestone v1.1 completed and archived
 progress:
   total_phases: 5
   completed_phases: 5
   total_plans: 7
   completed_plans: 7
   percent: 100
+current_phase: 11
 current_phase_name: ⌘K глобальная палитра
 ---
 
@@ -28,12 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-15)
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-09-18 — Phase 11 complete
-
-Progress: [██████████] 100%
+Phase: Milestone v1.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-09-18 — Milestone v1.1 completed and archived
 
 ## Performance Metrics
 
@@ -178,6 +176,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Next: /gsd-discuss-phase 8 (CONTEXT.md ещё нет) или сразу /gsd-plan-phase 8
-- Deferred: WR-01 hook push dedup — решение до Фазы 11 (.planning/phases/07-live/deferred-items.md, патч в 07-REVIEW.md)
-- Временный пароль админа uatpass2026 — смени через node scripts/reset-admin.mjs
+- Start the next milestone with /gsd-new-milestone

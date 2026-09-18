@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.1 Скорость и удобство (Shipped: 2026-09-18)
+
+**Phases completed:** 5 phases, 7 plans, 17 tasks
+
+**Key accomplishments:**
+
+- URL-driven ?q= employee search through every layer with the device reconciliation moved verbatim into the shared useDebouncedSearchQuery hook; «елкин» finds «Ёлкин» via a Ё/ё-fold onto Latin E
+- /employees search surface finished: «Ничего не найдено» + segment-preserving «Сбросить поиск», q-gated «Найдено: N» subtitle — and the full D-10 matrix (URL + homoglyphs + wildcards + parity + clamp + sort) locked green with zero production changes
+- UAT approved: live employee search proven in the browser on both lists — keystroke races, Ё/ё and homoglyph folding, URL state with reset/clamp/back-forward; the last race defect (G-7-1 replace-loop ping-pong) found and fixed during acceptance (`10c3cee`)
+- 20-колоночная CSV-ведомость: конфиг-блок своего типа (диагональ запятая-десятичная, матрица, порты, вид), текстовый статус гарантии в parity с цветом сайта через warrantyState, ISO-даты — всё через один pure-модуль lib/device-csv с деривацией меток из кейстоуна и esc-гвардом на каждой ячейке
+- Клон-контур REG-06: «Дублировать» → диалог (1..100 + подсказка инвентарника) → одна транзакция N копий с наследованием закупки/конфига и NULL-серийником; единственная миграция вехи serial→nullable применена host-side раннером вместо молча падающего CLI
+- Bulk-выдача/приём (MOVE-06): чекбоксы строк + tri-state «выбрать страницу», панель «Выбрано: N», диалоги партии, транзакция всё-или-ничего с in-tx превалидацией и отчётом по каждой единице
+- ⌘K-палитра поверх предикатов фаз 5/7: GET /api/search (requireSession-first, 6+6, no-store) + клиентский остров на Base UI Dialog+Autocomplete (event.code-хоткей, группы, полная клавиатура, CSV-строка); оба долга D-08 закрыты с регрессионными тестами
+
+---
+
 ## v1.0 MVP — учёт корпоративной техники (Shipped: 2026-09-14)
 
 **Phases completed:** 6 phases, 21 plans, 19 tasks
