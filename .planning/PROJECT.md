@@ -35,6 +35,7 @@
 - ✓ Поиск по серийному и инвентарному номеру (substring, гомоглифы) и модели (norm()-UDF) — Phase 5 (FIND-01, FIND-04)
 - ✓ Фильтры: «ноуты без апгрейда RAM», тип/статус/отдел/окно гарантии, комбинируются с поиском — Phase 5 (FIND-02, FIND-03)
 - ✓ Подсветка истекающей гарантии (зелёный/жёлтый/красный, 3 сайта) — Phase 5 (WAR-01)
+- ✓ Bulk-выдача/приём: чекбоксы страницы + плавающая панель, один диалог на партию, всё-или-ничего с превалидацией и блокер-отчётом, N событий с общим occurredAt — Phase 10 (MOVE-06)
 - ✓ Клон устройства: диалог 1..100 копий одной транзакцией, серийник nullable (миграция через runner), автоподсказка инвентарника с инкрементом, чистая история — Phase 9 (REG-06)
 - ✓ CSV-ведомость полного контекста: 4 разреженных конфиг-колонки типа + «Статус гарантии» (parity с цветом сайта) + ISO-даты файла; без фильтров = весь парк — Phase 8 (EXP-01)
 - ✓ CSV-экспорт отфильтрованного списка (UTF-8 BOM, «;») — Phase 5 (решение roadmap-плана фазы, D-18)
@@ -47,7 +48,6 @@
 <!-- Current scope. Building toward these. -->
 
 - [ ] ⌘K глобальный поиск: устройства + сотрудники одним хоткеем
-- [ ] Bulk-выдача/приём нескольких единиц разом
 
 ### Out of Scope
 
@@ -106,6 +106,8 @@
 | Миграция serial → nullable — обычный UNIQUE остаётся + раннер scripts/migrate.mjs | nullable-колонка УЖЕ допускает NULL-пары (partial/expression index не нужны — probe); голый `drizzle-kit migrate` молча падает на заполненной базе (FK RESTRICT внутри BEGIN, better-sqlite3 13 включил FK) — только PRAGMA OFF до BEGIN | ✓ Good |
 | Инкремент инвентарника — Number.isSafeInteger гвард | хвост > 2^53 давал самоколлизию/scientific-notation (WR-01, эмпирически доказано ревью); непредставимый хвост → SC 3 silent-empty (c4b2e2d) | ✓ Good |
 | Клоны — ноль movement-событий, in_stock хардкодом query-слоя | создание ≠ перемещение (append-only custody); статус/holder никогда из payload (T-04-02) | ✓ Good |
+| Bulk — превалидация union'ом, не throw'ом | in-tx SELECT → {ok:false, blockers} до первой записи; throw резервируется для in-batch дубликата/гонки (guard-UPDATE); repeat-тесты пинят это разделение (checker W1, исправлено до execute) | ✓ Good |
+| Чекбокс — сиблинг Link'а, не ребёнок; selection-остров с key={buildDevicesQuery} | интерактив внутри `<a>` невалиден и клик всплывает в навигацию (research); key сбрасывает выделение при любой навигации (island-persists прецедент clone-dialog) | ✓ Good |
 
 ## Evolution
 
@@ -125,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-17 after Phase 9 (Клон устройства)*
+*Last updated: 2026-09-18 after Phase 10 (Bulk-выдача и приём)*
