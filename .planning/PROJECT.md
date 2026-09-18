@@ -35,6 +35,7 @@
 - ✓ Поиск по серийному и инвентарному номеру (substring, гомоглифы) и модели (norm()-UDF) — Phase 5 (FIND-01, FIND-04)
 - ✓ Фильтры: «ноуты без апгрейда RAM», тип/статус/отдел/окно гарантии, комбинируются с поиском — Phase 5 (FIND-02, FIND-03)
 - ✓ Подсветка истекающей гарантии (зелёный/жёлтый/красный, 3 сайта) — Phase 5 (WAR-01)
+- ✓ ⌘K-палитра: глобальный поиск устройств и сотрудников одним запросом (реюз предикатов фаз 5/7), русская раскладка, клавиатура, бейдж архива, пункт CSV; долги вехи WR-01 закрыты — Phase 11 (FIND-06)
 - ✓ Bulk-выдача/приём: чекбоксы страницы + плавающая панель, один диалог на партию, всё-или-ничего с превалидацией и блокер-отчётом, N событий с общим occurredAt — Phase 10 (MOVE-06)
 - ✓ Клон устройства: диалог 1..100 копий одной транзакцией, серийник nullable (миграция через runner), автоподсказка инвентарника с инкрементом, чистая история — Phase 9 (REG-06)
 - ✓ CSV-ведомость полного контекста: 4 разреженных конфиг-колонки типа + «Статус гарантии» (parity с цветом сайта) + ISO-даты файла; без фильтров = весь парк — Phase 8 (EXP-01)
@@ -45,9 +46,7 @@
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
-
-- [ ] ⌘K глобальный поиск: устройства + сотрудники одним хоткеем
+<!-- v1.1 milestone complete — all phases shipped. Next milestone TBD. -->
 
 ### Out of Scope
 
@@ -108,6 +107,8 @@
 | Клоны — ноль movement-событий, in_stock хардкодом query-слоя | создание ≠ перемещение (append-only custody); статус/holder никогда из payload (T-04-02) | ✓ Good |
 | Bulk — превалидация union'ом, не throw'ом | in-tx SELECT → {ok:false, blockers} до первой записи; throw резервируется для in-batch дубликата/гонки (guard-UPDATE); repeat-тесты пинят это разделение (checker W1, исправлено до execute) | ✓ Good |
 | Чекбокс — сиблинг Link'а, не ребёнок; selection-остров с key={buildDevicesQuery} | интерактив внутри `<a>` невалиден и клик всплывает в навигацию (research); key сбрасывает выделение при любой навигации (island-persists прецедент clone-dialog) | ✓ Good |
+| Палитра — GET-роут /api/search + composition Base UI Dialog+Autocomplete | fetch/AbortController семантика против action-модели; официальный рецепт палитры ^1.7.0 без cmdk/Radix; content-type гвард против 307→login-HTML при истёкшей сессии | ✓ Good |
+| «Палитра находит то, что находит список» — реюз deviceWhere/employeeSearchPredicate | parity структурный, не копией; employee-ветка без isActive (архивные с бейджем), с innerJoin departments | ✓ Good |
 
 ## Evolution
 
@@ -127,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-18 after Phase 10 (Bulk-выдача и приём)*
+*Last updated: 2026-09-18 after Phase 11 (⌘K-палитра) — milestone v1.1 complete*
