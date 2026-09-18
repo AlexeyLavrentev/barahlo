@@ -60,17 +60,19 @@ export function useDebouncedSearchQuery<T extends object>(args: {
     }
     // Own echo: q answers a push still tracked by inFlight (exact or
     // trimmed — the server trims q, query-params.ts; maxLength 100 keeps
-    // the server cap unreachable from the input). Absorb it: drop the
-    // entry and advance lastSynced. The input is NEVER rewritten to the
-    // trimmed form — a trailing space mid-composition («aspire ») is
-    // pending user text, and rewriting it away made multi-word search
-    // impossible (G-5-2: the space was eaten ~300 ms after typing by the
-    // echo of its own push). A whitespace-only divergence stays as-is and
-    // arms nothing — rewriting would otherwise re-push the same trimmed
-    // query on every echo in a 300 ms request loop.
-    const echoIdx = inFlight.current.findIndex((p) => q === p || q === p.trim())
-    if (echoIdx !== -1) {
-      inFlight.current.splice(echoIdx, 1)
+    // the server cap unreachable from the input). Absorb ALL matching
+    // entries and advance lastSynced (D-08 fix #2, WR-01: absorbing only
+    // the first left duplicates of a double-Enter in flight forever,
+    // permanently gating the adopt branch off). The input is NEVER
+    // rewritten to the trimmed form — a trailing space mid-composition
+    // («aspire ») is pending user text, and rewriting it away made
+    // multi-word search impossible (G-5-2: the space was eaten ~300 ms
+    // after typing by the echo of its own push). A whitespace-only
+    // divergence stays as-is and arms nothing — rewriting would otherwise
+    // re-push the same trimmed query on every echo in a 300 ms request loop.
+    const remaining = inFlight.current.filter((p) => q !== p && q !== p.trim())
+    if (remaining.length !== inFlight.current.length) {
+      inFlight.current = remaining
       lastSynced.current = q
       if (value === q || value.trim() === q.trim()) return
       // Input carries real edits typed during the flight: fall through and
@@ -106,8 +108,11 @@ export function useDebouncedSearchQuery<T extends object>(args: {
       setValue(q)
       return
     }
-    // Input already matches the URL — no-op skip (Pitfall 6).
-    if (value === q) return
+    // Input already matches the URL modulo surrounding whitespace — no-op
+    // skip (Pitfall 6; D-08 fix #2: trim-aware, the server normalizes q, so
+    // a synced trailing space must not re-push the current query on every
+    // segment switch).
+    if (value.trim() === q.trim()) return
     // Our own push is still in flight and the input carries exactly the
     // pushed text: nothing new to say — re-arming would fire a duplicate
     // navigation for the same query (G-7-1).
@@ -124,6 +129,10 @@ export function useDebouncedSearchQuery<T extends object>(args: {
     // fresher input (the G-5-1 keystroke loss).
     timer.current = setTimeout(() => {
       timer.current = null
+      // D-08 fix #2 (WR-01): never queue a value that is already being
+      // navigated to — an echo landing inside a newer arm window must not
+      // re-fire a duplicate navigation for the same query.
+      if (inFlight.current.includes(value)) return
       inFlight.current.push(value)
       if (inFlight.current.length > 4) inFlight.current.shift()
       lastSynced.current = value
@@ -150,6 +159,10 @@ export function useDebouncedSearchQuery<T extends object>(args: {
       timer.current = null
     }
     if (value === q) return
+    // D-08 fix #2 (WR-01): double-Enter must not re-push a value that is
+    // already being navigated to — the duplicate left a stale inFlight
+    // entry that permanently gated the adopt branch off.
+    if (inFlight.current.includes(value)) return
     // Same push-time stamping as the debounce callback: the echo of this
     // Enter-push is classified via inFlight as our own and must not roll
     // back text typed while the navigation is in flight (G-5-1).

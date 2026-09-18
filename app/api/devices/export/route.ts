@@ -4,6 +4,7 @@ import { exportDevices } from '@/db/queries/devices'
 import { displayTodayUtc } from '@/lib/warranty'
 import { buildDeviceCsv } from '@/lib/device-csv'
 import { csvResponseHeaders } from '@/lib/csv'
+import { searchParamsRecord } from '@/lib/search-params-record'
 import {
   parseDevicesSearchParams,
   toDeviceListFilters,
@@ -40,7 +41,14 @@ import {
 
 export async function GET(request: NextRequest) {
   await requireSession()
-  const sp = Object.fromEntries(request.nextUrl.searchParams)
+  // D-08 fix #1 (phase 11, WR-01): shape duplicated params into arrays —
+  // the SAME record shape Next gives the page — before the shared parser.
+  // Object.fromEntries here kept only the LAST value of a duplicate, so a
+  // malformed URL made the CSV diverge from the page view; now both sides
+  // hit the parser's intended array-degradation path (the shaping loop
+  // lives in the pure lib module, vitest-pinned by
+  // tests/search-params-record.test.ts — never duplicated per route).
+  const sp = searchParamsRecord(request.nextUrl.searchParams)
   const filters = parseDevicesSearchParams(sp)
   // Strip the URL-layer sentinels into the db-layer contract via the ONE
   // shared toDeviceListFilters (WR-01) — the exact mapping the page runs:
