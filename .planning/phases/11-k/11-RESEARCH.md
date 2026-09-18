@@ -467,7 +467,11 @@ export function searchParamsRecord(sp: URLSearchParams): Record<string, string |
 | A4 | Employee «Показать все» targets the `active` segment (default) — archived items are reached by clicking their rows directly | Code Examples | UX nit only; planner/user can redirect to `archive` segment instead |
 | A5 | `Promise.all` composition in the route is fine though the db layer is synchronous (better-sqlite3) | Code Examples | None — sequential awaits are the trivial fallback |
 
-## Open Questions
+## Open Questions (RESOLVED — 2026-09-18, plan 11-01 + UI-SPEC)
+
+1. Autocomplete Escape vs Dialog close (A1) → явный `onKeyDown` Escape на инпуте с первого дня (T1 step 5; UI-SPEC Default 13; must_haves backstop).
+2. Кнопка ↔ палитра (A2) → **один остров** (components/command-palette.tsx), nav.tsx не меняется; Dialog.createHandle() отклонён (UI-SPEC Default 2).
+3. «Показать все» при пустом q → **рендерится** (T3 step 2; UI-SPEC Default 8).
 
 1. **Autocomplete Escape behavior in `inline open` mode** (Pitfall 5 / A1)
    - What we know: Dialog handles Esc dismissal; Autocomplete has its own Escape semantics for its popup.
