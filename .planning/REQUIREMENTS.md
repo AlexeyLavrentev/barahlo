@@ -22,7 +22,7 @@ Requirements for this release. Each maps to roadmap phases.
 
 ### Движения
 
-- [ ] **MOVE-06**: Оператор выдаёт выбранные устройства одному сотруднику или принимает их на склад одним диалогом: выбор в пределах страницы списка, транзакция all-or-nothing с предварительной валидацией статусов, итог — отчёт по каждой единице
+- [x] **MOVE-06**: Оператор выдаёт выбранные устройства одному сотруднику или принимает их на склад одним диалогом: выбор в пределах страницы списка, транзакция all-or-nothing с предварительной валидацией статусов, итог — отчёт по каждой единице
 
 ## Future Requirements
 
@@ -56,7 +56,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIND-05 | Phase 7 | Complete |
 | EXP-01 | Phase 8 | Complete |
 | REG-06 | Phase 9 | Complete |
-| MOVE-06 | Phase 10 | Pending |
+| MOVE-06 | Phase 10 | Complete |
 | FIND-06 | Phase 11 | Pending |
 
 **Coverage:**

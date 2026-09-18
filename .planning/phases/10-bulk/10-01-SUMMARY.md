@@ -54,7 +54,7 @@ patterns-established:
   - "BulkFormState { blockers?, results? } — продолжение FormState-семейства (DeviceFormState/MovementFormState/CloneFormState)"
   - "Тест-паттерн bulk-матрицы: prevalidation-first repeat-guard, in-batch дубликат → ILLEGAL_TRANSITION + movementsCount() без изменений"
 
-requirements-completed: [MOVE-06]  # отметка в REQUIREMENTS.md — после UAT-гейта (Task 3)
+requirements-completed: [MOVE-06]  # отмечен в REQUIREMENTS.md после UAT-approval
 
 coverage:
   - id: D1
@@ -88,25 +88,34 @@ coverage:
       - kind: other
         ref: "npx tsc --noEmit && npm run build (контракт-типизация; серверное поведение через D1/D2)"
         status: pass
+      - kind: manual_procedural
+        ref: ".planning/phases/10-bulk/10-UAT.md — сценарии 3/4/5/7/8 (сквозные через экшены)"
+        status: pass
     human_judgment: true
-    rationale: "Экшены не юнит-тестятся в проекте (server-only, компонентного/экшен-раннера нет — прецедент фаз 2/7); сквозное поведение проверяет UAT-гейт Task 3 (Playwright MCP), на момент записи SUMMARY — pending"
+    rationale: "Экшены не юнит-тестятся в проекте (server-only, прецедент фаз 2/7); сквозное поведение проверено UAT-гейтом — оркестратор, Playwright MCP, 2026-09-17, 8/8 passed"
   - id: D5
     description: "UI выделения: чекбоксы строк (сиблинг Link), tri-state шапка, панель «Выбрано: N» с h-24 спейсером, key-reset при навигации"
     requirement: MOVE-06
-    verification: []
+    verification:
+      - kind: manual_procedural
+        ref: ".planning/phases/10-bulk/10-UAT.md — сценарии 1, 2, 6 (SC 1 + спейсер + сброс при навигации)"
+        status: pass
     human_judgment: true
-    rationale: "Компонентного раннера нет (прецедент фаз 2/7) — data-иглы data-device-select/data-bulk-panel/data-bulk-count оставлены для UAT-гейта Task 3 (Playwright MCP), pending"
+    rationale: "Компонентного раннера нет (прецедент фаз 2/7); визуальное/интеракционное поведение проверено UAT-гейтом — оркестратор, Playwright MCP, 2026-09-17, 8/8 passed"
   - id: D6
     description: "Диалоги партии: blocker-отчёт «какая единица и почему», success-отчёт «Записано: N», сброс выделения только после успеха"
     requirement: MOVE-06
-    verification: []
+    verification:
+      - kind: manual_procedural
+        ref: ".planning/phases/10-bulk/10-UAT.md — сценарии 3, 4, 5, 9 (SC 2/3/4 + long-text backstop)"
+        status: pass
     human_judgment: true
-    rationale: "Визуальное/интеракционное поведение (SC 1–4) — предмет UAT-гейта Task 3, pending на момент записи SUMMARY"
+    rationale: "Визуальное/интеракционное поведение (SC 2–4) проверено UAT-гейтом — оркестратор, Playwright MCP, 2026-09-17, 8/8 passed"
 
 # Metrics
-duration: 23 min
+duration: 23 min (executor T1–T2) + UAT 8/8 (оркестратор, Playwright MCP)
 completed: 2026-09-17
-status: partial  # T1–T2 выполнены и закоммичены; T3 = блокирующий UAT-гейт, ожидает оркестратора
+status: complete
 ---
 
 # Phase 10 Plan 01: Bulk-выдача и приём Summary
@@ -115,10 +124,11 @@ status: partial  # T1–T2 выполнены и закоммичены; T3 = б
 
 ## Performance
 
-- **Duration:** 23 min (Tasks 1–2; Task 3 = UAT-гейт, вне автоматической части)
+- **Duration:** 23 min (executor, Tasks 1–2) + UAT-гейт оркестратора (Playwright MCP, 8/8)
 - **Started:** 2026-09-17T10:25:02Z
 - **Completed (T1–T2):** 2026-09-17T10:48:17Z
-- **Tasks:** 2 of 3 (Task 3 — checkpoint:human-verify, returned to orchestrator)
+- **Completed (T3 UAT, оркестратор):** 2026-09-17 — 8/8 сценариев passed, 0 issues
+- **Tasks:** 3 of 3
 - **Files modified:** 9 (2 new + 7 modified, ровно как в files_modified плана)
 
 ## Accomplishments
@@ -137,8 +147,9 @@ status: partial  # T1–T2 выполнены и закоммичены; T3 = б
 2. **Task 1 GREEN: tracer «Выдать» сквозь все слои** - `62659f8` (feat)
 3. **Task 2 RED: bulk-accept матрица + границы схем** - `0ba52a7` (test)
 4. **Task 2 GREEN: bulk-«Принять» + полная матрица** - `b4984d5` (feat)
+5. **Task 3: UAT-гейт** - checkpoint:human-verify, возвращён оркестратору; **UAT пройден оркестратором (Playwright MCP): 8/8 сценариев, 0 issues** — результаты в `10-UAT.md`, коммит `0e48e69`
 
-**Task 3** — checkpoint:human-verify (UAT-гейт SC 1–4 + backstop-проверки): возвращён оркестратору, НЕ выполнялся исполнителем (по постановке UAT прогоняет оркестратор через Playwright MCP).
+**Plan metadata:** `e8b78f2` (docs: T1–T2 close-out), финальный docs-коммит — см. Task Commits ниже / git log.
 
 ## Files Created/Modified
 
@@ -175,21 +186,11 @@ None - план выполнен как написан (структура фа�
 - `npm run build` — зелёный
 - `npm run lint` — 0 ошибок (6 pre-existing warnings в нетронутых файлах)
 
-## Remaining (Task 3 — UAT-гейт, checkpoint:human-verify)
+## Task 3 — UAT-гейт: ПРОЙДЕН
 
-Сценарии для оркестратора (Playwright MCP, `npm run dev`, /devices; нужны статусы in_stock/assigned/repair — seed содержит все):
+UAT выполнен оркестратором через Playwright MCP (2026-09-17): **8/8 сценариев passed, 0 issues** — результаты в `.planning/phases/10-bulk/10-UAT.md`, закоммичены как `0e48e69`. Владелец одобрил гейт.
 
-1. SC 1: чекбокс строки → панель «Выбрано: 1»; частичное выделение → ДЕФИС на акцентном фоне в шапке; «Выбрать страницу» → все строки; «Снять выделение» → панель исчезла
-2. Спейсер: панель не перекрывает пагинацию; после снятия выделения отступ схлопнулся
-3. SC 2/4: выдать 2 складских → отчёт «Записано: 2» (модель · инвентарник · выдано ФИО), выделение сброшено, в таймлайнах по «Выдаче» с одинаковым временем/комментарием
-4. SC 3: складское + выданное → «Выдать» → красное «Операция не выполнена: ничего не записано.» + строка блокера; выделение на месте, таймлайны не изменились
-5. Принять: «Используется» + «В ремонте» → диалог без поля сотрудника → «принято на склад» / «возвращено из ремонта»; статусы стали «На складе»
-6. Backstop: навигация (пагинация/фильтр/поиск) растворяет выделение
-7. Backstop: дата из будущего → «Дата не может быть в будущем», echo, выделение на месте
-8. Backstop: двойной сабмит → одна запись на единицу
-9. Backstop: комментарий ~500 символов; длинное ФИО в отчёте обрезается
-
-После approval: отметить MOVE-06, довести STATE/ROADMAP до complete, финализировать SUMMARY.
+Покрытие гейта: SC 1 (выделение/tri-state/панель), спейсер, SC 2/4 (выдать happy path + общий occurredAt), SC 3 (blocker всё-или-ничего), Принять (returned/from_repair), backstop-строки UI Considerations (сброс при навигации, дата из будущего, двойной сабмит, длинный текст).
 
 ## User Setup Required
 
@@ -197,16 +198,17 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- MOVE-06 функционально готов; блокер один — UAT-гейт Task 3 (по прецеденту фаз 7/9: оркестратор + Playwright MCP)
+- MOVE-06 доставлен и принят: unit-матрица 409/409 + build/lint зелёные + UAT 8/8 (оркестратор)
 - actions.ts churn завершён (роадмап): Phase 11 (⌘K) не зависит от фазы; задел для deferred массовых ремонт/списание — BulkOutcome-прецедент
+- Следующий шаг фазы — verify-work / phase-complete (владелец: оркестратор)
 
 ---
 *Phase: 10-bulk*
-*Completed: 2026-09-17 (T1–T2; T3 awaiting UAT)*
+*Completed: 2026-09-17*
 
 ## Self-Check: PASSED
 
-- Files on disk: device-bulk.tsx, bulk-dialogs.tsx, 10-01-SUMMARY.md — FOUND
-- Commits in log: 8ae36a2, 62659f8, 0ba52a7, b4984d5, 97e95b9 — FOUND
-- Smoke needles: data-device-select/panel/count (остров) + data-bulk-blockers/report (диалоги) — все на месте
-- Phase gate перед Task 3: vitest 409/409, tsc clean, build green, lint 0 ошибок
+- Files on disk: device-bulk.tsx, bulk-dialogs.tsx, 10-01-SUMMARY.md, 10-UAT.md — FOUND
+- Commits in log: 8ae36a2, 62659f8, 0ba52a7, b4984d5, 97e95b9→amended e8b78f2, 0e48e69 (UAT) — FOUND
+- Smoke needles: data-device-select/panel/count (остров) + data-bulk-blockers/report (диалоги) — все на месте (UAT-подтверждено)
+- Phase gate перед Task 3: vitest 409/409, tsc clean, build green, lint 0 ошибок; UAT 8/8 — pass
