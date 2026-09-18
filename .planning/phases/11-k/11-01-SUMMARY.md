@@ -91,14 +91,20 @@ coverage:
       - kind: other
         ref: "curl -i http://localhost:3000/api/search?q=test → HTTP/1.1 307, location: /login (run during execution, dev server)"
         status: pass
+      - kind: manual_procedural
+        ref: ".planning/phases/11-k/11-UAT.md — сценарии 2/5/6 (Playwright MCP, orchestrator)"
+        status: pass
     human_judgment: true
-    rationale: "Сессионный JSON-контракт (обе группы, no-store при живой сессии) проверяется только в UAT-гейте Task 4 (Playwright MCP, сценарии 2/5/6); unauthenticated-307 зонд пройден."
+    rationale: "Сессионный JSON-контракт подтверждён UAT-гейтом Task 4 (10/10 pass, approval оператора); human_judgment оставлен true — живой контракт без автотеста."
   - id: D5
     description: "⌘K-остров: хоткей event.code (русская раскладка), кнопка «⌘K» левее «Выйти», группы «Устройства»/«Сотрудники», цикличная клавиатура, Enter → карточка и закрытие, инертность при открытом диалоге, свежее состояние при переоткрытии"
     requirement: FIND-06
-    verification: []
+    verification:
+      - kind: manual_procedural
+        ref: ".planning/phases/11-k/11-UAT.md — сценарии 1, 3, 5, 6 (SC 1/3/4; Playwright MCP, orchestrator)"
+        status: pass
     human_judgment: true
-    rationale: "Интерактивное UI-поведение — предмет UAT-гейта Task 4 (SC 1/3/4, сценарии 1, 3, 5, 6); автоматического компонентного раннера в репо нет (установленная дисциплина)."
+    rationale: "Интерактивное UI-поведение подтверждено UAT-гейтом Task 4 (10/10 pass, approval оператора); автоматического компонентного раннера в репо нет (установленная дисциплина)."
   - id: D6
     description: "«Показать все» у обеих групп (URL только билдерами, сегмент active) и CSV-строка (нативный <a href=/api/devices/export>, последняя клавиатурная остановка, закрывает палитру)"
     requirement: FIND-06
@@ -106,8 +112,11 @@ coverage:
       - kind: other
         ref: "grep-needle audit: buildDevicesQuery/buildEmployeesQuery в command-palette.tsx:287,297; render={<a href=\"/api/devices/export\"/>} :458"
         status: pass
+      - kind: manual_procedural
+        ref: ".planning/phases/11-k/11-UAT.md — сценарии 7 и 8 (Playwright MCP, orchestrator)"
+        status: pass
     human_judgment: true
-    rationale: "Живые переходы/скачивание — UAT Task 4 (сценарии 7 и 8); статический аудит классов пройден, но клик-поведение автоматикой не покрыто."
+    rationale: "Живые переходы/скачивание подтверждены UAT Task 4 (10/10 pass, approval оператора); статический аудит классов пройден при исполнении."
   - id: D7
     description: "D-08 #1: дублированные query-параметры export-роута шейпятся в массивы до parseDevicesSearchParams (CSV = странице на malformed URL)"
     verification:
@@ -121,13 +130,16 @@ coverage:
       - kind: unit
         ref: "npx vitest run tests/device-search.test.ts tests/employee-search.test.ts → 80/80 pass (регрессионная защита после патча хука)"
         status: pass
+      - kind: manual_procedural
+        ref: ".planning/phases/11-k/11-UAT.md — сценарий 10 (malformed-URL CSV == страница; быстрая печать/Enter без дубль-навигации)"
+        status: pass
     human_judgment: true
-    rationale: "Новых ассертов на гварды хука нет (компонентного раннера нет — установленная дисциплина); живая верификация отнесена планом к UAT-гейту Task 4 (сценарий 10)."
+    rationale: "Новых ассертов на гварды хука нет (компонентного раннера нет — установленная дисциплина); живая верификация выполнена в UAT-гейте Task 4 (10/10 pass, approval оператора)."
 
 # Metrics
-duration: 32min
+duration: 32min+UAT
 completed: 2026-09-18
-status: awaiting-uat
+status: complete
 ---
 
 # Phase 11 Plan 01: ⌘K глобальная палитра Summary
@@ -136,15 +148,15 @@ status: awaiting-uat
 
 ## Performance
 
-- **Duration:** 32 min
+- **Duration:** 32 min + UAT
 - **Started:** 2026-09-18T06:33:48Z
-- **Completed:** 2026-09-18T07:06:00Z (Tasks 1–3; Task 4 = UAT-гейт — awaiting human)
-- **Tasks:** 3 of 4 (Task 4 — checkpoint:human-verify, возвращён оркестратору)
+- **Completed:** 2026-09-18 (Tasks 1–3 исполнителем; Task 4 UAT — оркестратором через Playwright MCP, 10/10, approval получен)
+- **Tasks:** 4 of 4
 - **Files modified:** 10
 
 ## Plan Status
 
-**Tasks 1–3 выполнены и закоммичены. Task 4 (UAT-гейт FIND-06 SC 1–4, Playwright MCP) — CHECKPOINT возвращён оркестратору; палитра НЕ считается принятой до approval.** После approval продолжение-агент: обновит этот статус на `complete`, прогонит `state.advance-plan` / `requirements.mark-complete FIND-06` / финализирует ROADMAP.
+**ПЛАН ЗАВЕРШЁН.** Tasks 1–3 выполнены и закоммичены; Task 4 (UAT-гейт FIND-06 SC 1–4) исполнен оркестратором через Playwright MCP — **10/10 сценариев прошли, 0 issues**, результаты в `.planning/phases/11-k/11-UAT.md` (коммит `f6ba2e3`), оператор одобрил.
 
 ## Accomplishments
 - Единый поиск: GET /api/search композирует deviceWhere и employeeSearchPredicate (D-01/D-02) — requireSession первым действием (зонд: 307 → /login), q trim+cap 100, LIMIT 6+6 на сервере, Cache-Control: no-store; parity-тест приколачивает «палитра находит то, что находит список»
@@ -159,7 +171,7 @@ Each task was committed atomically:
 1. **Task 1: Tracer — ⌘K → /api/search → карточка** - `9e51571` (feat)
 2. **Task 2: D-08 — shaping + dedup пушей** - `e456cd9` (test, TDD RED) + `7be20df` (feat, TDD GREEN)
 3. **Task 3: Полный контракт палитры по UI-SPEC** - `f221b71` (feat)
-4. **Task 4: UAT-гейт** — checkpoint:human-verify, awaiting (Playwright MCP, прецедент фаз 7/10)
+4. **Task 4: UAT-гейт** — checkpoint:human-verify → исполнен оркестратором (Playwright MCP, 10/10), результаты `f6ba2e3` в `.planning/phases/11-k/11-UAT.md`
 
 ## Files Created/Modified
 - `app/api/search/route.ts` - GET-роут единого поиска (D-01): requireSession-first, обе группы, no-store
@@ -204,19 +216,18 @@ Each task was committed atomically:
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Dev-сервер поднят для UAT: http://localhost:3000 (`npm run dev`, PID 20712, лог /tmp/barahlo-dev-11-01.log); без сессии /api/search отвечает 307 → /login (T-11-01 зонд пройден)
-- UAT-гейт Task 4: 10 сценариев SC 1–4 / D-07 / D-08 — выполняет оркестратор через Playwright MCP ( needles: data-command-palette / data-palette-input / data-palette-empty / data-palette-error)
-- После approval: продолжение-агент ставит status: complete, state.advance-plan, requirements.mark-complete FIND-06, roadmap-финализация
-- Это последняя фаза v1.1 — после UAT фаза готова к verify-work/end-of-phase
+- UAT-гейт Task 4 пройден: 10/10 сценариев SC 1–4 / D-07 / D-08 (Playwright MCP оркестратора), 0 issues, результаты в `.planning/phases/11-k/11-UAT.md` (коммит `f6ba2e3`), оператор одобрил
+- Это последняя фаза v1.1 — план завершён, фаза готова к verify-work/end-of-phase
+- D-08 долги вехи закрыты с регрессионными тестами — блокеры «до Фазы 11» из STATE/ROADMAP сняты
 
 ---
 *Phase: 11-k*
-*Completed: 2026-09-18 (Tasks 1–3; Task 4 awaiting UAT)*
+*Completed: 2026-09-18 (Task 4 UAT: 10/10 pass, orchestrator + operator approval)*
 
 ## Self-Check: PASSED
 
 - Все 10 key-files существуют на диске (10/10 FOUND)
-- Все коммиты задач существуют в git: 9e51571, e456cd9, 7be20df, f221b71 (4/4 FOUND)
+- Все коммиты задач существуют в git: 9e51571, e456cd9, 7be20df, f221b71 (4/4 FOUND); UAT-результаты оркестратора: f6ba2e3
 - Верификация плана: `npx vitest run` 425/425 (baseline 409+ расширен palette-queries ×8 и search-params-record ×8), `npx tsc --noEmit` 0, `npm run build` зелёный, lint 0 новых ошибок
 - Parity-тест (SC 2) зелёный на живых предикатах
-- UAT-гейт Task 4: НЕ выполнен (checkpoint возвращён оркестратору) — план остаётся awaiting до approval
+- UAT-гейт Task 4: ВЫПОЛНЕН оркестратором — 10/10 сценариев, 0 issues, approval получен («pass»)
