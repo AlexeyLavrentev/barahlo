@@ -4,17 +4,17 @@ milestone: v1.1
 milestone_name: Скорость и удобство
 current_phase: 11
 current_phase_name: ⌘K глобальная палитра
-status: planning
-stopped_at: Phase 11 UI-SPEC approved
-last_updated: "2026-09-18T06:04:51.099Z"
+status: executing
+stopped_at: "Plan 11-01: Tasks 1-3 committed, Task 4 UAT gate awaiting approval (dev server :3000)"
+last_updated: "2026-09-18T07:05:21.288Z"
 last_activity: 2026-09-18
-last_activity_desc: Phase 10 complete, transitioned to Phase 11
+last_activity_desc: Phase 11 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 6
-  completed_plans: 6
-  percent: 80
+  completed_phases: 5
+  total_plans: 7
+  completed_plans: 7
+  percent: 100
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-15)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 10 — Bulk-выдача и приём
+**Current focus:** Phase 11 — ⌘K глобальная палитра
 
 ## Current Position
 
-Phase: 11 — ⌘K глобальная палитра
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-09-18 — Phase 10 complete, transitioned to Phase 11
+Phase: 11 (⌘K глобальная палитра) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 11
+Last activity: 2026-09-18 — Phase 11 execution started
 
 Progress: [██████████] 100%
 
@@ -89,6 +89,7 @@ Progress: [██████████] 100%
 | Phase 08 P01 | 83 min | 2 tasks | 4 files |
 | Phase 09 P01 | 26 min | 3 tasks | 18 files |
 | Phase 10 P01 | 23min+UAT | 3 tasks | 9 files |
+| Phase 11 P01 | 32min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 8/План 1]: Диагональ — запятая-десятичная («21,5»/«23,8», целые «27»): dot-decimal RU-Excel читает как дату «21.мая» (research Pitfall 1); первая дробная колонка в истории файла — Консистентно с RU-контрактом файла («;», BOM); ручная RU-Excel проверка — end-of-phase, записана в WINDOWS.md (unrun-verify)
 - [Phase ?]: [Phase 8/План 1]: Файловый маппинг живёт в pure lib/device-csv.ts, route.ts — thin composer (today = displayTodayUtc() один на запрос): роут не vitest-импортируем (next/headers), вынос дал позиционный пин 20 колонок тестом — Дисциплина pure-модулей lib/warranty.ts; TDD RED c7e095a → GREEN 51bb5c9 → матрица 7584bfc; 370/370 suite
 - [Phase 10]: Диалоги партии смонтированы рядом с FloatingPanel (не внутри size>0 блока): clear() в ok-эффекте опустошает Set — панель исчезает за открытым диалогом, отчёт «Записано: N» остаётся; EmployeePicker-копия в bulk-dialogs расширена onPick (ФИО отчёта из клиентского выбора — Open Question 3); blockers едут union-ом как данные, throw {code} — только guard-UPDATE (.changes===0: in-batch дубликат/гонка)
+- [Phase 11]: [Phase 11/План 01]: Reset состояния палитры — на открытии (openPalette), не на закрытии: React 19 set-state-in-effect; D-03 сохранён (попап не keepMounted, open = пустой инпут + мгновенный фетч) — eslint-правило React 19 запрещает setState синхронно в теле эффекта; перенос сброса в event handler не меняет наблюдаемый контракт SC 4
+- [Phase 11]: [Phase 11/План 01]: CSV-строка палитры — Autocomplete.Item с render={<a href>}: Enter диспетчит реальный DOM-клик (clickHighlightedItem → listItem.click(), useButton оставляет Enter на линках браузеру) — нативное скачивание работает с клавиатуры (D-07) — верифицировано по исходникам установленного @base-ui/react 1.7.0; закрывает требование «последняя клавиатурная остановка» без отказа от нативной семантики скачивания
 
 ### Pending Todos
 
@@ -168,9 +171,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-18T06:04:51.084Z
-Stopped at: Phase 11 UI-SPEC approved
-Resume file: .planning/phases/11-k/11-UI-SPEC.md
+Last session: 2026-09-18T07:04:53.804Z
+Stopped at: Plan 11-01: Tasks 1-3 committed, Task 4 UAT gate awaiting approval (dev server :3000)
+Resume file: .planning/phases/11-k/11-01-PLAN.md
 
 ## Operator Next Steps
 
