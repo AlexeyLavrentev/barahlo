@@ -4,15 +4,15 @@ milestone: v1.2
 milestone_name: Гигиена данных
 current_phase: 13
 current_phase_name: Удаление устройств
-status: planning
+status: executing
 stopped_at: Phase 13 context gathered
-last_updated: "2026-09-28T09:35:59.161Z"
+last_updated: "2026-09-28T10:54:49.190Z"
 last_activity: 2026-09-28
 last_activity_desc: Phase 12 complete, transitioned to Phase 13
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 2
+  total_plans: 4
   completed_plans: 2
   percent: 50
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-28)
 
 Phase: 13 — Удаление устройств
 Plan: Not started
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-09-28 — Phase 12 complete, transitioned to Phase 13
 
 Progress: [░░░░░░░░░░] 0%
