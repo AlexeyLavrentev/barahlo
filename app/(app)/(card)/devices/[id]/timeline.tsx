@@ -120,7 +120,7 @@ export function Timeline({
                 {route ? ` · ${route}` : ''}
               </p>
               {event.comment ? (
-                <p className="text-sm text-ink">{event.comment}</p>
+                <p className="break-words text-sm text-ink">{event.comment}</p>
               ) : null}
               {/* D-05/D-06 verbatim: one uniform recipe on EVERY row — no
                   status matrix, no hiding logic. */}

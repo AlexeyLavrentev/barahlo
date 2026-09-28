@@ -226,7 +226,9 @@ function MovementEditForm({
         {movementEventLabel(event.eventType)} · {event.occurredAtDisplay}
         {route ? ` · ${route}` : ''}
       </p>
-      {event.comment ? <p className={HINT_CLASS}>{event.comment}</p> : null}
+      {event.comment ? (
+        <p className={`break-words ${HINT_CLASS}`}>{event.comment}</p>
+      ) : null}
       {state.error ? (
         <p className={ERROR_CLASS} role="alert">
           {state.error}
@@ -364,7 +366,7 @@ export function MovementEditDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6">
+      <DialogContent className="max-w-md p-6 *:min-w-0">
         <DialogHeader>
           <DialogTitle>Исправить запись</DialogTitle>
         </DialogHeader>
@@ -407,7 +409,7 @@ function MovementDeleteForm({
           {route ? ` · ${route}` : ''}
         </p>
         {event.comment ? (
-          <p className="text-sm text-ink">{event.comment}</p>
+          <p className="break-words text-sm text-ink">{event.comment}</p>
         ) : null}
       </div>
       <p className={HINT_CLASS}>
@@ -455,7 +457,7 @@ export function MovementDeleteConfirmDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6">
+      <DialogContent className="max-w-md p-6 *:min-w-0">
         <DialogHeader>
           <DialogTitle>Удалить запись?</DialogTitle>
         </DialogHeader>
