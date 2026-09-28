@@ -1061,17 +1061,18 @@ describe('perimeter — append-only movements (MOVE-04)', () => {
     ).toBe(false)
   })
 
-  it('UPDATE movements aborts via the append-only trigger', () => {
+  it('UPDATE movements now succeeds — trigger dropped by migration 0002 (phase 12, SC5)', () => {
     const emp = newEmployee('Триггер Хранитель')
     const dev = newDevice()
     assignDevice(dev, emp.id)
-    expect(
-      captureThrown(() =>
-        db.$client
-          .prepare('UPDATE movements SET comment = ? WHERE device_id = ?')
-          .run('tampered', dev),
-      ),
-    ).toBeDefined()
+    // Raw SQL mutation is legal at the DB level since 0002; the server layer
+    // (editMovement/deleteMovement, plan 12-01 Task 3) owns the compound
+    // WHERE discipline.
+    expect(() =>
+      db.$client
+        .prepare('UPDATE movements SET comment = ? WHERE device_id = ?')
+        .run('tampered', dev),
+    ).not.toThrow()
   })
 })
 

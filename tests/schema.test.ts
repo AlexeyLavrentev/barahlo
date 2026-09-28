@@ -102,33 +102,30 @@ describe('migration 0000 — full schema v1', () => {
     ).toThrow(/FOREIGN KEY constraint failed/)
   })
 
-  it('allows INSERT into movements but aborts UPDATE and DELETE (append-only)', () => {
+  it('allows INSERT into movements — and raw UPDATE/DELETE now succeed (append-only lifted by migration 0002)', () => {
     const d = db()
     insertDevice(d, { serialNormalized: 'MOV-APPEND-1' })
     const deviceId = d.prepare('SELECT id FROM devices WHERE serial_normalized = ?').get('MOV-APPEND-1') as { id: number }
-    expect(() =>
-      d
-        .prepare(
-          'INSERT INTO movements (device_id, event_type, occurred_at, created_at) VALUES (?, ?, unixepoch(), unixepoch())',
-        )
-        .run(deviceId.id, 'received'),
-    ).not.toThrow()
+    d.prepare(
+      'INSERT INTO movements (device_id, event_type, occurred_at, created_at) VALUES (?, ?, unixepoch(), unixepoch())',
+    ).run(deviceId.id, 'received')
 
-    expect(() => d.prepare('UPDATE movements SET comment = ?').run('x')).toThrow(
-      /append-only: UPDATE denied/,
-    )
-    expect(() => d.prepare('DELETE FROM movements').run()).toThrow(
-      /append-only: DELETE denied/,
-    )
+    // Phase 12 (SC5): the 0000 triggers are dropped by migration 0002 — raw
+    // SQL mutation is now legal at the DB level; the app gates it server-side
+    // (editMovement/deleteMovement with a compound WHERE).
+    expect(() =>
+      d.prepare('UPDATE movements SET comment = ?').run('x'),
+    ).not.toThrow()
+    expect(() => d.prepare('DELETE FROM movements').run()).not.toThrow()
   })
 
-  it('defines the two append-only triggers', () => {
+  it('drops the two append-only triggers (migration 0002)', () => {
     const triggers = db()
       .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'")
       .all()
       .map((r) => (r as { name: string }).name)
-    expect(triggers).toContain('movements_no_update')
-    expect(triggers).toContain('movements_no_delete')
+    expect(triggers).not.toContain('movements_no_update')
+    expect(triggers).not.toContain('movements_no_delete')
   })
 })
 
@@ -160,14 +157,16 @@ describe('migration 0001 — serial nullable (D-08, REG-06)', () => {
     )
   })
 
-  it('keeps the append-only triggers and the status CHECK enforced after the recreation', () => {
+  it('keeps the status CHECK enforced and stays trigger-free after the recreation', () => {
     const d = db()
     const triggers = d
       .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'")
       .all()
       .map((r) => (r as { name: string }).name)
-    expect(triggers).toContain('movements_no_update')
-    expect(triggers).toContain('movements_no_delete')
+    // The 0001 recreation never re-created the append-only triggers (they
+    // belonged to 0000 and 0002 drops them for the whole chain).
+    expect(triggers).not.toContain('movements_no_update')
+    expect(triggers).not.toContain('movements_no_delete')
     expect(() => insertRow(d, 'SN-BOGUS', 'SN-BOGUS', 'bogus')).toThrow(
       /devices_status_ck|CHECK constraint failed/,
     )

@@ -83,8 +83,8 @@ afterAll(() => {
 })
 
 describe('scripts/migrate.mjs — host-side runner (Pattern 2)', () => {
-  it('applies 0001 to a filled base and preserves data, children, triggers and CHECK', () => {
-    expect(runMigrations(sqlite).applied).toBe(1)
+  it('applies 0001 and 0002 to a filled base, preserving data, children and CHECK (triggers dropped by 0002)', () => {
+    expect(runMigrations(sqlite).applied).toBe(2)
 
     // Pragma acceptance (Pitfall 1): both serial columns really nullable.
     const byName = Object.fromEntries(
@@ -129,20 +129,21 @@ describe('scripts/migrate.mjs — host-side runner (Pattern 2)', () => {
       ).n,
     ).toBe(1)
 
-    // Append-only triggers and the status CHECK survived the recreation.
+    // The status CHECK survived the recreations; the append-only triggers did
+    // not — migration 0002 drops them (phase 12, SC5).
     const triggers = sqlite
       .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger'")
       .all()
       .map((r) => (r as { name: string }).name)
-    expect(triggers).toContain('movements_no_update')
-    expect(triggers).toContain('movements_no_delete')
+    expect(triggers).not.toContain('movements_no_update')
+    expect(triggers).not.toContain('movements_no_delete')
     expect(() =>
       insertDevice(sqlite, { serialNormalized: 'RUNNER-CHECK', status: 'bogus' }),
     ).toThrow(/devices_status_ck|CHECK constraint failed/)
   })
 
   it('records a CLI-compatible tracking row and restores foreign_keys=ON', () => {
-    const entry = journalEntry(1)
+    const entry = journalEntry(2)
     const query = readFileSync(join(DRIZZLE_DIR, `${entry.tag}.sql`), 'utf8')
     const row = sqlite
       .prepare(
@@ -153,7 +154,7 @@ describe('scripts/migrate.mjs — host-side runner (Pattern 2)', () => {
     expect(row.hash).toBe(createHash('sha256').update(query).digest('hex'))
     expect(Number(row.created_at)).toBe(entry.when)
     // CLI-compatibility: drizzle's pending rule (created_at < folderMillis)
-    // no longer selects 0001.
+    // no longer selects 0002.
     expect(Number(row.created_at) < entry.when).toBe(false)
     // Runner contract: FK is back ON after COMMIT.
     expect(sqlite.pragma('foreign_keys', { simple: true })).toBe(1)
