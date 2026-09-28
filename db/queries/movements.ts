@@ -741,8 +741,9 @@ export type RecentMovementView = {
 
 // The 10 (limit) most recent movements across ALL devices (DASH-03): ONE
 // three-way join, never N+1. innerJoin(devices) is safe — the FK is NOT NULL
-// + restrict and nothing in the app deletes devices (device deletion is
-// phase 13 scope). Names resolve through the same alias double-join as
+// + restrict, and deleteDevice (phase 13) removes a device's movements in the
+// SAME transaction as its device row, so the feed never sees an orphan.
+// Names resolve through the same alias double-join as
 // listTimeline — archived employees render like active ones (history is
 // history; the employee card shows its own state). Order is occurredAt DESC
 // with id as the tiebreaker — backdated events (D-01) sort by their own

@@ -29,8 +29,19 @@ const photosModule = await import('@/lib/photos')
 const movementSchemaModule = await import('@/lib/movement-schema')
 const deviceSchemaModule = await import('@/lib/device-schema')
 
-const { deleteDevice, getDevice, createDevice } = deviceQueries
-const { assignDevice } = movementsQueries
+const {
+  deleteDevice,
+  getDevice,
+  createDevice,
+  listDevices,
+  exportDevices,
+  searchPaletteDevices,
+  totalDeviceCount,
+  deviceCountByType,
+  deviceCountByStatus,
+} = deviceQueries
+const { listRecentMovements, listIssuedByEmployee, assignDevice } =
+  movementsQueries
 const { createEmployee } = employeeQueries
 const { insertWithCapCheck } = attachmentsQueries
 const { thumbKeyOf, resolveUploadPath } = photosModule
@@ -84,6 +95,14 @@ function rawAttachments(deviceId: number) {
   return db.$client
     .prepare('SELECT * FROM attachments WHERE device_id = ? ORDER BY id')
     .all(deviceId) as { id: number; storage_key: string }[]
+}
+
+function rawMovementCount(): number {
+  return (
+    db.$client.prepare('SELECT COUNT(*) AS n FROM movements').get() as {
+      n: number
+    }
+  ).n
 }
 
 function captureThrown(fn: () => void): unknown {
@@ -180,5 +199,120 @@ describe('deviceDeleteSchema — minimal and strict (keystone)', () => {
       deviceDeleteSchema.safeParse({ deviceId: 7, status: 'assigned' }).success,
     ).toBe(false)
     expect(deviceDeleteSchema.safeParse({}).success).toBe(false)
+  })
+})
+
+// ---- Parity walk and guard knives (Task 2, DEL-02, D-06, SC3/SC4) ----------
+
+describe('parity walk — six surfaces lose exactly the deleted device (DEL-02, D-06, SC3)', () => {
+  it('the deleted device disappears everywhere; the control does not drift', () => {
+    const emp = newEmployee('Паритет Шесть')
+    const target = newDevice()
+    assignDevice(target, emp, { occurredAt: DAY('2026-09-01') })
+    seedPhotoRow(target)
+    const control = newDevice()
+    assignDevice(control, emp, { occurredAt: DAY('2026-09-01') })
+    seedPhotoRow(control)
+    const targetSerial = rawDevice(target)!.serial_number
+    const controlSerial = rawDevice(control)!.serial_number
+
+    // Sanity: before the delete the target is present on every surface.
+    expect(
+      listDevices({ type: 'all', page: 1, pageSize: 200 }).rows.some(
+        (row) => row.id === target,
+      ),
+    ).toBe(true)
+    expect(exportDevices({ type: 'all' }).some((row) => row.id === target)).toBe(
+      true,
+    )
+    expect(
+      searchPaletteDevices({ q: targetSerial, limit: 10 }).some(
+        (row) => row.id === target,
+      ),
+    ).toBe(true)
+    expect(
+      listRecentMovements(100).some((movement) => movement.deviceId === target),
+    ).toBe(true)
+    expect(listIssuedByEmployee(emp).some((row) => row.id === target)).toBe(true)
+
+    const beforeList = listDevices({ type: 'all', page: 1, pageSize: 200 }).total
+    const beforeTotal = totalDeviceCount()
+    const beforeLaptop =
+      deviceCountByType().find((c) => c.typeKey === 'laptop')!.n
+    const beforeAssigned =
+      deviceCountByStatus().find((c) => c.status === 'assigned')!.n
+
+    deleteDevice(target)
+
+    // 1. Реестр (listDevices).
+    const list = listDevices({ type: 'all', page: 1, pageSize: 200 })
+    expect(list.total).toBe(beforeList - 1)
+    expect(list.rows.some((row) => row.id === target)).toBe(false)
+    expect(list.rows.some((row) => row.id === control)).toBe(true)
+    // 2. CSV-выгрузка (exportDevices — тот же deviceWhere).
+    expect(exportDevices({ type: 'all' }).some((row) => row.id === target)).toBe(
+      false,
+    )
+    expect(exportDevices({ type: 'all' }).some((row) => row.id === control)).toBe(
+      true,
+    )
+    // 3. ⌘K-палитра (substring-поиск серийника).
+    expect(
+      searchPaletteDevices({ q: targetSerial, limit: 10 }).some(
+        (row) => row.id === target,
+      ),
+    ).toBe(false)
+    expect(
+      searchPaletteDevices({ q: controlSerial, limit: 10 }).some(
+        (row) => row.id === control,
+      ),
+    ).toBe(true)
+    // 4. Лента дашборда (innerJoin devices — движений цели нет).
+    expect(
+      listRecentMovements(100).some((movement) => movement.deviceId === target),
+    ).toBe(false)
+    expect(
+      listRecentMovements(100).some((movement) => movement.deviceId === control),
+    ).toBe(true)
+    // 5. Счётчики дашборда — ровно −1 в total, типе и статусе.
+    expect(totalDeviceCount()).toBe(beforeTotal - 1)
+    expect(deviceCountByType().find((c) => c.typeKey === 'laptop')!.n).toBe(
+      beforeLaptop - 1,
+    )
+    expect(deviceCountByStatus().find((c) => c.status === 'assigned')!.n).toBe(
+      beforeAssigned - 1,
+    )
+    // 6. «Выданное» у сотрудника.
+    expect(listIssuedByEmployee(emp).some((row) => row.id === target)).toBe(
+      false,
+    )
+    expect(listIssuedByEmployee(emp).some((row) => row.id === control)).toBe(true)
+  })
+})
+
+describe('deleteDevice creates no movements (SC4, удаление ≠ списание)', () => {
+  it('the whole-DB movements count is identical before and after', () => {
+    const dev = newDevice()
+    seedPhotoRow(dev)
+    const before = rawMovementCount()
+
+    deleteDevice(dev)
+
+    expect(rawMovementCount()).toBe(before)
+    expect(getDevice(dev)).toBeUndefined()
+  })
+})
+
+describe('double delete (T-13-05)', () => {
+  it('re-deleting is a cheap explicit DEVICE_GONE and no counter drifts', () => {
+    const dev = newDevice()
+    deleteDevice(dev)
+    const total = totalDeviceCount()
+
+    const thrown = captureThrown(() => deleteDevice(dev))
+    expect((thrown as { code?: string }).code).toBe('DEVICE_GONE')
+    expect(totalDeviceCount()).toBe(total)
+    expect(rawMovements(dev)).toHaveLength(0)
+    expect(rawAttachments(dev)).toHaveLength(0)
   })
 })
