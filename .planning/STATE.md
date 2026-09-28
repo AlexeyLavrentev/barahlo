@@ -5,15 +5,15 @@ milestone_name: Гигиена данных
 current_phase: 13
 current_phase_name: Удаление устройств
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-09-28T10:54:49.190Z"
+stopped_at: Completed 13-01-PLAN.md (deleteDevice + deviceDeleteSchema + parity matrix)
+last_updated: "2026-09-28T11:14:04.025Z"
 last_activity: 2026-09-28
 last_activity_desc: Phase 12 complete, transitioned to Phase 13
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 50
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-28)
 ## Current Position
 
 Phase: 13 — Удаление устройств
-Plan: Not started
+Plan: 2 of 2
 Status: Ready to execute
 Last activity: 2026-09-28 — Phase 12 complete, transitioned to Phase 13
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 09 P01 | 26 min | 3 tasks | 18 files |
 | Phase 10 P01 | 23min+UAT | 3 tasks | 9 files |
 | Phase 11 P01 | 32min | 3 tasks | 10 files |
+| Phase 13 P01 | 13min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -153,6 +154,8 @@ Recent decisions affecting current work:
 - [Phase 10]: Диалоги партии смонтированы рядом с FloatingPanel (не внутри size>0 блока): clear() в ok-эффекте опустошает Set — панель исчезает за открытым диалогом, отчёт «Записано: N» остаётся; EmployeePicker-копия в bulk-dialogs расширена onPick (ФИО отчёта из клиентского выбора — Open Question 3); blockers едут union-ом как данные, throw {code} — только guard-UPDATE (.changes===0: in-batch дубликат/гонка)
 - [Phase 11]: [Phase 11/План 01]: Reset состояния палитры — на открытии (openPalette), не на закрытии: React 19 set-state-in-effect; D-03 сохранён (попап не keepMounted, open = пустой инпут + мгновенный фетч) — eslint-правило React 19 запрещает setState синхронно в теле эффекта; перенос сброса в event handler не меняет наблюдаемый контракт SC 4
 - [Phase 11]: [Phase 11/План 01]: CSV-строка палитры — Autocomplete.Item с render={<a href>}: Enter диспетчит реальный DOM-клик (clickHighlightedItem → listItem.click(), useButton оставляет Enter на линках браузеру) — нативное скачивание работает с клавиатуры (D-07) — верифицировано по исходникам установленного @base-ui/react 1.7.0; закрывает требование «последняя клавиатурная остановка» без отказа от нативной семантики скачивания
+- [Phase ?]: [Phase 13/План 01]: deleteDevice — единственный guard .changes===0 → DEVICE_GONE, без статус-предусловий (D-01, DISPOSED-guard deleteAttachment сознательно не перенесён); файлы — sync unlink [key, thumbKeyOf(key)] строго после COMMIT через resolveUploadPath (D-04)
+- [Phase ?]: [Phase 13/План 01]: периметр-гейт «devices are never deleted» перевёрнут в «ровно один аудированный delete-путь (deleteDevice)» — посылка отменена D-03; SC4 проверен буквально: устройство без движений, счётчик movements базы до == после
 
 ### Pending Todos
 
@@ -173,9 +176,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28T09:35:59.154Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-device-deletion/13-CONTEXT.md
+Last session: 2026-09-28T11:13:21.720Z
+Stopped at: Completed 13-01-PLAN.md (deleteDevice + deviceDeleteSchema + parity matrix)
+Resume file: .planning/phases/13-device-deletion/13-02-PLAN.md
 
 ## Operator Next Steps
 

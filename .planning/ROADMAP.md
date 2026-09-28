@@ -82,11 +82,11 @@ Plans:
   4. Удаление ≠ списание: действие «Списать» работает как раньше; удаление устройства не создаёт записи «списание» и не архивирует устройство
   5. Карточки сотрудников остаются корректными: удалённое устройство исчезает из списка «выданного» у сотрудника; другие устройства и счётчики не задеты
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — Data core: one-tx deleteDevice (дети→родитель, DEVICE_GONE guard, post-commit unlink файлов) + deviceDeleteSchema + матрица ножей и parity-обход шести поверхностей (DEL-01/02 data, SC2/SC3)
+- [x] 13-01-PLAN.md — Data core: one-tx deleteDevice (дети→родитель, DEVICE_GONE guard, post-commit unlink файлов) + deviceDeleteSchema + матрица ножей и parity-обход шести поверхностей (DEL-01/02 data, SC2/SC3)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -110,4 +110,4 @@ Plans:
 | 10. Bulk-выдача и приём | v1.1 | 1/1 | Complete | 2026-09-18 |
 | 11. ⌘K глобальная палитра | v1.1 | 1/1 | Complete | 2026-09-18 |
 | 12. Правка и удаление записей истории | v1.2 | 2/2 | Complete    | 2026-09-28 |
-| 13. Удаление устройств | v1.2 | 0/? | Not started | - |
+| 13. Удаление устройств | v1.2 | 1/2 | In Progress|  |
