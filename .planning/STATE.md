@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Гигиена данных
 current_phase: 12
-current_phase_name: Правка и удаление записей истории — первая фаза вехи v1.2
+current_phase_name: Правка и удаление записей истории
 status: executing
 stopped_at: Phase 12 context gathered
-last_updated: "2026-09-28T07:11:33.141Z"
+last_updated: "2026-09-28T07:12:59.874Z"
 last_activity: 2026-09-28
-last_activity_desc: Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 2
   completed_phases: 0
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-28)
 
 ## Current Position
 
-Phase: 12 of 13 (Правка и удаление записей истории — первая фаза вехи v1.2)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-09-28 — Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
+Phase: 12 (Правка и удаление записей истории) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 12
+Last activity: 2026-09-28 — Phase 12 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
