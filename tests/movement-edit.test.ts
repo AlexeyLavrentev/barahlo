@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it, expect, afterAll, afterEach, vi } from 'vitest'
@@ -571,5 +571,59 @@ describe('replay determinism — shared occurredAt (Pitfall 2)', () => {
     })
     expect(rawDevice(dev).status).toBe('assigned')
     expect(rawDevice(dev).current_employee_id).toBe(emp2)
+  })
+})
+
+// ---- Source gates (plan 12-02, threat model T-12-07..T-12-10) ---------------
+
+const ACTIONS_SRC = readFileSync(
+  join(process.cwd(), 'app/(app)/devices/actions.ts'),
+  'utf8',
+)
+const TIMELINE_SRC = readFileSync(
+  join(process.cwd(), 'app/(app)/(card)/devices/[id]/timeline.tsx'),
+  'utf8',
+)
+const DIALOGS_SRC = readFileSync(
+  join(
+    process.cwd(),
+    'app/(app)/(card)/devices/[id]/movement-edit-dialogs.tsx',
+  ),
+  'utf8',
+)
+
+describe('phase 12 source gates', () => {
+  it('both mutation actions start with requireSession (directly POST-able)', () => {
+    for (const name of ['editMovementAction', 'deleteMovementAction']) {
+      const body = ACTIONS_SRC.slice(ACTIONS_SRC.indexOf(`async function ${name}`))
+      expect(body.slice(0, 400)).toContain('await requireSession()')
+    }
+  })
+
+  it('neither action reads status/currentEmployeeId from FormData', () => {
+    expect(
+      ACTIONS_SRC.match(
+        /formData\.get\(\s*['"](status|currentEmployeeId)['"]\s*\)/g,
+      ) ?? [],
+    ).toEqual([])
+  })
+
+  it('machine {code} literals never return to the client (V7)', () => {
+    // The mapper converts codes to Russian copy BEFORE any return.
+    expect(ACTIONS_SRC).toContain('movementMutationErrorOf(error, SAVE_ERROR)')
+    expect(ACTIONS_SRC).toContain('movementMutationErrorOf(error, DELETE_ERROR)')
+    expect(ACTIONS_SRC.match(/error:\s*\{\s*code/g) ?? []).toEqual([])
+  })
+
+  it('timeline rows carry both needles; both dialogs exist (UAT selectors)', () => {
+    expect(TIMELINE_SRC).toContain('data-timeline-edit={event.id}')
+    expect(TIMELINE_SRC).toContain('data-timeline-delete={event.id}')
+    expect(DIALOGS_SRC).toContain('export function MovementEditDialog')
+    expect(DIALOGS_SRC).toContain('export function MovementDeleteConfirmDialog')
+  })
+
+  it('no native browser confirmation anywhere in the two UI files', () => {
+    expect(TIMELINE_SRC.includes('window.confirm')).toBe(false)
+    expect(DIALOGS_SRC.includes('window.confirm')).toBe(false)
   })
 })
