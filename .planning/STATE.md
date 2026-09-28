@@ -2,9 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Гигиена данных
+current_phase: 12
+current_phase_name: Правка и удаление записей истории — первая фаза вехи v1.2
 status: planning
-last_updated: "2026-09-28"
+stopped_at: Phase 12 context gathered
+last_updated: "2026-09-28T04:43:48.995Z"
 last_activity: 2026-09-28
+last_activity_desc: Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
 progress:
   total_phases: 2
   completed_phases: 0
@@ -169,9 +173,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28
-Stopped at: Roadmap v1.2 создан (Phases 12-13, покрытие 5/5) — Phase 12 готова к планированию
-Resume file: None
+Last session: 2026-09-28T04:43:48.983Z
+Stopped at: Phase 12 context gathered
+Resume file: .planning/phases/12-history-correction/12-CONTEXT.md
 
 ## Operator Next Steps
 
