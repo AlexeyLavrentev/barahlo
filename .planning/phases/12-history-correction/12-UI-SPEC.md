@@ -74,13 +74,13 @@ Inherited from `app/globals.css` verbatim (do not redefine — **zero token chan
 | Text primary | `#1D1D1F` (`text-ink`) | Event labels, comments, record text in dialogs, input text |
 | Text secondary | `#6E6E73` (`text-ink-secondary`) | Meta lines, dates, context/hint lines, row triggers at rest |
 | Hairline | `#D2D2D7` | Card ring, timeline connector + dots (unchanged) |
-| Accent (10%) | `#0071E3` (`bg-accent` / `--primary`) | Reserved list below — **one new join this phase: the edit dialog's «Сохранить»** |
+| Accent (10%) | `#0071E3` (`bg-accent` / `--primary`) | Reserved list below — **one new join this phase: the edit dialog's «Сохранить изменения»** |
 | Destructive | `#D70015` | (a) inline validation text (standing); (b) **NEW: solid fill of the «Удалить» confirm button** (white 14/600, hover `bg-destructive/90`) — the phase's own irreversible destruction joins the dispose semantic family; (c) «Списано» pill tint (unchanged) |
 
 Accent reserved for (the standing list, one addition):
 1. Primary CTAs and focus rings (unchanged — no page-level CTA appears in this phase).
 2. Combobox affordances inside EmployeePicker (unchanged).
-3. Dialog primary submits — including the **NEW edit-dialog «Сохранить»** (every dialog's primary action is a primary CTA by definition — movement-dialog family rule).
+3. Dialog primary submits — including the **NEW edit-dialog «Сохранить изменения»** (every dialog's primary action is a primary CTA by definition — movement-dialog family rule).
 4. **Explicitly NOT accent:** the row triggers «Исправить»/«Удалить» (quiet secondary register — the timeline is a record, not a toolbar; edit affordances must not out-shout the custody actions row), and the delete-confirm primary (destructive, not accent).
 
 **Destructive discipline evolution (the one semantic decision of this phase):** since v1.0 red fill was reserved for «Списать» as the only destructive action (04-UI-SPEC; the photo-delete confirm stayed neutral ink *because* no second destruction existed). Phase 12 introduces the second irreversible destruction — deleting a history record. The confirm button takes the dispose recipe byte-parity: solid `#D70015`, white 14/600 text, hover `bg-destructive/90`. Record text and hint inside the dialog stay neutral ink — the red marks the *consequence button*, never the content.
@@ -119,7 +119,7 @@ Field order — the standing «сотрудник → дата события �
 | 3 | «Дата события» | `input[type=date]`, `CONTROL_CLASS`, prefilled with the event's **own DISPLAY_TZ day** (`occurredAtDate` prop — the prefill MUST equal the day the timeline displays, Pitfall 4), `max={todayLocal()}` (client convenience; `isNotFutureDate` server-authoritative). Inline errors: «Введите корректную дату» / «Дата не может быть в будущем» (byte-exact family) |
 | 4 | «Комментарий» | Optional `input`, `maxLength=500`, placeholder «Номер акта, примечание…», prefilled with the record's comment. **Dispose parity (Pitfall 6):** when the selected type is `disposed`, the field renders as required `textarea` labeled «Причина списания» (placeholder «Например: сгорела после скачка питания», rows 3, error «Укажите причину списания») — same name `comment`, echo survives the shape switch; switching back reverts to the optional input |
 
-Footer: «Отмена» (secondary) + «Сохранить» (accent solid, pending «Сохраняем…»). Success: dialog closes, `refresh()` repaints all five surfaces, operator stays on the card (clone precedent). Failures: field errors inline under controls (`ERROR_CLASS`, `aria-invalid`); form-level `INVALID_CHAIN`/`MOVEMENT_GONE`/generic with `role="alert"` — **everything the operator typed stays** (echo values, Pitfall 5; React-19 form-reset precedent 4886f6a).
+Footer: «Отмена» (secondary) + «Сохранить изменения» (accent solid, pending «Сохраняем…»). Success: dialog closes, `refresh()` repaints all five surfaces, operator stays on the card (clone precedent). Failures: field errors inline under controls (`ERROR_CLASS`, `aria-invalid`); form-level `INVALID_CHAIN`/`MOVEMENT_GONE`/generic with `role="alert"` — **everything the operator typed stays** (echo values, Pitfall 5; React-19 form-reset precedent 4886f6a).
 
 Locked-semantics consequence (documented, planner may revisit before build): slots derive from (type, input), so a `to_repair` record that carried «от {держателя}» loses that route segment when edited (its type declares no slots). The timeline route line already renders this state correctly (to_repair without fromName renders nothing).
 
@@ -161,7 +161,7 @@ All UI copy is Russian, inline strings, no i18n library. Existing strings reused
 | Stale/guessed record (`MOVEMENT_GONE`, `role="alert"`) | «Запись уже изменена или удалена. Обновите страницу.» |
 | Generic failure (`role="alert"`) | «Не удалось сохранить. Попробуйте ещё раз.» (existing `SAVE_ERROR` byte-exact) |
 | Pending copies | «Сохраняем…» (edit) · «Удаляем…» (delete) |
-| Edit dialog primaries | «Сохранить» (accent) / dismiss «Отмена» |
+| Edit dialog primaries | «Сохранить изменения» (accent) / dismiss «Отмена» |
 | Delete dialog title | «Удалить запись?» |
 | Delete record block | label + meta + comment as rendered in the timeline (neutral ink) |
 | Delete hint | «Запись будет удалена безвозвратно; статус и держатель устройства пересчитаются из оставшейся истории.» |
