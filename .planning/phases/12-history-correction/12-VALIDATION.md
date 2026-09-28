@@ -21,7 +21,7 @@ created: 2026-09-28
 |----------|-------|
 | **Framework** | vitest (project standard since phase 1) |
 | **Config file** | `vitest.config.ts` |
-| **Quick run command** | `npx vitest run tests/movement-schema.test.ts tests/12-replay.test.ts` |
+| **Quick run command** | `npx vitest run tests/movement-schema.test.ts tests/movement-edit.test.ts` |
 | **Full suite command** | `npx vitest run` |
 | **Estimated runtime** | ~15–30 seconds (425 tests in v1.1) |
 
@@ -40,21 +40,20 @@ created: 2026-09-28
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 12-01-01 | 01 | 1 | HIST-03 | T-12-02 | replay в одной tx — reject = ноль записей | unit | `npx vitest run tests/12-replay.test.ts` | ❌ W0 | ⬜ pending |
-| 12-01-02 | 01 | 1 | HIST-01 | — | editMovement валидирует eventType по keystone-словарю | unit | `npx vitest run tests/movement-schema.test.ts` | ✅ | ⬜ pending |
-| 12-01-03 | 01 | 1 | HIST-03 | — | удаление последней «выдачи» → in_stock/null | unit | `npx vitest run tests/12-replay.test.ts` | ❌ W0 | ⬜ pending |
-| 12-01-04 | 01 | 1 | SC12-5 | T-12-01 | миграция 0002 DROP TRIGGER; runner применяет | unit | `npx vitest run tests/migration.test.ts` | ❌ W0 | ⬜ pending |
-| 12-0X-XX | 0X | X | HIST-01/02 | — | action requireSession-first, zod strictObject | unit | `npx vitest run` | ✅ | ⬜ pending |
+| 12-01-01 | 01 | 1 | SC5 | T-12-05 | миграция 0002 DROP TRIGGER; runner применяет; триггеров нет в sqlite_master | unit (инверсия существующих тестов) | `set -o pipefail; npx vitest run tests/schema.test.ts tests/movements-queries.test.ts` | ✅ (инверсия tests/schema.test.ts + tests/movements-queries.test.ts) | ⬜ pending |
+| 12-01-02 | 01 | 1 | HIST-01 | T-12-02 | edit-схемы: eventType по keystone-словарю, слоты по типу (D-01), dispose-паритет, future-date, strictObject, occurredAtDateIso DISPLAY_TZ | unit | `set -o pipefail; npx vitest run tests/movement-edit.test.ts tests/movement-schema.test.ts` | ❌ → tests/movement-edit.test.ts создаёт 12-01-02 | ⬜ pending |
+| 12-01-03 | 01 | 1 | HIST-03 | T-12-01/T-12-03 | replay-движок: edit/delete в одной tx — reject = ноль записей (D-03); проекция = replay; удаление последней «выдачи» → in_stock; чужой movementId → MOVEMENT_GONE | unit | `set -o pipefail; npx vitest run tests/movement-edit.test.ts tests/movements-queries.test.ts` | ❌ → дополняет tests/movement-edit.test.ts (см. 12-01-02) | ⬜ pending |
+| 12-02-01/02 | 02 | 2 | HIST-01/02 | T-12-07/T-12-10 | actions requireSession-first, zod strictObject, {code} не покидает сервер (source-gates) | unit (source-gates) | `set -o pipefail; npx vitest run tests/movement-edit.test.ts` | ❌ → source-gates добавляет 12-02-02 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
-*Map уточняется планом (планировщик подставит реальные Task ID); жёсткое правило: каждый replay/валидационный инвариант из SC3/SC4 получает именованный тест.*
+*Map выровнен с реальными задачами планов 12-01/12-02 (ревизия по чекеру); жёсткое правило: каждый replay/валидационный инвариант из SC3/SC4 получает именованный тест в tests/movement-edit.test.ts.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/12-replay.test.ts` — матрица replay-валидации (валидные/невалидные цепочки, старт in_stock, received-семантика A2, disposed-ветка D-06)
+- [ ] `tests/movement-edit.test.ts` — матрица replay/схем/проекции HIST-01..03; создаётся задачами 12-01-02/03 в волне 1 (bootstrap по образцу movements-queries.test.ts) — отдельный Wave-0 спринт не нужен, файл рождается до первого использующего его verify
 - [ ] Миграция 0002 подхватывается `tests/helpers.ts applyMigrations` автоматически (RESEARCH: probe-verified)
 
 *Existing infrastructure (helpers.ts, temp-db fixtures) covers the rest.*
