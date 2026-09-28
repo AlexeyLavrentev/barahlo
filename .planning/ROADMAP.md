@@ -82,7 +82,16 @@ Plans:
   4. Удаление ≠ списание: действие «Списать» работает как раньше; удаление устройства не создаёт записи «списание» и не архивирует устройство
   5. Карточки сотрудников остаются корректными: удалённое устройство исчезает из списка «выданного» у сотрудника; другие устройства и счётчики не задеты
 
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — Data core: one-tx deleteDevice (дети→родитель, DEVICE_GONE guard, post-commit unlink файлов) + deviceDeleteSchema + матрица ножей и parity-обход шести поверхностей (DEL-01/02 data, SC2/SC3)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02-PLAN.md — deleteDeviceAction (requireSession-first, {code}→русские копии, redirect вне try/catch) + DeviceDeleteDialog + тихая зона карточки вне disposed-ternary + плюрализация + source-gates (DEL-01/02 UI, SC1/SC4/SC5)
+
 **UI hint**: yes
 
 ## Progress
