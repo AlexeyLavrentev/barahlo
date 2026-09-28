@@ -161,6 +161,7 @@ All UI copy is Russian, inline strings, no i18n library. Existing strings reused
 | Chain rejection (`INVALID_CHAIN`, edit AND delete, `role="alert"`) | «Такое изменение делает историю невозможной (проверьте порядок выдач и возвратов).» — one honest formulation for both flows (OQ4; «изменение» covers правку и удаление; the {code} stays machine-readable server-side for future specificity) |
 | Stale/guessed record (`MOVEMENT_GONE`, `role="alert"`) | «Запись уже изменена или удалена. Обновите страницу.» |
 | Generic failure (`role="alert"`) | «Не удалось сохранить. Попробуйте ещё раз.» (existing `SAVE_ERROR` byte-exact) |
+| Generic failure, delete flow (`role="alert"`) | «Не удалось удалить запись. Попробуйте ещё раз.» (new `DELETE_ERROR` — phase-12 family addition for the delete action; the edit action reuses `SAVE_ERROR` byte-exact) |
 | Pending copies | «Сохраняем…» (edit) · «Удаляем…» (delete) |
 | Edit dialog primaries | «Сохранить изменения» (accent) / dismiss «Отмена» |
 | Delete dialog title | «Удалить запись?» |
