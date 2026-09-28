@@ -39,21 +39,21 @@
 
 ## Traceability
 
-Какие фазы покрывают какие требования. Заполняется при создании роадмапа.
+Какие фазы покрывают какие требования. Заполнено роадмапом v1.2.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HIST-01 | — | Pending |
-| HIST-02 | — | Pending |
-| HIST-03 | — | Pending |
-| DEL-01 | — | Pending |
-| DEL-02 | — | Pending |
+| HIST-01 | Phase 12 | Pending |
+| HIST-02 | Phase 12 | Pending |
+| HIST-03 | Phase 12 | Pending |
+| DEL-01 | Phase 13 | Pending |
+| DEL-02 | Phase 13 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 5 total
-- Mapped to phases: 0
-- Unmapped: 5 ⚠️ (заполнит роадмап)
+- Mapped to phases: 5
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-28*
-*Last updated: 2026-09-28 после первоначального определения*
+*Last updated: 2026-09-28 — traceability заполнена роадмапом (Phases 12-13)*

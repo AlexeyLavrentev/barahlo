@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Гигиена данных
 status: planning
-last_updated: "2026-09-28T03:37:20.107Z"
+last_updated: "2026-09-28"
 last_activity: 2026-09-28
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-15)
+See: .planning/PROJECT.md (updated 2026-09-28)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 11 — ⌘K глобальная палитра
+**Current focus:** Phase 12 — Правка и удаление записей истории
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 12 of 13 (Правка и удаление записей истории — первая фаза вехи v1.2)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-09-28 — Milestone v1.2 started
+Status: Ready to plan
+Last activity: 2026-09-28 — Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -52,6 +54,8 @@ Last activity: 2026-09-28 — Milestone v1.2 started
 | 09 | 1 | - | - |
 | 10 | 1 | - | - |
 | 11 | 1 | - | - |
+| 12 | ? | - | - |
+| 13 | ? | - | - |
 
 **Recent Trend:**
 
@@ -93,6 +97,7 @@ Last activity: 2026-09-28 — Milestone v1.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap]: v1.2 = Phases 12–13 (HIST-01..03 → 12, DEL-01..02 → 13); единственная жёсткая зависимость 12→13 — каскадное удаление истории требует снятого DELETE-триггера, а снятие append-only инварианта делается миграцией в Phase 12 (не обходом); updateDeviceAction не трогается; удаление ≠ списание; research вехи скипнут владельцем
 - [Roadmap]: v1.1 = Phases 7–11 (FIND-05→7, EXP-01→8, REG-06→9, MOVE-06→10, FIND-06→11); единственная жёсткая зависимость 7→11; порядок 8–10 — изоляция рисков (CSV — нулевой diff, клон несёт единственную миграцию схемы serial→nullable — решение на плане фазы 9, bulk — крупнейший UI-рефактор)
 - [Roadmap]: Фото (REG-05) слиты в Фазу 4 (Custody) — одиночное требование, зависят только от реестра устройств; объявленная линия отреза при сдвиге сроков
 - [Roadmap]: REG-04 (статус) и EMP-02 (выданная техника) доставляются в Фазе 4 — состояние меняется только действиями; в Фазах 2–3 строятся экраны-заготовки
@@ -151,10 +156,8 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 9]: решение о миграции serial → nullable принимается на плане фазы (research: NULL-pair рецепт; decision-heavy, не research-heavy)
-- [Phase 11]: выбрать транспорт поисковой поверхности (server action vs GET-роут) — контракт load-bearing: requireSession первым действием, LIMIT-кап, перезапрос на открытие, без персистентности
-- [Phase 1]: выбрать механизм сессии (исследование рекомендует jose signed cookie, не NextAuth) — ЗАКРЫТ реализацией фазы 1
-- ~~[Phase 5]: собрать typing-test фикстуру гомоглифов (С↔C, О↔O…)~~ — ЗАКРЫТ 05-01: tests/homoglyphs-fixture.ts (11 пар, обе стороны + completeness guard)
+- [Phase 12]: как именно снимается append-only инвариант (дроп триггеров vs замена на мягкую защиту) и как выглядит миграция (hand-written SQL как триггеры в 0000; путь применения — прецедент раннера serial→nullable фазы 9) — решение принимается на плане фазы
+- [Phase 13]: механика каскада (ON DELETE CASCADE в миграции vs явный in-tx DELETE movements перед устройством) и подтверждение удаления (диалог vs type-to-confirm) — решение принимается на плане фазы
 
 ## Deferred Items
 
@@ -166,10 +169,10 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-18T10:02:41.212Z
-Stopped at: Phase 11 complete (verified 6/6 + UAT 10/10 + secured) — milestone v1.1 100%
+Last session: 2026-09-28
+Stopped at: Roadmap v1.2 создан (Phases 12-13, покрытие 5/5) — Phase 12 готова к планированию
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan Phase 12 with /gsd-plan-phase 12
