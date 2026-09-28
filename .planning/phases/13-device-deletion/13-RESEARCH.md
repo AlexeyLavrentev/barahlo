@@ -404,19 +404,21 @@ db.transaction((tx) => { /* snapshot storageKey → guards → delete row */ })
 
 **The seam's `classify-confidence` returned LOW for custom provider ids** (`empirical-probe`, `next-bundled-docs`) — it only recognizes its built-in provider list. Tiers above were assigned by the source hierarchy instead: probes executed against the installed stack + bundled official docs + multiple in-repo cross-checks are HIGH; they are strictly stronger evidence than an unrecognized-id lookup. Recorded here for honesty.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Delete-zone placement and styling on the card**
+All three questions were resolved during planning: the approved `13-UI-SPEC.md` ("Defaults Assumed" table) is the authority, and the plans implement it byte-exact. Kept for the audit trail.
+
+1. **Delete-zone placement and styling on the card** — RESOLVED: 13-UI-SPEC Defaults 1/2/3 (card bottom after PhotoGrid, `mt-8 border-t border-hairline pt-4`, quiet red text trigger `text-destructive`, copy «Удалить устройство»); implemented by plan 13-02 Task 1.
    - What we know: must render for ALL statuses, outside the custody-row conditional; Apple aesthetics suggest a bottom hairline "danger zone"; quiet register (ROW_ACTION_CLASS-like or secondary Button).
-   - What's unclear: exact position (after actions row vs card bottom) and trigger styling.
+   - What was unclear: exact position (after actions row vs card bottom) and trigger styling.
    - Recommendation: card bottom, after PhotoGrid, quiet text-style destructive trigger in the `#D70015` family; final call → 13-UI-SPEC.
-2. **Dialog title and count-line wording**
+2. **Dialog title and count-line wording** — RESOLVED: 13-UI-SPEC Defaults 4/6/7 (title «Удалить устройство?»; full-sentence counters «{n} {форм} истории и {m} фото будут удалены безвозвратно.» via new `pluralMovementRecords`; LDML many-form covers 0/5–20/11/111 — byte-matrix in plan 13-02 Task 2).
    - What we know: D-02 fixes the semantic content (model + serial/inventory + counters + «безвозвратно» + «Не удалять»/«Удалить»).
-   - What's unclear: exact title («Удалить устройство?» by analogy) and plural handling.
+   - What was unclear: exact title («Удалить устройство?» by analogy) and plural handling.
    - Recommendation: «Удалить устройство?» title; counts via new `lib/ru.ts` form table; planner's UI-SPEC fixes byte-exact strings.
-3. **deviceDeleteSchema home**
+3. **deviceDeleteSchema home** — RESOLVED: keystone `lib/device-schema.ts` per the recommendation below (OQ3 решён); implemented by plan 13-01 Task 1.
    - What we know: two precedents — keystone (deleteMovementSchema in lib/movement-schema.ts, testable) vs inline in actions.ts (cloneSchema).
-   - What's unclear: none material.
+   - What was unclear: none material.
    - Recommendation: `lib/device-schema.ts` keystone — schema matrix tests cannot import `'use server'` modules; keystone placement is the phase-12 pattern.
 
 ## Environment Availability
