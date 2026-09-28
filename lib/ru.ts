@@ -37,8 +37,8 @@ export function pluralDevices(n: number): string {
 }
 
 // Movement-history count line of the device-delete dialog (phase 13, D-02):
-// 1 запись / 2–4 записи / 0, 5–20 записей. «Фото» is indeclinable — only the
-// records word needs a form table.
+// pluralMovementRecords(n) forms — 1 запись / 2–4 записи / 0, 5–20 записей.
+// «Фото» is indeclinable — only the records word needs a form table.
 const MOVEMENT_RECORD_FORMS: Record<Intl.LDMLPluralRule, string> = {
   zero: 'записей',
   one: 'запись',

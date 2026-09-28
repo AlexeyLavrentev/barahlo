@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -314,5 +315,118 @@ describe('double delete (T-13-05)', () => {
     expect(totalDeviceCount()).toBe(total)
     expect(rawMovements(dev)).toHaveLength(0)
     expect(rawAttachments(dev)).toHaveLength(0)
+  })
+})
+
+// ---- Source gates (plan 13-02, T-13-01/02/04/06, D-01/D-02/D-05) ------------
+//
+// The action is a 'use server' module — vitest NEVER imports it (phase-12
+// precedent, movement-edit.test.ts:577): the contract is pinned by reading
+// the sources as text instead.
+
+const ACTIONS_SRC = readFileSync(
+  join(process.cwd(), 'app/(app)/devices/actions.ts'),
+  'utf8',
+)
+const DEVICE_DELETE_SRC = readFileSync(
+  join(process.cwd(), 'app/(app)/devices/device-delete-dialog.tsx'),
+  'utf8',
+)
+const PAGE_SRC = readFileSync(
+  join(process.cwd(), 'app/(app)/(card)/devices/[id]/page.tsx'),
+  'utf8',
+)
+const DEVICES_SRC = readFileSync(
+  join(process.cwd(), 'db/queries/devices.ts'),
+  'utf8',
+)
+
+describe('phase 13 source gates — deleteDeviceAction contract', () => {
+  const ACTION_BODY = ACTIONS_SRC.slice(
+    ACTIONS_SRC.indexOf('export async function deleteDeviceAction'),
+  )
+
+  it('deleteDeviceAction starts with requireSession (directly POST-able, T-13-01)', () => {
+    expect(ACTION_BODY.slice(0, 400)).toContain('await requireSession()')
+  })
+
+  it('machine {code} literals never return to the client (V7, T-13-06)', () => {
+    // The mapper converts the query layer's codes to Russian copy BEFORE any
+    // return — zero `error: { code` shapes anywhere in the action file.
+    expect(ACTIONS_SRC.match(/error:\s*\{\s*code/g) ?? []).toEqual([])
+    expect(ACTION_BODY).toContain('return { error: DEVICE_GONE_COPY }')
+  })
+
+  it("redirect('/devices') sits AFTER the closing catch — outside try/catch (Pitfall 1, D-05)", () => {
+    const tryStart = ACTION_BODY.indexOf('try {')
+    const catchStart = ACTION_BODY.indexOf('} catch')
+    const redirectCall = ACTION_BODY.indexOf("redirect('/devices'")
+    expect(tryStart).toBeGreaterThan(-1)
+    expect(catchStart).toBeGreaterThan(tryStart)
+    expect(redirectCall).toBeGreaterThan(catchStart)
+    // The try block itself contains no redirect call — NEXT_REDIRECT can
+    // never be swallowed into the error copy.
+    expect(ACTION_BODY.slice(tryStart, catchStart)).not.toContain('redirect(')
+  })
+})
+
+describe('phase 13 source gates — DeviceDeleteDialog island (D-02)', () => {
+  it('carries every byte-exact needle of the 13-UI-SPEC register', () => {
+    expect(DEVICE_DELETE_SRC).toContain('data-device-delete')
+    expect(DEVICE_DELETE_SRC).toContain('Удалить устройство?')
+    expect(DEVICE_DELETE_SRC).toContain('Не удалять')
+    expect(DEVICE_DELETE_SRC).toContain('Удаляем…')
+    expect(DEVICE_DELETE_SRC).toContain('bg-destructive')
+    expect(DEVICE_DELETE_SRC).toContain('role="alert"')
+    expect(DEVICE_DELETE_SRC).toContain('pluralMovementRecords')
+    expect(DEVICE_DELETE_SRC).toContain('будут удалены безвозвратно.')
+    expect(DEVICE_DELETE_SRC).toContain("from '@/app/(app)/devices/actions'")
+  })
+
+  it('no native browser confirmation anywhere in the island', () => {
+    expect(DEVICE_DELETE_SRC.includes('window.confirm')).toBe(false)
+  })
+
+  it('the only form field is the hidden deviceId — no visible inputs, no type-to-confirm (D-02)', () => {
+    const inputTags = DEVICE_DELETE_SRC.match(/<input\b[^>]*>/g) ?? []
+    expect(inputTags.length).toBeGreaterThan(0)
+    for (const tag of inputTags) {
+      // Any visible/text input fails this gate — only type="hidden" passes
+      // (type-to-confirm is rejected by D-02; the hidden deviceId is the one
+      // legitimate POST field).
+      expect(tag).toContain('type="hidden"')
+    }
+    expect(inputTags).toHaveLength(1)
+    expect(inputTags[0]).toContain('name="deviceId"')
+  })
+})
+
+describe('phase 13 source gates — card page zone placement (D-01, Pitfall 4)', () => {
+  it('the delete zone renders after the disposed ternary AND after PhotoGrid — every status', () => {
+    expect(PAGE_SRC).toContain('<DeviceDeleteDialog')
+    const disposedTernary = PAGE_SRC.lastIndexOf("device.status !== 'disposed'")
+    const photoGrid = PAGE_SRC.indexOf('<PhotoGrid')
+    const zone = PAGE_SRC.indexOf('<DeviceDeleteDialog')
+    expect(disposedTernary).toBeGreaterThan(-1)
+    expect(photoGrid).toBeGreaterThan(-1)
+    // lastIndexOf: even the LAST disposed conditional (PhotoGrid's canMutate)
+    // precedes the zone — the zone is the section's final child, outside
+    // every status branch.
+    expect(zone).toBeGreaterThan(disposedTernary)
+    expect(zone).toBeGreaterThan(photoGrid)
+    expect(PAGE_SRC).toContain('historyCount=')
+    expect(PAGE_SRC).toContain('photoCount=')
+  })
+})
+
+describe('phase 13 source gates — query-layer delete perimeter (D-01 pin)', () => {
+  it('deleteDevice carries no status precondition — existence is the only guard', () => {
+    const start = DEVICES_SRC.indexOf('export function deleteDevice')
+    // The function's closing brace sits at column 0 — the bound excludes the
+    // following updateDevice doc-comment (which mentions "status" legally).
+    const end = DEVICES_SRC.indexOf('\n}\n', start)
+    const deleteBody = DEVICES_SRC.slice(start, end)
+    expect(deleteBody).toContain("throw { code: 'DEVICE_GONE' }")
+    expect(deleteBody).not.toMatch(/status/i)
   })
 })
