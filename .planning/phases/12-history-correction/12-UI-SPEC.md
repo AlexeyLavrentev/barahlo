@@ -1,6 +1,7 @@
 ---
 phase: 12
 slug: history-correction
+reviewed_at: 2026-09-28
 status: approved
 shadcn_initialized: true
 preset: base-nova
