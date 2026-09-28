@@ -4,15 +4,15 @@ milestone: v1.2
 milestone_name: Гигиена данных
 current_phase: 12
 current_phase_name: Правка и удаление записей истории — первая фаза вехи v1.2
-status: planning
+status: executing
 stopped_at: Phase 12 context gathered
-last_updated: "2026-09-28T04:43:48.995Z"
+last_updated: "2026-09-28T07:11:33.141Z"
 last_activity: 2026-09-28
 last_activity_desc: Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 2
   completed_plans: 0
   percent: 0
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-28)
 
 Phase: 12 of 13 (Правка и удаление записей истории — первая фаза вехи v1.2)
 Plan: —
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-09-28 — Roadmap v1.2 создан (Phases 12-13, покрытие 5/5)
 
 Progress: [░░░░░░░░░░] 0%

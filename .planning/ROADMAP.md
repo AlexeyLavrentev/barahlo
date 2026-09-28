@@ -59,8 +59,14 @@
 
 **Plans**: 2 plans
 Plans:
+**Wave 1**
+
 - [ ] 12-01-PLAN.md — Миграция 0002 снимает append-only; keystone edit-схемы + occurredAtDateIso; replay-движок editMovement/deleteMovement с проекцией (HIST-01..03 data, SC5)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 12-02-PLAN.md — Timeline client-остров с триггерами на строках, диалоги «Исправить запись»/«Удалить запись?», Server Actions, UAT (HIST-01..03 UI)
+
 **UI hint**: yes
 
 ### Phase 13: Удаление устройств
