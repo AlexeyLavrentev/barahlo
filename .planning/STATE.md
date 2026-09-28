@@ -5,16 +5,16 @@ milestone_name: Гигиена данных
 current_phase: 12
 current_phase_name: Правка и удаление записей истории
 status: executing
-stopped_at: Plan 12-01 complete (455 tests green)
-last_updated: "2026-09-28T08:21:10.163Z"
+stopped_at: Plan 12-02 complete, orchestrator UAT 9/9 — awaiting user sign-off
+last_updated: "2026-09-28T09:08:59.178Z"
 last_activity: 2026-09-28
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
-  percent: 0
+  completed_plans: 2
+  percent: 50
 ---
 
 # Project State
@@ -173,9 +173,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28T08:21:10.151Z
-Stopped at: Plan 12-01 complete (455 tests green)
-Resume file: .planning/phases/12-history-correction/12-01-SUMMARY.md
+Last session: 2026-09-28T09:08:59.166Z
+Stopped at: Plan 12-02 complete, orchestrator UAT 9/9 — awaiting user sign-off
+Resume file: .planning/phases/12-history-correction/12-UAT.md
 
 ## Operator Next Steps
 
