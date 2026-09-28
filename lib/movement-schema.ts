@@ -153,6 +153,82 @@ export const disposeSchema = z.strictObject({
   comment: z.string().min(1).max(500),
 })
 
+// Phase 12 (HIST-01): the keystone event vocabulary as a zod enum — derived
+// from MOVEMENT_EVENT_LABELS, never a parallel literal list (D-02 of phase 8).
+const movementEventKeys = Object.keys(MOVEMENT_EVENT_LABELS) as [
+  MovementEventType,
+  ...MovementEventType[],
+]
+
+// Правка записи истории (HIST-01, D-01/D-02): все поля редактируемы — тип
+// действия, person-слоты (по типу), дата, комментарий. Валидация паритетна
+// созданию: тот же occurredAtSchema (DATE_PATTERN + «не в будущем» по
+// DISPLAY_TZ), тот же commentSchema, dispose-паритет (причина обязательна).
+// ОДНО намеренное отличие от create: occurredAt ОБЯЗАТЕЛЕН — create-удобство
+// «пусто = сейчас» (ранний возврат occurredAtFromDate) не переносится на
+// правку: edit-поле всегда префиллится днём записи, поэтому очищенная дата —
+// ошибка ввода и падает на DATE_PATTERN («Введите корректную дату»), а не
+// молча передатирует запись на сегодня (SC4, revise-фикс).
+export const editMovementSchema = z
+  .strictObject({
+    deviceId: z.coerce.number().int().positive(),
+    movementId: z.coerce.number().int().positive(),
+    eventType: z.enum(movementEventKeys),
+    employeeId: z.coerce.number().int().positive().optional(),
+    fromEmployeeId: z.coerce.number().int().positive().optional(),
+    occurredAt: occurredAtSchema,
+    comment: commentSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Person-slot requirement by type (D-01): slotless types keep extra
+    // slots legal at schema level — the server derives the slots from the
+    // type and NULLs the rest (UI-SPEC locked derivation semantics).
+    const missingEmployee = (path: 'employeeId' | 'fromEmployeeId') =>
+      ctx.addIssue({
+        code: 'custom',
+        path: [path],
+        message: 'Выберите сотрудника',
+      })
+    if (data.eventType === 'assigned' && data.employeeId === undefined)
+      missingEmployee('employeeId')
+    if (data.eventType === 'transferred') {
+      if (data.employeeId === undefined) missingEmployee('employeeId')
+      if (data.fromEmployeeId === undefined) missingEmployee('fromEmployeeId')
+    }
+    if (data.eventType === 'returned' && data.fromEmployeeId === undefined)
+      missingEmployee('fromEmployeeId')
+    // Dispose parity: the reason IS the comment (disposeSchema min 1).
+    if (
+      data.eventType === 'disposed' &&
+      (data.comment ?? '').trim().length === 0
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['comment'],
+        message: 'Укажите причину списания',
+      })
+  })
+
+// Удаление записи истории (HIST-02): минимальный strictObject — только адрес
+// записи; всё остальное режется (injected payload keys are a tampering probe).
+export const deleteMovementSchema = z.strictObject({
+  deviceId: z.coerce.number().int().positive(),
+  movementId: z.coerce.number().int().positive(),
+})
+
+// День инстанта на ОФИСНЫХ настенных часах (Pitfall 4, CR-01): en-CA форматирует
+// 'yyyy-mm-dd' прямо в DISPLAY_TZ. Единственный источник дня события для
+// серийализации острова (план 02) и frozen-clock тестов — toISOString().slice
+// дрейфовал бы в окне МСК 00:00–03:00.
+export function occurredAtDateIso(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DISPLAY_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date)
+}
+
 // Передать — adjacency: получатель ≠ текущий держатель. The current holder id
 // arrives as an ARGUMENT read from the DB row (never from the payload); the
 // device-status guard itself lives in the transaction (C1) — this refine is
@@ -207,4 +283,5 @@ export const movementSchemas = {
   dispose: disposeSchema,
   bulkAssign: bulkAssignSchema,
   bulkAccept: bulkAcceptSchema,
+  edit: editMovementSchema,
 }

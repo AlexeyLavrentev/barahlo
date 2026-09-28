@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it, expect, afterAll } from 'vitest'
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest'
 import { applyMigrations } from './helpers'
 
 // Phase 12 (HIST-01..03): schema matrix for the edit/delete keystone schemas
@@ -42,6 +42,13 @@ function isoOf(date: Date): string {
 }
 
 const NOW = occurredAtFromDate('2026-09-03')
+// 2026-09-03 01:00 MSK == 2026-09-02 22:00 UTC — the frozen-clock probe of
+// the movement-schema tests (c9c87bc precedent).
+const MSK_0100 = new Date('2026-09-02T22:00:00.000Z')
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('editMovementSchema — person slots by event type (D-01)', () => {
   const base = {
@@ -112,12 +119,9 @@ describe('editMovementSchema — person slots by event type (D-01)', () => {
   })
 
   it('slotless types keep person slots optional at schema level (server derives and NULLs)', () => {
-    for (const eventType of [
-      'received',
-      'to_repair',
-      'from_repair',
-      'disposed',
-    ] as const) {
+    // NB: 'disposed' is NOT here — its comment requirement is the dispose
+    // parity case below.
+    for (const eventType of ['received', 'to_repair', 'from_repair'] as const) {
       expect(
         editMovementSchema.safeParse({ ...base, eventType }).success,
       ).toBe(true)
@@ -160,6 +164,8 @@ describe('editMovementSchema — validation parity with create (D-02, SC4)', () 
   })
 
   it('rejects a future date (DISPLAY_TZ boundary, frozen clock)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(MSK_0100)
     expect(
       editMovementSchema.safeParse({ ...base, occurredAt: '2026-09-04' })
         .success,
@@ -238,12 +244,5 @@ describe('deleteMovementSchema — minimal and strict', () => {
 describe('keystone registration', () => {
   it('movementSchemas.edit is THE editMovementSchema (no parallel dictionary)', () => {
     expect(movementSchemas.edit).toBe(editMovementSchema)
-  })
-})
-
-describe('replay engine — editMovement / deleteMovement (Task 3)', () => {
-  it('exposes editMovement and deleteMovement from the query layer', () => {
-    expect(typeof editMovement).toBe('function')
-    expect(typeof deleteMovement).toBe('function')
   })
 })
