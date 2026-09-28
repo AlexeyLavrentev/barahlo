@@ -15,7 +15,9 @@ import {
   assignDevice,
   bulkAcceptDevices,
   bulkAssignDevices,
+  deleteMovement,
   disposeDevice,
+  editMovement,
   getDeviceHolder,
   returnFromRepair,
   sendToRepair,
@@ -29,7 +31,11 @@ import {
   typeFields,
   type DeviceTypeKey,
 } from '@/lib/device-schema'
-import { movementSchemas, occurredAtFromDate } from '@/lib/movement-schema'
+import {
+  deleteMovementSchema,
+  movementSchemas,
+  occurredAtFromDate,
+} from '@/lib/movement-schema'
 
 // Server Actions are directly POST-able — the proxy perimeter does not cover
 // them — so requireSession() is the FIRST line of every action (T-03-01).
@@ -414,9 +420,30 @@ const TRANSFER_ERROR = 'Не удалось передать. Попробуйт
 const TO_REPAIR_ERROR = 'Не удалось отправить в ремонт. Попробуйте ещё раз.'
 const FROM_REPAIR_ERROR = 'Не удалось вернуть из ремонта. Попробуйте ещё раз.'
 const DISPOSE_ERROR = 'Не удалось списать. Попробуйте ещё раз.'
+// Phase 12 (HIST-01..02): the edit/delete copy family. The edit action reuses
+// SAVE_ERROR byte-exact (revise-fix: no parallel EDIT_ERROR const); the delete
+// action owns DELETE_ERROR — canonical row in 12-UI-SPEC Copywriting Contract.
+const DELETE_ERROR = 'Не удалось удалить запись. Попробуйте ещё раз.'
+// One honest formulation for both mutation flows (OQ4): the {code} stays
+// machine-readable server-side and is mapped to Russian copy BEFORE return —
+// machine literals never leave the action (V7).
+const INVALID_CHAIN_COPY =
+  'Такое изменение делает историю невозможной (проверьте порядок выдач и возвратов).'
+const MOVEMENT_GONE_COPY = 'Запись уже изменена или удалена. Обновите страницу.'
+
+// {code}-mapper shared by editMovementAction/deleteMovementAction: the query
+// layer throws typed codes; the action surfaces only the Russian copy.
+function movementMutationErrorOf(error: unknown, fallback: string): string {
+  const code = (error as { code?: string } | undefined)?.code
+  if (code === 'INVALID_CHAIN') return INVALID_CHAIN_COPY
+  if (code === 'MOVEMENT_GONE') return MOVEMENT_GONE_COPY
+  return fallback
+}
 
 export type MovementFieldErrors = {
+  eventType?: string
   employeeId?: string
+  fromEmployeeId?: string
   occurredAt?: string
   // The dispose reason lives in the comment field and is обязательна (D-03).
   comment?: string
@@ -432,10 +459,17 @@ export type MovementFormState = {
 
 // Raw strings of the movement form fields — the echo payload attached to any
 // failure state (the employee picker keeps its own client state, the date and
-// comment inputs are uncontrolled and reset by React 19).
+// comment inputs are uncontrolled and reset by React 19). Phase 12 extends
+// the keys with the edit dialog's type select and the from-slot.
 function echoMovementValues(formData: FormData): Record<string, string> {
   const values: Record<string, string> = {}
-  for (const key of ['employeeId', 'occurredAt', 'comment']) {
+  for (const key of [
+    'eventType',
+    'employeeId',
+    'fromEmployeeId',
+    'occurredAt',
+    'comment',
+  ]) {
     const raw = formData.get(key)
     if (typeof raw === 'string' && raw !== '') values[key] = raw
   }
@@ -472,8 +506,8 @@ function movementFieldErrorsOf(
   const fieldErrors: MovementFieldErrors = {}
   for (const issue of error.issues) {
     const key = String(issue.path[0])
-    if (key === 'employeeId') {
-      fieldErrors.employeeId = 'Выберите сотрудника'
+    if (key === 'employeeId' || key === 'fromEmployeeId') {
+      fieldErrors[key] = 'Выберите сотрудника'
     } else if (key === 'occurredAt') {
       // custom = the not-in-future refine; everything else = malformed date.
       fieldErrors.occurredAt =
@@ -644,6 +678,94 @@ export async function disposeDeviceAction(
   } catch {
     // ILLEGAL_TRANSITION — disposed is terminal and the guard says so.
     return { error: DISPOSE_ERROR, values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// ─── Правка/удаление записей истории (phase 12, HIST-01..03, D-01..D-07) ───
+//
+// Same contract as every action above: requireSession() first, zod strictObject
+// of the keystone, ONE transactional mutation, refresh() on success. The device
+// projection is never read from the payload — editMovement/deleteMovement
+// re-derive it by replaying the full corrected chain in the same transaction
+// (D-04); an INVALID_CHAIN throw rolls everything back (D-03, zero writes).
+
+// FormData → whitelisted edit values. Two deliberate contracts (revise-fix):
+// 1. occurredAt passes through AS IS — an empty string reaches zod, fails
+//    DATE_PATTERN and surfaces «Введите корректную дату»; mapping it to
+//    undefined would route it into occurredAtFromDate's «пусто = сейчас»
+//    branch and silently re-date the record to today (SC4).
+// 2. comment '' → undefined at the payload (the optional schema passes), then
+//    `?? null` at the engine call — drizzle's .set() SKIPS undefined, so only
+//    null actually clears a stored comment.
+function editPayload(formData: FormData) {
+  const comment = textOf(formData, 'comment')
+  const employeeId = textOf(formData, 'employeeId')
+  const fromEmployeeId = textOf(formData, 'fromEmployeeId')
+  return {
+    deviceId: formData.get('deviceId'),
+    movementId: formData.get('movementId'),
+    eventType: textOf(formData, 'eventType'),
+    employeeId: employeeId === '' ? undefined : employeeId,
+    fromEmployeeId: fromEmployeeId === '' ? undefined : fromEmployeeId,
+    occurredAt: textOf(formData, 'occurredAt'),
+    comment: comment === '' ? undefined : comment,
+  }
+}
+
+export async function editMovementAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const values = echoMovementValues(formData)
+  const parsed = movementSchemas.edit.safeParse(editPayload(formData))
+  if (!parsed.success) {
+    return {
+      ...movementFieldErrorsOf(
+        parsed.error,
+        SAVE_ERROR,
+        'Укажите причину списания',
+      ),
+      values,
+    }
+  }
+  try {
+    editMovement(parsed.data.deviceId, parsed.data.movementId, {
+      eventType: parsed.data.eventType,
+      employeeId: parsed.data.employeeId,
+      fromEmployeeId: parsed.data.fromEmployeeId,
+      // The schema guarantees a non-empty pattern-valid iso — the «now» early
+      // return of occurredAtFromDate is unreachable from the edit path.
+      occurredAt: occurredAtFromDate(parsed.data.occurredAt),
+      comment: parsed.data.comment ?? null,
+    })
+  } catch (error) {
+    // INVALID_CHAIN / MOVEMENT_GONE / EMPLOYEE_INACTIVE — the copy table:
+    // the chain/gone copies above, the per-action generic otherwise (V7).
+    return { error: movementMutationErrorOf(error, SAVE_ERROR), values }
+  }
+  refresh()
+  return { ok: true }
+}
+
+// Удаление записи (HIST-02): only the two hidden ids — no fields to echo; the
+// same {code} table (a chain-critical deletion rejects with zero writes).
+export async function deleteMovementAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<MovementFormState> {
+  await requireSession()
+  const parsed = deleteMovementSchema.safeParse({
+    deviceId: formData.get('deviceId'),
+    movementId: formData.get('movementId'),
+  })
+  if (!parsed.success) return { error: DELETE_ERROR }
+  try {
+    deleteMovement(parsed.data.deviceId, parsed.data.movementId)
+  } catch (error) {
+    return { error: movementMutationErrorOf(error, DELETE_ERROR) }
   }
   refresh()
   return { ok: true }

@@ -10,6 +10,8 @@ import {
   listActiveEmployees,
   listTimeline,
 } from '@/db/queries/movements'
+import { occurredAtDateIso } from '@/lib/movement-schema'
+import { occurredAtFormat } from '@/lib/ru'
 import {
   DEVICE_TYPES,
   deviceStatusLabel,
@@ -319,11 +321,31 @@ export default async function DeviceCardPage({
         </FieldRow>
       </FieldGroup>
 
-      {/* Append-only history (MOVE-04): newest-first vertical rail fed by
-          listTimeline; legacy devices render the honest empty state — no
-          synthetic «received» events are invented (Defaults #18/#19). */}
+      {/* История перемещений (MOVE-04 + phase 12 HIST-01..03): the client
+          island owns the per-row «Исправить»/«Удалить» triggers (D-07). The
+          snapshot is flat strings only — occurredAtDisplay via occurredAtFormat
+          and occurredAtDate via occurredAtDateIso (DISPLAY_TZ, Pitfall 4),
+          never Date objects across the RSC boundary; employees serialize ONCE
+          (server-dedup-props); deviceId rides as a prop — the hidden inputs
+          of both dialogs depend on it. The uniform recipe renders on EVERY
+          row, disposed included (D-06); the custody row above stays hidden
+          for disposed (D-03) — the timeline is the one exception. */}
       <FieldGroup title="История перемещений">
-        <Timeline events={listTimeline(device.id)} />
+        <Timeline
+          deviceId={device.id}
+          events={listTimeline(device.id).map((event) => ({
+            id: event.id,
+            eventType: event.eventType,
+            fromId: event.fromId,
+            toId: event.toId,
+            fromName: event.fromName,
+            toName: event.toName,
+            comment: event.comment,
+            occurredAtDisplay: occurredAtFormat.format(event.occurredAt),
+            occurredAtDate: occurredAtDateIso(event.occurredAt),
+          }))}
+          employees={listActiveEmployees()}
+        />
       </FieldGroup>
 
       {/* Photos (REG-05, D-05, D-06): grid + lightbox + authorized upload/

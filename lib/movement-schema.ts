@@ -15,7 +15,9 @@ import { DISPLAY_TZ } from '@/lib/ru'
 // D-01 wire format: what input[type=date] submits.
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
-const MOVEMENT_EVENT_LABELS = {
+// Exported since phase 12: the edit dialog's type select derives its options
+// from THE dictionary (no parallel label list anywhere).
+export const MOVEMENT_EVENT_LABELS = {
   received: 'Поступление',
   assigned: 'Выдача',
   transferred: 'Передача',
