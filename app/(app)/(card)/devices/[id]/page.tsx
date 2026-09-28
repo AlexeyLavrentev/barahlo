@@ -25,6 +25,7 @@ import {
 } from '@/app/(app)/devices/device-dialog'
 import { CloneDialog } from '@/app/(app)/devices/clone-dialog'
 import { DeviceActions } from '@/app/(app)/devices/device-actions'
+import { DeviceDeleteDialog } from '@/app/(app)/devices/device-delete-dialog'
 import { displayTodayUtc } from '@/lib/warranty'
 import { WarrantyDate } from '@/lib/warranty-date'
 import { PhotoGrid } from './photo-grid'
@@ -208,6 +209,12 @@ export default async function DeviceCardPage({
   // Основное → Характеристики типа → Закупка.
   const fields = typeFields(device.typeKey)
 
+  // Hoisted once per render: the timeline and the photo grid consume the
+  // rows, and the delete zone below takes their .length as its counters —
+  // no new queries (13-UI-SPEC serialization contract).
+  const timelineEvents = listTimeline(device.id)
+  const photos = listByDevice(device.id)
+
   return (
     <section className="max-w-2xl">
       <Link
@@ -333,7 +340,7 @@ export default async function DeviceCardPage({
       <FieldGroup title="История перемещений">
         <Timeline
           deviceId={device.id}
-          events={listTimeline(device.id).map((event) => ({
+          events={timelineEvents.map((event) => ({
             id: event.id,
             eventType: event.eventType,
             fromId: event.fromId,
@@ -354,13 +361,31 @@ export default async function DeviceCardPage({
           queries double-guard server-side). */}
       <PhotoGrid
         deviceId={device.id}
-        photos={listByDevice(device.id).map((attachment) => ({
+        photos={photos.map((attachment) => ({
           id: attachment.id,
           fileName: attachment.fileName,
         }))}
         canMutate={device.status !== 'disposed'}
         maxPhotos={MAX_PHOTOS}
       />
+
+      {/* Delete zone (phase 13, DEL-01..02, D-01): the ONE new card element —
+          the card's bottom danger zone, LAST section child and deliberately
+          OUTSIDE the disposed ternary above: every status renders it,
+          disposed included («списал по ошибке» is the main scenario; the
+          custody row stays hidden for disposed — D-03 view-only — while this
+          zone and the timeline remain). The island gets a flat snapshot; the
+          counters are the .length of the queries already computed above. */}
+      <div className="mt-8 border-t border-hairline pt-4">
+        <DeviceDeleteDialog
+          deviceId={device.id}
+          model={device.model}
+          serialNumber={device.serialNumber}
+          inventoryNumber={device.inventoryNumber}
+          historyCount={timelineEvents.length}
+          photoCount={photos.length}
+        />
+      </div>
     </section>
   )
 }

@@ -2,10 +2,12 @@
 
 import { z } from 'zod'
 import { refresh } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { requireSession } from '@/lib/auth'
 import {
   cloneDevices,
   createDevice,
+  deleteDevice,
   getDevice,
   updateDevice,
   type DeviceInput,
@@ -25,6 +27,7 @@ import {
   type BulkOutcome,
 } from '@/db/queries/movements'
 import {
+  deviceDeleteSchema,
   deviceSaveSchema,
   deviceUpdateSchema,
   isDeviceTypeKey,
@@ -430,6 +433,12 @@ const DELETE_ERROR = 'Не удалось удалить запись. Попр�
 const INVALID_CHAIN_COPY =
   'Такое изменение делает историю невозможной (проверьте порядок выдач и возвратов).'
 const MOVEMENT_GONE_COPY = 'Запись уже изменена или удалена. Обновите страницу.'
+// Phase 13 (DEL-01..02): the device-delete copy joins the same register —
+// canonical rows in 13-UI-SPEC Copywriting Contract. The {code} of the query
+// layer (DEVICE_GONE) is mapped to Russian BEFORE any return (V7).
+const DEVICE_DELETE_ERROR =
+  'Не удалось удалить устройство. Попробуйте ещё раз.'
+const DEVICE_GONE_COPY = 'Устройство уже удалено. Обновите страницу.'
 
 // {code}-mapper shared by editMovementAction/deleteMovementAction: the query
 // layer throws typed codes; the action surfaces only the Russian copy.
@@ -769,6 +778,43 @@ export async function deleteMovementAction(
   }
   refresh()
   return { ok: true }
+}
+
+// ─── Удаление устройства (phase 13, DEL-01..02, D-01..D-06) ─────────────────
+//
+// Same requireSession-first contract (Server Actions are directly POST-able),
+// zod whitelist of the keystone, ONE transactional mutation. Success has no
+// ok-state: the card is gone, so the action ends in redirect('/devices') —
+// which THROWS NEXT_REDIRECT and therefore sits OUTSIDE the try/catch
+// (bundled Next docs, Pitfall 1; 'replace' keeps the dead card out of the
+// back stack). No status precondition in the action (D-01: any status
+// deletes; existence is the query layer's only guard).
+
+export type DeviceDeleteFormState = {
+  error?: string
+}
+
+// Удаление устройства: only the hidden deviceId — the island never sees an
+// ok-state (success navigates away), so the state carries the error copy only.
+export async function deleteDeviceAction(
+  _prev: unknown,
+  formData: FormData,
+): Promise<DeviceDeleteFormState> {
+  await requireSession()
+  const parsed = deviceDeleteSchema.safeParse({
+    deviceId: formData.get('deviceId'),
+  })
+  if (!parsed.success) return { error: DEVICE_DELETE_ERROR }
+  try {
+    deleteDevice(parsed.data.deviceId)
+  } catch (error) {
+    // DEVICE_GONE (double delete / stale tab / forged id) → its own copy;
+    // the machine code is mapped BEFORE return and never leaves (V7).
+    const code = (error as { code?: string } | undefined)?.code
+    if (code === 'DEVICE_GONE') return { error: DEVICE_GONE_COPY }
+    return { error: DEVICE_DELETE_ERROR }
+  }
+  redirect('/devices', 'replace')
 }
 
 // ─── Bulk-операции (MOVE-06, D-03/D-05/D-06) ────────────────────────────────

@@ -36,6 +36,23 @@ export function pluralDevices(n: number): string {
   return `${n} ${word}`
 }
 
+// Movement-history count line of the device-delete dialog (phase 13, D-02):
+// 1 запись / 2–4 записи / 0, 5–20 записей. «Фото» is indeclinable — only the
+// records word needs a form table.
+const MOVEMENT_RECORD_FORMS: Record<Intl.LDMLPluralRule, string> = {
+  zero: 'записей',
+  one: 'запись',
+  two: 'записи',
+  few: 'записи',
+  many: 'записей',
+  other: 'записей',
+}
+
+export function pluralMovementRecords(n: number): string {
+  const word = MOVEMENT_RECORD_FORMS[pluralRules.select(n)]
+  return `${n} ${word}`
+}
+
 // Client-side Russian ordering (combobox options in 02-03): case-insensitive,
 // ё sorted after е.
 export const ruCollator = new Intl.Collator('ru')
