@@ -65,7 +65,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 12-02-PLAN.md — Timeline client-остров с триггерами на строках, диалоги «Исправить запись»/«Удалить запись?», Server Actions, UAT (HIST-01..03 UI)
+- [x] 12-02-PLAN.md — Timeline client-остров с триггерами на строках, диалоги «Исправить запись»/«Удалить запись?», Server Actions, UAT (HIST-01..03 UI)
 
 **UI hint**: yes
 
