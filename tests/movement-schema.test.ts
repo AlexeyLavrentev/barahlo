@@ -5,8 +5,10 @@ import {
   bulkAcceptSchema,
   bulkAssignSchema,
   isNotFutureDate,
+  occurredAtDateIso,
   occurredAtFromDate,
 } from '@/lib/movement-schema'
+import { occurredAtFormat } from '@/lib/ru'
 
 // CR-01 regression: the not-future boundary and the stored instant run on the
 // OFFICE wall clock (DISPLAY_TZ = Europe/Moscow), never the server clock —
@@ -109,6 +111,29 @@ describe('occurredAtFromDate — stored instant keeps the submitted Moscow day (
 
   it('no date at all = the passed now', () => {
     expect(occurredAtFromDate(undefined, MSK_0100)).toBe(MSK_0100)
+  })
+})
+
+// Phase 12 (Pitfall 4): the ONE day-of-instant helper for the edit dialog
+// prefill and the island serializer. toISOString().slice would drift at the
+// MSK 00:00–03:00 window (CR-01 class) — occurredAtDateIso reads the OFFICE
+// wall clock, parity with occurredAtFormat's day.
+describe('occurredAtDateIso — day of instant in Europe/Moscow (phase 12)', () => {
+  it('MSK 00:30: the Moscow day is 09-03, never the UTC-drifted 09-02', () => {
+    // 2026-09-03 00:30 MSK == 2026-09-02 21:30 UTC — a toISOString() slice
+    // would report 2026-09-02 here.
+    expect(occurredAtDateIso(MSK_0030)).toBe('2026-09-03')
+  })
+
+  it('the last instant of a Moscow day still formats as that day', () => {
+    // 2026-09-03 23:59:59.999 MSK == 2026-09-03 20:59:59.999 UTC.
+    const lastInstant = new Date('2026-09-03T20:59:59.999Z')
+    expect(occurredAtDateIso(lastInstant)).toBe('2026-09-03')
+  })
+
+  it('agrees with occurredAtFormat on the shown day (parity)', () => {
+    const shown = occurredAtFormat.format(MSK_0030).slice(0, 2) // «03»
+    expect(occurredAtDateIso(MSK_0030).slice(8, 10)).toBe(shown)
   })
 })
 
