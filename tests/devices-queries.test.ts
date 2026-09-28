@@ -603,8 +603,13 @@ describe('listDevices — the full filter matrix (FIND-02/FIND-03, edge 5/6/10/1
   })
 })
 
-describe('perimeter — devices are never deleted (roadmap: no delete path)', () => {
-  it('exposes no delete/remove capability at module level', () => {
-    expect(Object.keys(queries).some((k) => /delete|remove|destroy/i.test(k))).toBe(false)
+describe('perimeter — the ONE delete path is deleteDevice (phase 13, D-03)', () => {
+  it('exposes exactly the audited phase-13 delete and no other destructive capability', () => {
+    // Phase 13 (DEL-01, D-03) superseded the old «no delete path» perimeter:
+    // hard deletion is now legal through exactly ONE audited mutation.
+    const destructive = Object.keys(queries).filter((k) =>
+      /delete|remove|destroy/i.test(k),
+    )
+    expect(destructive).toEqual(['deleteDevice'])
   })
 })

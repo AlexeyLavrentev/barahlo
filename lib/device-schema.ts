@@ -202,3 +202,11 @@ export function deviceUpdateSchema(typeKey: DeviceTypeKey) {
     ...buildZodSchema(typeKey).shape,
   })
 }
+
+// Удаление устройства (DEL-01, фаза 13): минимальный strictObject — только
+// адрес мутации; всё остальное режется (injected payload keys are a tampering
+// probe). Кейстоун, не инлайн в actions — schema-тесты не могут импортировать
+// 'use server' модули (тот же рецепт, что deleteMovementSchema).
+export const deviceDeleteSchema = z.strictObject({
+  deviceId: z.coerce.number().int().positive(),
+})

@@ -13,16 +13,21 @@ import {
   or,
   sql,
 } from 'drizzle-orm'
+import { unlinkSync } from 'node:fs'
 import { db } from '@/db'
-import { attachments, departments, devices, employees } from '@/db/schema'
+import { attachments, departments, devices, employees, movements } from '@/db/schema'
 import { nextInventoryNumber } from '@/lib/inventory-increment'
 import { normalizeInventory, normalizeNumber, normalizeSerial } from '@/lib/normalize'
+import { resolveUploadPath, thumbKeyOf } from '@/lib/photos'
 import { addDaysUtc, displayTodayUtc, WARRANTY_WARN_DAYS } from '@/lib/warranty'
 import type { DeviceStatusKey, DeviceTypeKey } from '@/lib/device-schema'
 
 // Device data-access (REG-01/REG-02). Pure sync functions over the module-level
 // db — no framework imports at all: Server Actions add session + zod on top,
-// vitest imports this module directly against a temp database.
+// vitest imports this module directly against a temp database and temp
+// UPLOADS_DIR. The one sanctioned exception is deleteDevice's node:fs unlink
+// (phase 13): the file gained disk-I/O in the attachments.ts register —
+// files are derived state of the rows, unlinked only after COMMIT.
 //
 // The list type of the registry. 'all' is the unfiltered view behind the type
 // filter's «Все типы» option; the 4 keys mirror lib/device-schema.
@@ -661,6 +666,48 @@ export function cloneDevices(
     )
   } catch (e) {
     throw uniqueCodeOf(e)
+  }
+}
+
+// Hard delete of one device (DEL-01, D-03/D-04, phase 13): ONE transaction
+// carries the storage-key snapshot and all three DELETEs — children first
+// (movements → attachments: both device_id FKs are RESTRICT, the parent
+// delete would throw FOREIGN KEY constraint failed otherwise), the device
+// row last with the ONLY guard: .changes === 0 → { code: 'DEVICE_GONE' }
+// (unknown id / double delete / two-tab race — a throw mid-tx rolls back
+// everything, probe-verified). No status precondition (D-01: any status
+// deletes, disposed included) and no guards on the child deletes — they
+// legitimately hit 0..N rows. After the COMMIT, BOTH files of every
+// snapshot key (original + the thumbKeyOf derivation) are unlinked
+// SYNCHRONOUSLY in a swallowing try/catch (deleteAttachment precedent:
+// fire-and-forget fs/promises raced the caller's existsSync and could lose
+// deletions at process exit; ENOENT and a tampered PATH_ESCAPE key are
+// equally tolerated — the row is already gone, an orphan file is the
+// harmless direction). Keys come from the DB snapshot taken INSIDE the tx,
+// never built from deviceId (T-13-03) — disk is derived state of the DB.
+export function deleteDevice(deviceId: number): void {
+  let storageKeys: string[] = []
+  db.transaction((tx) => {
+    storageKeys = tx
+      .select({ storageKey: attachments.storageKey })
+      .from(attachments)
+      .where(eq(attachments.deviceId, deviceId))
+      .all()
+      .map((row) => row.storageKey)
+    tx.delete(movements).where(eq(movements.deviceId, deviceId)).run()
+    tx.delete(attachments).where(eq(attachments.deviceId, deviceId)).run()
+    const del = tx.delete(devices).where(eq(devices.id, deviceId)).run()
+    if (del.changes === 0) throw { code: 'DEVICE_GONE' }
+  })
+  for (const key of storageKeys) {
+    for (const k of [key, thumbKeyOf(key)]) {
+      try {
+        unlinkSync(resolveUploadPath(k))
+      } catch {
+        // ENOENT / containment violation of a tampered key — row is already
+        // gone, the file stays an unreachable orphan (harmless direction)
+      }
+    }
   }
 }
 
