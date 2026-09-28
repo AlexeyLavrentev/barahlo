@@ -15,9 +15,14 @@ process.env.DATABASE_PATH = join(tmpDir, 'movement-edit.db')
 const { db } = await import('@/db')
 applyMigrations(db.$client)
 const movementsQueries = await import('@/db/queries/movements')
+const employeeQueries = await import('@/db/queries/employees')
+const deviceQueries = await import('@/db/queries/devices')
 const schemaModule = await import('@/lib/movement-schema')
 
-const { editMovement, deleteMovement } = movementsQueries
+const { editMovement, deleteMovement, listTimeline, listIssuedByEmployee } =
+  movementsQueries
+const { createEmployee, setEmployeeArchived } = employeeQueries
+const { createDevice } = deviceQueries
 const {
   editMovementSchema,
   deleteMovementSchema,
@@ -30,18 +35,6 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true })
 })
 
-// Day-precision instant of the office wall clock: the same day a dialog
-// prefills (occurredAtDateIso) feeds occurredAtFromDate — both must agree.
-function isoOf(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Moscow',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date)
-}
-
-const NOW = occurredAtFromDate('2026-09-03')
 // 2026-09-03 01:00 MSK == 2026-09-02 22:00 UTC — the frozen-clock probe of
 // the movement-schema tests (c9c87bc precedent).
 const MSK_0100 = new Date('2026-09-02T22:00:00.000Z')
@@ -244,5 +237,339 @@ describe('deleteMovementSchema — minimal and strict', () => {
 describe('keystone registration', () => {
   it('movementSchemas.edit is THE editMovementSchema (no parallel dictionary)', () => {
     expect(movementSchemas.edit).toBe(editMovementSchema)
+  })
+})
+
+// ---- Replay engine (Task 3) -------------------------------------------------
+
+let serialCounter = 0
+let nameCounter = 0
+
+function newDevice(): number {
+  serialCounter += 1
+  return createDevice({
+    typeKey: 'laptop',
+    model: 'Replay Тестовая модель',
+    serialNumber: `RE-${String(serialCounter).padStart(5, '0')}`,
+    inventoryNumber: null,
+    purchaseDate: null,
+    purchasePrice: null,
+    supplier: null,
+    warrantyUntil: null,
+    notes: null,
+  })
+}
+
+function newEmployee(name: string): number {
+  nameCounter += 1
+  return createEmployee({
+    name: `${name} ${nameCounter}`,
+    departmentName: 'ИТ',
+  }).id
+}
+
+function rawDevice(id: number) {
+  return db.$client.prepare('SELECT * FROM devices WHERE id = ?').get(id) as {
+    id: number
+    status: string
+    current_employee_id: number | null
+  }
+}
+
+function rawMovements(deviceId: number) {
+  return db.$client
+    .prepare('SELECT * FROM movements WHERE device_id = ? ORDER BY id')
+    .all(deviceId) as {
+    id: number
+    event_type: string
+    from_employee_id: number | null
+    to_employee_id: number | null
+    comment: string | null
+    occurred_at: number
+  }[]
+}
+
+function captureThrown(fn: () => void): unknown {
+  try {
+    fn()
+  } catch (e) {
+    return e
+  }
+  return undefined
+}
+
+const DAY = (iso: string) => occurredAtFromDate(iso)
+
+describe('editMovement — happy path, slots, projection (HIST-01, D-01/D-04)', () => {
+  it('edits employee/date/comment of a record; timeline reorders by the new date', () => {
+    const dev = newDevice()
+    const emp1 = newEmployee('Держатель Первый')
+    const emp2 = newEmployee('Держатель Второй')
+    const { assignDevice, acceptDevice } = movementsQueries
+    assignDevice(dev, emp1, { occurredAt: DAY('2026-09-01') })
+    acceptDevice(dev, { occurredAt: DAY('2026-09-02') })
+    assignDevice(dev, emp2, { occurredAt: DAY('2026-09-03') })
+    const secondAssignedId = rawMovements(dev).find(
+      (r) => r.event_type === 'assigned' && r.to_employee_id === emp2,
+    )!.id
+
+    // The edited date (09-02) collides with the returned event's instant —
+    // same day, same wall time → same occurred_at seconds; the id tiebreaker
+    // keeps the chain valid (returned id < second-assigned id).
+    editMovement(dev, secondAssignedId, {
+      eventType: 'assigned',
+      employeeId: emp2,
+      occurredAt: DAY('2026-09-02'),
+      comment: 'выдан снова в тот же день',
+    })
+
+    const row = rawMovements(dev).find((r) => r.id === secondAssignedId)!
+    expect(row.occurred_at).toBe(Math.floor(DAY('2026-09-02').getTime() / 1000))
+    expect(row.comment).toBe('выдан снова в тот же день')
+    // The edited row moved from 09-03 to 09-02 — but shares the returned
+    // event's instant, so id DESC puts it first in the timeline (reorder by
+    // date + tiebreaker, mirror of the replay order).
+    const timeline = listTimeline(dev)
+    expect(timeline[0]!.id).toBe(secondAssignedId)
+    // Projection unchanged: still assigned to emp2.
+    expect(rawDevice(dev).status).toBe('assigned')
+    expect(rawDevice(dev).current_employee_id).toBe(emp2)
+  })
+
+  it('derives slots from the new type: assigned → to, returned → from, slotless → both NULL', () => {
+    const dev = newDevice()
+    const emp = newEmployee('Слот Стираемый')
+    const { assignDevice } = movementsQueries
+    assignDevice(dev, emp, { occurredAt: DAY('2026-09-01') })
+    const assignedId = rawMovements(dev)[0]!.id
+
+    // assigned → to_repair: person slots wiped (locked derivation).
+    editMovement(dev, assignedId, {
+      eventType: 'to_repair',
+      occurredAt: DAY('2026-09-01'),
+      comment: null,
+    })
+    const row = rawMovements(dev).find((r) => r.id === assignedId)!
+    expect(row.event_type).toBe('to_repair')
+    expect(row.from_employee_id).toBeNull()
+    expect(row.to_employee_id).toBeNull()
+    expect(rawDevice(dev).status).toBe('repair')
+
+    // back to assigned with a new employee: to-slot restored.
+    const emp2 = newEmployee('Слот Возвращённый')
+    editMovement(dev, assignedId, {
+      eventType: 'assigned',
+      employeeId: emp2,
+      occurredAt: DAY('2026-09-01'),
+      comment: null,
+    })
+    const row2 = rawMovements(dev).find((r) => r.id === assignedId)!
+    expect(row2.event_type).toBe('assigned')
+    expect(row2.to_employee_id).toBe(emp2)
+    expect(row2.from_employee_id).toBeNull()
+    expect(rawDevice(dev).status).toBe('assigned')
+    expect(rawDevice(dev).current_employee_id).toBe(emp2)
+  })
+
+  it('backdates the assigned event → listIssuedByEmployee.issuedAt follows (HIST-03 parity)', () => {
+    const dev = newDevice()
+    const emp = newEmployee('Паритет Дат')
+    const { assignDevice } = movementsQueries
+    assignDevice(dev, emp, { occurredAt: DAY('2026-09-10') })
+    const assignedId = rawMovements(dev)[0]!.id
+
+    editMovement(dev, assignedId, {
+      eventType: 'assigned',
+      employeeId: emp,
+      occurredAt: DAY('2026-09-02'),
+      comment: null,
+    })
+
+    const issued = listIssuedByEmployee(emp).find((d) => d.id === dev)!
+    expect(issued.issuedAt!.toISOString().slice(0, 10)).toBe(
+      new Date(Math.floor(DAY('2026-09-02').getTime() / 1000) * 1000)
+        .toISOString()
+        .slice(0, 10),
+    )
+  })
+})
+
+describe('deleteMovement — projection by replay (HIST-02, D-05/D-06)', () => {
+  it('deleting the LAST assigned returns the device to in_stock (SC3)', () => {
+    const dev = newDevice()
+    const emp = newEmployee('Последняя Выдача')
+    const { assignDevice } = movementsQueries
+    assignDevice(dev, emp, { occurredAt: DAY('2026-09-01') })
+    const assignedId = rawMovements(dev)[0]!.id
+
+    deleteMovement(dev, assignedId)
+    expect(rawMovements(dev)).toHaveLength(0)
+    expect(rawDevice(dev).status).toBe('in_stock')
+    expect(rawDevice(dev).current_employee_id).toBeNull()
+  })
+
+  it('deleting the only «Поступление» keeps the chain valid (D-05)', () => {
+    const dev = newDevice()
+    db.$client
+      .prepare(
+        "INSERT INTO movements (device_id, event_type, occurred_at, created_at) VALUES (?, 'received', unixepoch(), unixepoch())",
+      )
+      .run(dev)
+    const receivedId = rawMovements(dev)[0]!.id
+
+    deleteMovement(dev, receivedId)
+    expect(rawMovements(dev)).toHaveLength(0)
+    expect(rawDevice(dev).status).toBe('in_stock')
+  })
+
+  it('deleting the disposed record un-disposes the device (D-06)', () => {
+    const dev = newDevice()
+    const { disposeDevice } = movementsQueries
+    disposeDevice(dev, { occurredAt: DAY('2026-09-01'), comment: 'ошибочно' })
+    const disposedId = rawMovements(dev).find(
+      (r) => r.event_type === 'disposed',
+    )!.id
+
+    deleteMovement(dev, disposedId)
+    expect(rawDevice(dev).status).toBe('in_stock')
+    expect(rawDevice(dev).current_employee_id).toBeNull()
+  })
+})
+
+describe('replay guard — invalid chain = zero writes (D-03)', () => {
+  it('an edit making two «Выдачи» in a row throws INVALID_CHAIN and writes NOTHING', () => {
+    const dev = newDevice()
+    const emp1 = newEmployee('Цепь Один')
+    const emp2 = newEmployee('Цепь Два')
+    const { assignDevice, acceptDevice } = movementsQueries
+    assignDevice(dev, emp1, { occurredAt: DAY('2026-09-01') })
+    acceptDevice(dev, { occurredAt: DAY('2026-09-02') })
+    assignDevice(dev, emp2, { occurredAt: DAY('2026-09-03') })
+    const returnedId = rawMovements(dev).find(
+      (r) => r.event_type === 'returned',
+    )!.id
+    const before = rawMovements(dev)
+
+    const thrown = captureThrown(() =>
+      editMovement(dev, returnedId, {
+        eventType: 'assigned',
+        employeeId: emp1,
+        occurredAt: DAY('2026-09-03'),
+        comment: null,
+      }),
+    )
+    expect((thrown as { code?: string }).code).toBe('INVALID_CHAIN')
+    expect(rawMovements(dev)).toEqual(before)
+  })
+})
+
+describe('device scoping and idempotence (T-12-01, Pitfall 1)', () => {
+  it('a foreign movementId is MOVEMENT_GONE and changes nothing', () => {
+    const devA = newDevice()
+    const devB = newDevice()
+    const emp = newEmployee('Чужой Айд')
+    const { assignDevice } = movementsQueries
+    assignDevice(devA, emp, { occurredAt: DAY('2026-09-01') })
+    assignDevice(devB, emp, { occurredAt: DAY('2026-09-01') })
+    const foreignId = rawMovements(devB)[0]!.id
+    const before = rawMovements(devA)
+
+    const thrown = captureThrown(() =>
+      editMovement(devA, foreignId, {
+        eventType: 'returned',
+        fromEmployeeId: emp,
+        occurredAt: DAY('2026-09-01'),
+        comment: null,
+      }),
+    )
+    expect((thrown as { code?: string }).code).toBe('MOVEMENT_GONE')
+    expect(rawMovements(devA)).toEqual(before)
+
+    const delThrown = captureThrown(() => deleteMovement(devA, foreignId))
+    expect((delThrown as { code?: string }).code).toBe('MOVEMENT_GONE')
+  })
+
+  it('re-deleting the same record is a cheap explicit MOVEMENT_GONE (HIST-02)', () => {
+    const dev = newDevice()
+    db.$client
+      .prepare(
+        "INSERT INTO movements (device_id, event_type, occurred_at, created_at) VALUES (?, 'received', unixepoch(), unixepoch())",
+      )
+      .run(dev)
+    const id = rawMovements(dev)[0]!.id
+    deleteMovement(dev, id)
+    const thrown = captureThrown(() => deleteMovement(dev, id))
+    expect((thrown as { code?: string }).code).toBe('MOVEMENT_GONE')
+  })
+})
+
+describe('employee activity parity (OQ2, T-12-04)', () => {
+  it('editing the DATE of a record whose holder is archived succeeds (untouched slot survives)', () => {
+    const dev = newDevice()
+    const emp = newEmployee('Архив Держится')
+    const { assignDevice } = movementsQueries
+    assignDevice(dev, emp, { occurredAt: DAY('2026-09-01') })
+    setEmployeeArchived(emp, true)
+    const assignedId = rawMovements(dev)[0]!.id
+
+    expect(() =>
+      editMovement(dev, assignedId, {
+        eventType: 'assigned',
+        employeeId: emp,
+        occurredAt: DAY('2026-09-02'),
+        comment: null,
+      }),
+    ).not.toThrow()
+    expect(rawDevice(dev).current_employee_id).toBe(emp)
+  })
+
+  it('CHANGING a slot to an archived employee is EMPLOYEE_INACTIVE', () => {
+    const dev = newDevice()
+    const emp1 = newEmployee('Активный Сменяется')
+    const archived = newEmployee('Архивный Цель')
+    const { assignDevice } = movementsQueries
+    assignDevice(dev, emp1, { occurredAt: DAY('2026-09-01') })
+    setEmployeeArchived(archived, true)
+    const assignedId = rawMovements(dev)[0]!.id
+
+    const thrown = captureThrown(() =>
+      editMovement(dev, assignedId, {
+        eventType: 'assigned',
+        employeeId: archived,
+        occurredAt: DAY('2026-09-01'),
+        comment: null,
+      }),
+    )
+    expect((thrown as { code?: string }).code).toBe('EMPLOYEE_INACTIVE')
+  })
+})
+
+describe('replay determinism — shared occurredAt (Pitfall 2)', () => {
+  it('same-timestamp events replay by id: the projection is deterministic', () => {
+    const dev = newDevice()
+    const emp1 = newEmployee('Тайбрейк Один')
+    const emp2 = newEmployee('Тайбрейк Два')
+    const { assignDevice } = movementsQueries
+    const t = DAY('2026-09-01')
+    assignDevice(dev, emp1, { occurredAt: t })
+    const assignedId = rawMovements(dev)[0]!.id
+    // A transferred event sharing the assigned event's exact occurred_at —
+    // replay MUST order by id (assigned first, transferred second).
+    db.$client
+      .prepare(
+        "INSERT INTO movements (device_id, event_type, from_employee_id, to_employee_id, occurred_at, created_at) VALUES (?, 'transferred', ?, ?, ?, unixepoch())",
+      )
+      .run(dev, emp1, emp2, Math.floor(t.getTime() / 1000))
+    expect(rawDevice(dev).status).toBe('assigned')
+
+    // Re-editing the first record re-runs replay — the outcome must not flip.
+    editMovement(dev, assignedId, {
+      eventType: 'assigned',
+      employeeId: emp1,
+      occurredAt: t,
+      comment: null,
+    })
+    expect(rawDevice(dev).status).toBe('assigned')
+    expect(rawDevice(dev).current_employee_id).toBe(emp2)
   })
 })

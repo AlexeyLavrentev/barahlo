@@ -2,30 +2,42 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from '@/db'
 import { devices, employees, movements } from '@/db/schema'
+import type { MovementEventType } from '@/lib/movement-schema'
 
-// Movement data-access (MOVE-01..05, EMP-02). Pure sync functions over the
-// module-level db — no framework imports at all: Server Actions add session +
-// zod on top, vitest imports this module directly against a temp database.
+// Movement data-access (MOVE-01..05, EMP-02, phase 12 HIST-01..03). Pure sync
+// functions over the module-level db — no framework imports at all: Server
+// Actions add session + zod on top, vitest imports this module directly
+// against a temp database.
 //
 // Every custody transition is ONE sync transaction (RESEARCH C1): the
 // projection write is itself the guard — a conditional UPDATE
 // `WHERE id AND status=<precondition>` decides by .changes, so an illegal
 // transition is rejected with ZERO writes (no event, no projection) and there
 // is no read-then-write race window. eventType is hardcoded per function,
-// never taken from a caller-supplied payload; the movements table stays
-// append-only (INSERT only — the DB triggers abort UPDATE/DELETE).
+// never taken from a caller-supplied payload.
+//
+// Since migration 0002 (phase 12, SC5) the table is no longer append-only at
+// the DB level: editMovement/deleteMovement mutate rows server-side with a
+// compound `WHERE id AND device_id` and re-derive the device projection by
+// replaying the FULL corrected chain inside the same transaction (D-04) —
+// a replay throw rolls everything back, zero writes (D-03). Row creation
+// still flows exclusively through the custody actions.
 
 type DbHandle = typeof db
 type Tx = Parameters<Parameters<DbHandle['transaction']>[0]>[0]
 
 // Timeline row of one device (04-UI-SPEC «История перемещений»). Holder names
 // resolve through LEFT JOINs — archived employees keep their names in history.
+// fromId/toId ride along beside the names (phase 12: the edit dialog needs the
+// ids for prefill; the timeline still renders names as text — D-05).
 export type MovementEventView = {
   id: number
   eventType: string
   comment: string | null
   occurredAt: Date
+  fromId: number | null
   fromName: string | null
+  toId: number | null
   toName: string | null
 }
 
@@ -266,12 +278,14 @@ export function returnFromRepair(
   })
 }
 
-// Списать (D-03): in_stock|assigned|repair → disposed — ФИНАЛЬНО. The guard
-// precondition enumerates every non-disposed status, so from disposed the
-// .changes===0 branch rejects with zero writes forever: no code path leads
-// back (an erroneous record is corrected by registering a new device, never
-// by editing this one). The reason rides in the event comment; a holder, if
-// there was one, lands in the from slot.
+// Списать (D-03): in_stock|assigned|repair → disposed. Terminal for ACTIONS:
+// the guard precondition enumerates every non-disposed status, so from
+// disposed the .changes===0 branch rejects with zero writes and no custody
+// button leads out — but since phase 12 the terminality lives in the action
+// set, not the DB: deleting the disposed RECORD via deleteMovement replays
+// the shortened chain back to in_stock (D-06 — the undo of a mistaken
+// disposal is a history edit, not a new action). The reason rides in the
+// event comment; a holder, if there was one, lands in the from slot.
 export function disposeDevice(deviceId: number, event: EventInput = {}): void {
   db.transaction((tx) => {
     const row = tx
@@ -494,6 +508,181 @@ export function bulkAcceptDevices(
   })
 }
 
+// Replay matrix of one device's chain (D-03/D-04, RESEARCH Pattern 1): start
+// state is in_stock/null (D-05 — a chain without «Поступление» is valid, and
+// deleting that first record too), each event's precondition mirrors the
+// guard-UPDATE of the action class that created it; `received` (seed-only —
+// no app action writes it) is legal only from in_stock and changes nothing
+// (OQ1, strict semantics). from-slots are NOT cross-validated against the
+// holder (OQ3 — the owner fixes their own typos, including from-slots).
+// Ordering is occurredAt ASC, id ASC — the exact mirror of listTimeline
+// DESC,DESC; the id tiebreaker is load-bearing because bulk parties (phase
+// 10) share one occurredAt. A violation throws inside the caller's
+// transaction → full rollback, zero writes (D-03).
+function replayChain(
+  tx: Tx,
+  deviceId: number,
+): { status: string; currentEmployeeId: number | null } {
+  const rows = tx
+    .select({ eventType: movements.eventType, to: movements.toEmployeeId })
+    .from(movements)
+    .where(eq(movements.deviceId, deviceId))
+    .orderBy(asc(movements.occurredAt), asc(movements.id))
+    .all()
+  let status = 'in_stock'
+  let holder: number | null = null
+  for (const row of rows) {
+    switch (row.eventType) {
+      case 'received':
+        if (status !== 'in_stock') throw { code: 'INVALID_CHAIN' }
+        break
+      case 'assigned':
+        if (status !== 'in_stock' || row.to === null)
+          throw { code: 'INVALID_CHAIN' }
+        status = 'assigned'
+        holder = row.to
+        break
+      case 'transferred':
+        if (status !== 'assigned' || row.to === null)
+          throw { code: 'INVALID_CHAIN' }
+        holder = row.to
+        break
+      case 'returned':
+        if (status !== 'assigned') throw { code: 'INVALID_CHAIN' }
+        status = 'in_stock'
+        holder = null
+        break
+      case 'to_repair':
+        if (status !== 'in_stock' && status !== 'assigned')
+          throw { code: 'INVALID_CHAIN' }
+        status = 'repair'
+        holder = null
+        break
+      case 'from_repair':
+        if (status !== 'repair') throw { code: 'INVALID_CHAIN' }
+        status = 'in_stock'
+        holder = null
+        break
+      case 'disposed':
+        if (status !== 'in_stock' && status !== 'assigned' && status !== 'repair')
+          throw { code: 'INVALID_CHAIN' }
+        status = 'disposed'
+        holder = null
+        break
+      default:
+        throw { code: 'INVALID_CHAIN' }
+    }
+  }
+  return { status, currentEmployeeId: holder }
+}
+
+export type MovementEditInput = {
+  eventType: MovementEventType
+  employeeId?: number
+  fromEmployeeId?: number
+  occurredAt: Date
+  comment: string | null
+}
+
+// Правка записи истории (HIST-01, D-01..D-04): ONE transaction — read the
+// row (device-scoped), derive the person slots FULLY from (eventType, input),
+// activity-check only CHANGED slots (OQ2: an untouched archived id survives),
+// UPDATE with the compound WHERE (Pitfall 1: a tampered movementId cannot
+// cross devices), then re-derive the projection by replaying the corrected
+// chain in the same tx. A replay throw rolls the whole edit back — zero
+// writes (D-03). The schema layer guarantees occurredAt is a valid day
+// (required — a cleared date never reaches «now»).
+export function editMovement(
+  deviceId: number,
+  movementId: number,
+  input: MovementEditInput,
+): void {
+  db.transaction((tx) => {
+    const row = tx
+      .select({
+        fromEmployeeId: movements.fromEmployeeId,
+        toEmployeeId: movements.toEmployeeId,
+      })
+      .from(movements)
+      .where(
+        and(eq(movements.id, movementId), eq(movements.deviceId, deviceId)),
+      )
+      .get()
+    if (!row) throw { code: 'MOVEMENT_GONE' }
+
+    // Slot derivation by type (D-01): the irrelevant slots are wiped —
+    // editing to_repair intentionally drops «от {держателя}» (UI-SPEC locked
+    // semantics; the timeline renders the slotless row correctly).
+    let fromEmployeeId: number | null = null
+    let toEmployeeId: number | null = null
+    if (input.eventType === 'assigned') {
+      toEmployeeId = input.employeeId ?? null
+    } else if (input.eventType === 'transferred') {
+      toEmployeeId = input.employeeId ?? null
+      fromEmployeeId = input.fromEmployeeId ?? null
+    } else if (input.eventType === 'returned') {
+      fromEmployeeId = input.fromEmployeeId ?? null
+    }
+
+    if (toEmployeeId !== null && toEmployeeId !== row.toEmployeeId)
+      assertActiveEmployee(tx, toEmployeeId)
+    if (fromEmployeeId !== null && fromEmployeeId !== row.fromEmployeeId)
+      assertActiveEmployee(tx, fromEmployeeId)
+
+    const upd = tx
+      .update(movements)
+      .set({
+        eventType: input.eventType,
+        fromEmployeeId,
+        toEmployeeId,
+        comment: input.comment,
+        occurredAt: input.occurredAt,
+      })
+      .where(
+        and(eq(movements.id, movementId), eq(movements.deviceId, deviceId)),
+      )
+      .run()
+    if (upd.changes === 0) throw { code: 'MOVEMENT_GONE' }
+
+    const final = replayChain(tx, deviceId)
+    tx
+      .update(devices)
+      .set({
+        status: final.status,
+        currentEmployeeId: final.currentEmployeeId,
+        updatedAt: new Date(),
+      })
+      .where(eq(devices.id, deviceId))
+      .run()
+  })
+}
+
+// Удаление записи истории (HIST-02, D-05/D-06): same one-tx contract as
+// editMovement. Deleting «Поступление» is legal (replay starts in_stock);
+// deleting the disposed record walks the device back out of disposal (D-06).
+// Re-deleting is a cheap explicit MOVEMENT_GONE.
+export function deleteMovement(deviceId: number, movementId: number): void {
+  db.transaction((tx) => {
+    const del = tx
+      .delete(movements)
+      .where(
+        and(eq(movements.id, movementId), eq(movements.deviceId, deviceId)),
+      )
+      .run()
+    if (del.changes === 0) throw { code: 'MOVEMENT_GONE' }
+    const final = replayChain(tx, deviceId)
+    tx
+      .update(devices)
+      .set({
+        status: final.status,
+        currentEmployeeId: final.currentEmployeeId,
+        updatedAt: new Date(),
+      })
+      .where(eq(devices.id, deviceId))
+      .run()
+  })
+}
+
 // Current holder of one device — the transfer action reads it (DB, never the
 // payload) to feed the dialog's transfer-refine argument.
 export function getDeviceHolder(
@@ -519,7 +708,9 @@ export function listTimeline(deviceId: number): MovementEventView[] {
       eventType: movements.eventType,
       comment: movements.comment,
       occurredAt: movements.occurredAt,
+      fromId: fromEmp.id,
       fromName: fromEmp.name,
+      toId: toEmp.id,
       toName: toEmp.name,
     })
     .from(movements)
@@ -550,14 +741,15 @@ export type RecentMovementView = {
 
 // The 10 (limit) most recent movements across ALL devices (DASH-03): ONE
 // three-way join, never N+1. innerJoin(devices) is safe — the FK is NOT NULL
-// + restrict and disposal never deletes devices, so inner == left and no feed
-// row can drop. Names resolve through the same alias double-join as
+// + restrict and nothing in the app deletes devices (device deletion is
+// phase 13 scope). Names resolve through the same alias double-join as
 // listTimeline — archived employees render like active ones (history is
 // history; the employee card shows its own state). Order is occurredAt DESC
 // with id as the tiebreaker — backdated events (D-01) sort by their own
 // dates, and tied instants must not interleave between requests (probe-
-// verified). Read-only by construction: the table is append-only (INSERT
-// only — DB triggers abort UPDATE/DELETE).
+// verified). Rows may be edited or deleted server-side since migration 0002
+// (editMovement/deleteMovement) — the feed simply reflects the corrected
+// history on the next read.
 export function listRecentMovements(limit = 10): RecentMovementView[] {
   const fromEmp = alias(employees, 'from_emp')
   const toEmp = alias(employees, 'to_emp')

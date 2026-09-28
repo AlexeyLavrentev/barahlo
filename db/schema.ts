@@ -114,8 +114,11 @@ export const devices = sqliteTable(
   ],
 )
 
-// Append-only movement history — never UPDATEd or DELETEd (enforced by DB triggers
-// in migration 0000 and by the absence of any UPDATE/DELETE path in app code).
+// Movement history. Since migration 0002 (phase 12) the table is editable:
+// the 0000 append-only triggers are dropped, and rows are corrected or removed
+// only through the server layer (editMovement/deleteMovement), which re-derives
+// the device projection by replaying the full chain. Row creation still flows
+// exclusively through the custody actions.
 export const movements = sqliteTable(
   'movements',
   {

@@ -1052,12 +1052,15 @@ describe('listActiveEmployees — picker source', () => {
   })
 })
 
-describe('perimeter — append-only movements (MOVE-04)', () => {
-  it('exposes no movement update/delete capability at module level', () => {
+describe('perimeter — movement mutations (phase 12)', () => {
+  it('exposes the legal server-side mutation surface: editMovement + deleteMovement', () => {
+    // Migration 0002 lifted append-only; the discipline now is WHO mutates,
+    // not WHETHER: only these two device-scoped, replay-guarded functions.
+    const keys = Object.keys(movementsQueries)
+    expect(keys).toContain('editMovement')
+    expect(keys).toContain('deleteMovement')
     expect(
-      Object.keys(movementsQueries).some((k) =>
-        /update|delete|remove|destroy/i.test(k),
-      ),
+      keys.some((k) => /remove|destroy|patch/i.test(k)),
     ).toBe(false)
   })
 

@@ -145,8 +145,10 @@ export const repairSchema = z.strictObject({
 })
 
 // Списать (D-03) — the reason IS the comment and it is ОБЯЗАТЕЛЬНА: без
-// причины списания не существует. The event stays append-only and the
-// transition is terminal (no schema anywhere leads out of disposed).
+// причины списания не существует. The DISPOSAL ACTION is terminal (no custody
+// button leads out of disposed) — but since phase 12 the terminality lives in
+// the action set, not the DB: editMovement/deleteMovement (migration 0002)
+// can remove the disposed record, which walks the device back out (D-06).
 export const disposeSchema = z.strictObject({
   deviceId: z.coerce.number().int().positive(),
   occurredAt: occurredAtSchema.optional(),
