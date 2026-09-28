@@ -1,9 +1,10 @@
 ---
-status: testing
+status: resolved
 phase: 12-Правка и удаление записей истории
 source: [12-02-PLAN.md Task 3 / 12-02-SUMMARY.md D4-D6]
 started: 2026-09-28T09:10:00Z
-updated: 2026-09-28T09:10:00Z
+updated: 2026-09-28T10:05:00Z
+signoff: user pass 2026-09-28
 ---
 
 ## Current Test
@@ -59,8 +60,10 @@ result: pass — НАЙДЕН И ИСПРАВЛЕН overflow (break-words + min-
 total: 9
 passed: 9
 issues: 0
-pending: 1 (юзерский sign-off)
+pending: 0
 skipped: 0
 blocked: 0
+
+**Sign-off: юзер подтвердил «pass» 2026-09-28 (по отчёту оркестратора 9/9).**
 
 ## Gaps
