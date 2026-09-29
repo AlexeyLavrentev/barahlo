@@ -1,121 +1,149 @@
-# Stack Research — v1.1 «Скорость и удобство» (milestone delta)
+# Stack Research — v1.3 «Удобство и выгрузка» (milestone delta)
 
-**Domain:** Stack additions for 5 new features on the existing Barahlo app (corporate device registry, single operator, Russian UI, LAN Docker deploy)
-**Researched:** 2026-09-15
-**Confidence:** HIGH overall — every claim cross-checked against the actual codebase (`package.json`, `components/ui/*`, `db/queries/*`, `lib/csv.ts`, route handlers) and npm registry on 2026-09-15
+**Domain:** Stack additions for 3 new feature areas on the existing Barahlo app — XLSX export of the 20-column ведомость, photo lightbox, manager-convenience features (Next.js 16.3.3 / React 19 / Base UI / SQLite, internal, single user, RU locale)
+**Researched:** 2026-09-29
+**Confidence:** HIGH — XLSX decision is probe-verified against the actual pinned artifact (library installed, workbook generated, OOXML inspected); exceljs/SheetJS disqualifications are npm-registry + NVD primary-source verified; lightbox findings verified against the locally pinned `@base-ui/react` package
 
 ## Executive Verdict
 
-**Zero new npm dependencies for the entire v1.1 milestone.** All five features are compositions of already-installed, already-UAT-proven capabilities. `npm install` runs zero times this milestone; the Docker image and the sharp-from-source native build are untouched. The one genuinely contentious call — ⌘K palette: cmdk vs Base UI — resolves firmly to the Base UI primitives already wrapped in `components/ui/` (rationale below). What this milestone buys is *code*, not *packages*: two search islands, one palette component, one server action + NULL-inventory rule, one selection island + two bulk actions, and ~4 extra columns in the CSV route.
+**Exactly one new npm dependency this milestone: `write-excel-file@4.1.1` (exact pin), server-only.** The lightbox needs **zero** new dependencies — the already-pinned `@base-ui/react` Dialog plus ~100–150 lines of hand-rolled zoom covers it. Manager-convenience features (scoped in FEATURES research) are expected to ride the existing stack. The XLSX feature is a **composer**, not a subsystem: the new route reuses the CSV route's entire zero-drift chain, and the new `lib/device-xlsx.ts` reuses `lib/device-csv.ts`'s header/labels so the two files cannot diverge.
 
 ## Recommended Stack (delta by feature)
 
-### 1. Employee live search — existing stack sufficient
+### 1. XLSX export — `write-excel-file@4.1.1`, the only new dependency
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| `DeviceSearchBox` island pattern (copy) | in-repo (`app/(app)/devices/search-box.tsx`) | Debounced input island | 300 ms debounce, `router.replace`, URL-as-state, `lastSynced`/`inFlight` reconciliation — all three UAT keystroke-loss bugs (G-5-1, G-5-2, CR-01) are already fixed in this pattern. Copy it; do not write a second debounce from scratch. |
-| Employees `query-params` module (new, ~30 lines) | in-repo pattern (`devices/query-params.ts`) | `q` param parse/normalize | Same sentinel-strip discipline as devices. **Confidence: HIGH** (pattern proven in-repo). |
-| `norm()` UDF in WHERE | better-sqlite3 13.0.3, registered in `db/index.ts:25` | Fold name/department at query time | Same approach as model search (Key Decision, probe-verified). Employees ≤200 rows + departments — sub-ms. **No schema change, no migration** (employees get no `*_normalized` twin; the UDF-in-WHERE pattern is the sanctioned one). |
+| `write-excel-file` | **4.1.1** (pin exact, not caret) | Generate the XLSX ведомость server-side in a GET route handler | Only candidate that is simultaneously: (a) **actively maintained** — 4.0.3→4.1.1 published Apr–Jun 2026, last publish 2026-06-08; (b) **tiny** — one runtime dep (`fflate`), `npm ls` verified 2 packages total, `engines: node>=18`; (c) **feature-sufficient** — bold/fill/border header styling, column widths, frozen first row all probe-verified in the emitted OOXML (table below); (d) **TypeScript types ship with the package**; (e) **Cyrillic probe-verified** (`Модель`, `ЁЁ` round-trip in `sharedStrings.xml` UTF-8); (f) v4 API is buffer/stream-native — `writeExcelFile(data, options).toBuffer()` maps directly onto a Web `Response` |
 
-**Integration points:** `listEmployees` in `db/queries/employees.ts` gains an optional `{ q }`; `employees/page.tsx` mounts the island; `loading.tsx` already exists for the swap.
+**Feature verification table** (empirical: installed the pinned version, generated a RU workbook, unzipped and read the OOXML):
 
-### 2. ⌘K global palette — existing stack sufficient (the decision that matters)
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Styled header (bold, fill, borders, align, wrap) | ✅ | README documents `fontWeight: 'bold'`, `backgroundColor`, `textColor`, `borderColor`/`borderStyle`, `align`, `wrap`; probe header cells emitted `s="1"` + `styles.xml` |
+| Column widths | ✅ | Probe emitted `<col min="1" max="1" width="12" customWidth="1"/>` per column |
+| **Frozen first row** | ✅ | `stickyRowsCount: 1` emitted `<pane ySplit="1" xSplit="0" topLeftCell="A2" activePane="bottomRight" state="frozen"/>` |
+| **Autofilter** | ❌ **not supported** | Absent from README and CHANGELOG; open PR [#19 "Support auto filter"](https://github.com/catamphetamine/write-excel-file/pull/19), unmerged. **Honest gap.** No maintained library offers autofilter *and* styling (exceljs: both, but 4 unfixed CVEs; SheetJS CE: autofilter, but **no styling**). Workaround: management clicks Данные → Фильтр once. Non-blocking; re-check PR #19 at implementation |
+| Cyrillic content safety | ✅ | `Тип`, `Модель`, `Истекает`, `Действует`, `ЁЁ` round-tripped; strings are UTF-8 XML — no codepage machinery, unlike CSV |
+| Numbers as numbers | ✅ | `type: Number` emitted `<c r="D2"><v>249900</v></c>` (no `t="s"`) — Excel sees a real number. **This kills the CSV `diagonalCell` «21,5» comma hack: in XLSX write `screenDiagonal` as a plain Number and RU-Excel renders «21,5» itself**; no «число как текст» green triangles |
+| Streaming for hundreds of rows | Available, unnecessary | `.toStream()` exists; 20 cols × hundreds of rows ≈ 50–150KB (probe: 3 rows = 3.4KB). In-memory `.toBuffer()` is correct; streaming is YAGNI at this scale |
+| Bundle/deps weight | ✅ | 1 dep; imported server-only — zero client bundle impact. Pure JS → **no `serverExternalPackages` entry** (unlike `better-sqlite3`) |
+
+**Why not the alternatives** — this is the load-bearing comparison:
+
+| Candidate | Verdict | Primary-source evidence |
+|-----------|---------|------------------------|
+| `exceljs` 4.4.0 | **Avoid** | npm `time` map: last stable release **2023-10-19** (only a 4.4.1-prerelease Dec 2024 since). NVD: **four unfixed 2026 CVEs through 4.4.0** — CVE-2026-78206 (DoS, 7.5), **CVE-2026-78207 (prototype pollution, 9.4 CRITICAL)**, CVE-2026-78208 (path traversal, 7.5), CVE-2026-78209 (formula injection/CWE-1236, 8.2). 9 runtime deps, 21.8MB unpacked; Snyk flags unmaintained |
+| `xlsx` (SheetJS) | **Avoid** | npm registry frozen at **0.18.5 (2022-06)**; CVE-2023-30533 + CVE-2024-22363 fixed only in `cdn.sheetjs.com` 0.20.x tarballs — unfixable via a normal npm pin; Community Edition **cannot style cells on write** (pro-only) — a styled ведомость is impossible; parsing (its strength) is Out of Scope (PROJECT.md) |
+| `excel4node` 1.8.2 | Avoid | Last publish 2023-05, 11 deps |
+| `xlsx-js-style` 1.2.0 | Avoid | Stale 2022 fork of already-stale SheetJS 0.18 — inherits the CVE story |
+| `xlsx-populate` / `node-xlsx` | Avoid | Dormant + lodash-bound / wraps the SheetJS CDN tarball (unfixable-from-npm dep) |
+
+**Integration shape** (mirrors the CSV route exactly — the zero-drift contract in `app/api/devices/export/route.ts`):
+
+```
+requireSession() FIRST → searchParamsRecord() → parseDevicesSearchParams()
+→ toDeviceListFilters() → exportDevices() → [NEW buildDeviceXlsx(rows, today)]
+→ new Response(new Uint8Array(buffer), headers)
+```
+
+- New GET route `app/api/devices/export/xlsx/route.ts`; UI is a plain server-rendered `<a>` «Скачать Excel» next to «Скачать CSV» — browser-native download, no JS.
+- New pure module `lib/device-xlsx.ts`: `buildDeviceXlsx(rows, today): Buffer` — vitest-pinnable (header parity with `deviceCsvHeader()`, number typing, `stickyRowsCount: 1`, CSV↔XLSX cell parity). Server surface only — never imported from client components.
+- Headers mirror `csvResponseHeaders`: `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, RFC 5987 dual filename («устройства-ГГГГ-ММ-ДД.xlsx» + ASCII fallback). Next 16 GET handlers are not cached by default (bundled docs), no-store kept anyway.
+- Sheet name «Устройства» (Cyrillic safe, « 31 chars); the exact v4 option name is a one-line implementation-time probe (LOW impact).
+- Pin exact `4.1.1`: the 3.x→4.x migration history argues against caret drift.
+
+### 2. Photo lightbox — zero new dependencies (the decision that matters)
 
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| `components/ui/dialog.tsx` | @base-ui/react 1.7.0 (installed; latest 1.8.0) | Modal shell | Full wrapper already present (Portal/Overlay/Content/Title/Description). |
-| `components/ui/combobox.tsx` | @base-ui/react 1.7.0 | Search input + grouped results + keyboard nav | Already exports `ComboboxGroup`, `ComboboxGroupLabel`, `ComboboxEmpty`, `ComboboxCollection` — the exact anatomy of a palette (Устройства / Сотрудники groups, empty state, arrow-key highlight). **Combobox-inside-Dialog is already in production** (`movement-dialogs.tsx`, `employee-dialog.tsx`) with the UAT-proven items-on-Root + `ComboboxCollection` contract (Key Decision 7e400c9). |
-| Plain `useEffect` keydown listener | React 19.2.8 | ⌘K / Ctrl+K toggle | ~10 lines. `metaKey` (macOS) / `ctrlKey`, ignore when a text input owns focus or open. |
-| Server action or `GET /api/search` route | Next 16.3.3 (in-repo) | Debounced result fetch | Both transports already exist in the app (`app/(app)/*/actions.ts`, `app/api/devices/export`). Route handler GET + `<a>`-style navigation has one less moving part; server action avoids a new route. Either is a roadmap detail. |
-| Query: LIKE over `norm()`-folded columns | better-sqlite3 13 | Match model/serial/inventory + name/department | Reuses the devices search predicate shape; hundreds of rows → sub-ms (validated 0.76 ms @ 600 rows). Results jump via `router.push('/devices/[id]' | '/employees/[id]')` — both card routes exist. |
+| `components/ui/dialog.tsx` | @base-ui/react **1.7.0** (already pinned) | Modal shell | Local package verified: Dialog ships root/backdrop/trigger/title/description/close/popup/portal/viewport/store; `DialogRoot.modal` accepts `boolean \| 'trap-focus'`. ESC, focus trap, scroll-lock, a11y — the hard 20% — come free |
+| Hand-rolled zoom state | in-repo client component, ~100–150 LOC | Zoom + pan | Wheel / double-click / ±-keys adjusting CSS `transform: scale() translate()`; drag-to-pan; prev/next across the device's ≤8 photos. Matches house discipline (hand-rolled `lib/csv.ts`, palette-without-cmdk); Apple aesthetic preserved through existing tokens |
+| Existing attachments route | `/api/attachments/[attachmentId]` | Full-size image source | Photos are `[key, thumbKey]` file pairs in DB; lightbox requests the full-size `key` — **no DB, schema, or sharp changes** |
+| `scroll-area` (optional thumbnails strip) | @base-ui/react 1.7.0 | Filmstrip | Already in the installed package |
 
-**Confidence: HIGH** — composition verified in-repo; @base-ui/react 1.8.0 exists on npm but 1.7.0 already ships every primitive used here; the 1.7→1.8 bump is optional and should not ride along with this milestone.
+**Base UI has no lightbox/zoom primitive** (grep-verified across the pinned 1.7.0 package; the drawer's incidental pinch handling is not a lightbox). Hand-rolling on Dialog is enough for a desktop-first single-user app.
 
-### 3. CSV ведомость полного контекста — existing stack sufficient, no new dep (confirmed)
+**Documented fallback (not installed now):** `yet-another-react-lightbox@3.32.2` — zero runtime deps, active (published 2026-07-30), `peerDependencies` include `react ^19` (registry-verified), zoom plugin ships in the main package, 241KB unpacked. Adopt **only if** touch pinch-zoom on phones becomes a scoped requirement (photos upload from phones; management happens on desktop). Mature touch-gesture math is the one thing the hand-rolled version genuinely lacks.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `lib/csv.ts` (`esc`, `buildCsv`, `csvResponseHeaders`) | in-repo, vitest-pinned | The entire file format layer | BOM, «;», CRLF, CWE-1236 tab-prefix guard, RFC 5987 dual filename — done and tested. **The v1.1 delta is data, not code.** |
-| `exportDevices` + `/api/devices/export` route | in-repo | Add columns | Current export already carries: Тип, Модель, Серийник, Инвентарник, Статус, Держатель, Отдел, RAM, RAM апгрейдена, SSD, Дата закупки, Стоимость, Поставщик, Гарантия до, Заметки. Missing only the per-type fields the schema already stores: `screenDiagonal`, `panelType` (мониторы), `portCount` (доки), `peripheralKind` (периферия). Extend the select + HEADER + cells — route-file change only, zero-drift contract (one parser, one `deviceWhere`) untouched. |
+### 3. Manager-convenience features — expected zero new dependencies
 
-papaparse/json2csv/csv-stringify remain prohibited (v1.0 decision T-05-SC stands): the injection guard must stay hand-rolled anyway, so a parser adds supply-chain surface for nothing.
-
-### 4. Device clone with inventory auto-increment — existing stack sufficient; one product decision to surface
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| New `cloneDeviceAction` server action | Next 16.3.3 + drizzle 0.45.2 | Copy row inside `db.transaction` | Reads `getDevice(id)`, strips identity fields, calls `createDevice` — both exist. Photo attachments are **not** cloned (they live on disk under `data/uploads/`; copying rows without bytes would 404). |
-
-**The auto-increment conflict (flag for roadmap, not a stack gap):** D-16 says inventory numbers are *manual, assigned by 1C*; D-17 puts a UNIQUE index on `inventoryNormalized`. SQLite UNIQUE allows multiple NULLs, so **cloning with `inventoryNumber = NULL` requires zero migration and violates nothing** — the operator backfills real numbers from 1C. Generating numbers (`MAX+1`) would (a) reverse Key Decision D-16 and (b) squat or collide with 1C's numbering space. Verdict: implement clone-with-NULL and treat "автоприрост" as a *numbering-policy* decision the owner must make; if a placeholder is wanted, render «не присвоен» in UI from NULL — do not synthesize a stored number.
-
-### 5. Bulk issue/return — existing stack sufficient
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| `components/ui/checkbox.tsx` | @base-ui/react 1.7.0 | Row + header select-all checkboxes | Already wrapped and in production (`device-dialog.tsx` ramUpgraded). No selection library justified for a 20-row server-rendered page. |
-| One client island holding `Set<number>` | React 19.2.8 (`useTransition`) | Selection state across the table region | Server renders rows as today; the island wraps the table (or uses per-row checkbox islands + a bulk-bar island via a tiny context). Selection is scoped to the current page — cross-page "select all matching filter" re-resolves ids server-side from the shared filter predicate if the roadmap wants it. |
-| New `bulkAssignAction(ids, employee)` / `bulkAcceptAction(ids)` | Next 16.3.3 + drizzle | Loop existing per-device logic in one `db.transaction` | better-sqlite3 is synchronous with a single connection — N movements (N ≤ 20, one page) in one transaction is atomic and single-digit ms. Each iteration records a movement row, preserving the timeline invariant. Validate every id server-side (status must permit the transition) — never trust the client batch. |
-
-TanStack Table, react-select-style multi-select, or a job queue are all massive overkill for one operator and one page of rows.
+Whatever FEATURES research scopes (quick filters, favorites, print view, etc.) composes from the installed surface: Base UI primitives (popover/menu/dialog/toast/toolbar/tooltip/menubar all present in 1.7.0), zod 4, drizzle, server actions, the ⌘K palette's predicate-reuse pattern. Treat any proposed npm install for this area as requiring explicit justification in the phase plan.
 
 ## Installation
 
 ```bash
-# Nothing to install. Zero new dependencies this milestone.
-# (Optional, standalone, not required for any v1.1 feature:)
-# npm install @base-ui/react@1.8.0   # minor bump; verify combobox data-* hooks against globals.css overrides if taken
+# The only new production dependency this milestone
+npm install write-excel-file@4.1.1
+
+# Nothing else. No dev dependencies beyond existing vitest/playwright.
 ```
+
+## What NOT to Add (reuse contract)
+
+| Do NOT add | Why | Reuse instead |
+|------------|-----|---------------|
+| `exceljs` / `xlsx` / `xlsx-js-style` / `xlsx-populate` / `node-xlsx` / `excel4node` | Maintenance/CVE/style findings above | `write-excel-file@4.1.1` |
+| Client-side XLSX generation | Ships the library to the browser; duplicates the export; drifts from the CSV route's chain | Server-side generation in the GET route (CSV precedent) |
+| A second 20-column mapping for XLSX | Two column dictionaries = drift (the D-02 keystone lesson) | `deviceCsvHeader()` + extract the per-row cells mapping from `buildDeviceCsv` into one pure function (e.g. `deviceExportCells(rows, today)`) consumed by BOTH builders — one edit changes both files |
+| Porting the CSV «21,5» decimal-comma hack to XLSX | CSV-only artifact: CSV has no cell types; XLSX numeric cells render per viewer locale | `type: Number` for `screenDiagonal`/`purchasePrice`/`ramGb`/`ssdGb`/`portCount` |
+| Porting `esc()`/CWE-1236 guard to XLSX | XLSX string cells are inert on open (no formula interpretation); the guard is a CSV-delimiter concern | `lib/csv.ts` untouched, stays CSV-only |
+| Excel date serials | D-06: ISO `yyyy-mm-dd` text sorts lexicographically, locale-independent | Existing `isoFileDate` from `lib/device-csv.ts` |
+| Changes to photos DB schema or sharp pipeline | `[key, thumbKey]` pairs + thumbnails already exist | Existing `/api/attachments/[attachmentId]` route |
+| `cmdk`, Radix, ag-grid, any lightbox/table lib | Palette precedent (Base UI composition, no cmdk); house kit is Base UI + base-nova | Existing `@base-ui/react` primitives + hand-rolled composition |
+| SheetJS for parsing/import | Import from spreadsheets is explicitly Out of Scope (PROJECT.md) | — |
+
+**Keystone-derived reuse that must survive into XLSX:** config-block labels via `keystoneLabel` over `CONFIG_EXPORT_KEYS`; «Статус гарантии» via `WARRANTY_STATE_LABELS[warrantyState(until, today)]` — parity with the site color by construction (WR-01), `today` hoisted once per request.
 
 ## Alternatives Considered
 
-| Recommended | Alternative | When the Alternative Would Win |
-|-------------|-------------|-------------------------------|
-| Base UI Dialog + Combobox palette (in-repo) | **cmdk 1.1.1** (npm-verified 2026-09-15) | Apps needing built-in fuzzy ranking, hierarchical submenu commands, or vim-style bindings across many roots. Here it is strictly worse: cmdk hard-depends on `@radix-ui/react-dialog` ^1.1.6, `@radix-ui/react-id`, `@radix-ui/react-primitive`, `@radix-ui/react-compose-refs` — dragging the Radix overlay/focus stack into a Base UI-only app (two dialog systems, duplicated a11y layers, ~+15 kB) for functionality the existing combobox wrapper already has. Note: shadcn/ui's `command` component — *including its "base" variant* (verified ui.shadcn.com/docs/components/base/command) — is still cmdk-backed, so `shadcn add command` does NOT avoid Radix. |
-| ~10-line `useEffect` hotkey listener | react-hotkeys-hook 5.3.3 | Apps with dozens of bindings, scopes, or callback refs. One global ⌘K does not justify a dep. |
-| LIKE + `norm()` UDF | **SQLite FTS5** (`unicode61`/trigram) | ≥10k rows, token/prefix semantics, or BM25 ranking. At hundreds of rows a linear scan is sub-ms; FTS5 is token-based (loses substring matching — the product's search is substring-first), trigram requires ≥3-char queries, and unicode61 folds differently from the project's homoglyph-aware `norm()`. Would also add a virtual table + triggers to the frozen generate+migrate discipline for zero perceivable gain. |
-| Hand-rolled `lib/csv.ts` (status quo) | papaparse / json2csv / csv-stringify | Only if CSV *import* ever leaves Out-of-Scope. Export already works and the CWE-1236 guard must stay hand-rolled regardless. |
-| Base UI checkbox island on server-rendered rows | TanStack Table v8 | Client-side sort/filter/pagination over large datasets. This app paginates server-side with URL-filters — TanStack would fight the architecture. |
-| Server actions + transitions | TanStack Query / SWR for the palette fetch | If the palette ever needed cache-deduped cross-view fetching. A debounced single-endpoint call doesn't. |
-
-## What NOT to Use
-
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| cmdk + any `@radix-ui/*` package | Second overlay system beside Base UI; 4 transitive deps; shadcn "base" command is still cmdk underneath | `components/ui/dialog.tsx` + `components/ui/combobox.tsx` composition |
-| FTS5 / trigram indexes | Wrong semantics (token vs substring), Cyrillic fold mismatch with `norm()`, migration weight, no measurable win at hundreds of rows | LIKE over `norm()`-folded values (existing pattern) |
-| papaparse / json2csv / csv-stringify | Export is solved; injection guard must stay hand-rolled (CWE-1236) | `lib/csv.ts` as-is |
-| Selection/table libraries (TanStack Table, react-data-grid) | 20 rows/page, server-rendered, URL-filtered — a library would own state the URL already owns | Checkbox island + `Set<number>` |
-| Any new native dependency | sharp is already built from source in the Docker image; each added native module re-risks the Ubuntu amd64 build for zero feature value | — (this milestone adds none) |
-| Stored auto-generated inventory numbers | Reverses D-16 (1C-assigned) and risks D-17 UNIQUE collisions/squatting | Clone with NULL inventory; UI renders «не присвоен» |
-
-## Stack Patterns by Variant
-
-**⌘K result ranking:** single combined query, devices first then employees, cap ~8 per group; fold via `norm()`. If ranking is ever needed, rank in JS over the ≤16 candidates — not in SQL.
-
-**Palette fetch transport:** prefer one server action `searchAll(q: string)` returning `{ devices: [...], employees: [...] }` (zod-validated, `requireSession` in action). A GET route handler is the fallback if the action's POST-per-keystroke debounce feels heavy — both are in-repo patterns.
-
-**Bulk transaction shape:** `db.transaction((tx) => { for (const id of ids) { validate(tx, id); move(tx, id, ...) } })` — hoist the existing `assignDevice`/`acceptDevice` query functions to accept a `Tx` handle (the `resolveDepartmentId(tx, …)` precedent exists in `db/queries/employees.ts`).
-
-**Clone field policy:** copy model/type/per-type fields/supplier/notes; reset status → «на складе» (or current default), holder → NULL, warranty/purchase per roadmap decision (warranty usually starts per unit — likely keep, flag for spec), photos never copied.
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|-------------------------|
+| `write-excel-file` 4.1.1 | `exceljs` 4.4.0 | Almost never for new code. Only if autofilter becomes a hard requirement AND a hardened/fixed exceljs release appears — not the case today |
+| `write-excel-file` 4.1.1 | `xlsx` (SheetJS, CDN tarball) | Only for parsing arbitrary spreadsheets — not our case (no import feature) |
+| Hand-rolled Dialog lightbox | `yet-another-react-lightbox` 3.32.2 | If pinch-zoom/complex touch gestures become a hard requirement |
+| New GET route `…/export/xlsx` | Query param `?format=xlsx` on the existing export route | Prefer the separate route: distinct content-type/disposition/header-set logic stays per-route, matching the thin-composer style of `route.ts` |
 
 ## Version Compatibility
 
-| Package A | Compatible With | Notes |
-|-----------|-----------------|-------|
-| @base-ui/react 1.7.0 (installed) | react 19.2.8, latest on npm: 1.8.0 | 1.7.0 ships every primitive this milestone needs; bump optional, verify token overrides in `globals.css` after any bump |
-| cmdk 1.1.1 (rejected) | @radix-ui/react-dialog ^1.1.6 + 3 radix transitives | Would introduce Radix into a Base UI project — rejected |
-| next 16.3.3 (custom build) | Server actions callable from client islands | Verified in-repo (`search-box.tsx` comment contract; `movement-dialogs.tsx`); do not consult public Next docs for behavior — use `node_modules/next/dist/docs/` if a question arises during implementation |
-| better-sqlite3 13.0.3 | `norm()` UDF (`deterministic: true`) usable inside WHERE/ORDER BY | Already used by model search — same mechanism the new searches reuse |
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| `write-excel-file@4.1.1` | Node >=18 (`engines` verified); Next 16.3.3 route handlers (Node runtime) | Import the **subpath export** `write-excel-file/node` server-side; pure JS → no `serverExternalPackages` |
+| `write-excel-file@4.1.1` | Web `Response` body | `.toBuffer()` returns a Buffer (Uint8Array subclass); wrap `new Uint8Array(buffer)` for clean `BodyInit` typings |
+| Next 16.3.3 | GET route handlers | Bundled docs confirm Web `Request`/`Response` APIs; GET not cached by default — keep `no-store` (existing discipline) |
+| `@base-ui/react@1.7.0` | React 19.2.8 | Already the validated pinned pair; `modal: boolean \| 'trap-focus'` available (local .d.ts verified) |
+| `yet-another-react-lightbox@3.32.2` (fallback) | React ^16.8/17/18/19 peers | Zero runtime deps; CSS sideEffects only |
+
+## Stack Patterns by Variant
+
+**If management never asks for autofilter (expected):**
+- Ship `write-excel-file` as recommended; mention Данные → Фильтр in the release note
+- Because the file's value is styled readability + correct number types, not interactive filtering
+
+**If autofilter later becomes a hard requirement:**
+- Re-evaluate then: PR #19 may have merged; do NOT switch to SheetJS for it (loses styling, which IS a hard requirement), do NOT adopt exceljs forks for one feature
+
+**If phone viewing of the lightbox matters in practice (user feedback):**
+- Adopt `yet-another-react-lightbox@3.32.2` rather than hand-rolling pinch gesture math
+- Because mature touch handling is the hand-rolled version's one genuine gap
+
+## Open Verification Items (trivial, resolve at implementation)
+
+- Exact v4 option name for the sheet name («Устройства») — one-line probe; LOW impact
+- Whether PR #19 (autofilter) merged by implementation time — re-check; non-blocking
+- Hand-rolled zoom feel (wheel sensitivity, double-click step) — UAT matter, not a stack matter
 
 ## Sources
 
-- Codebase (highest confidence, read 2026-09-15): `package.json`, `components/ui/{dialog,combobox,checkbox}.tsx`, `app/(app)/devices/search-box.tsx`, `db/queries/{devices,employees}.ts`, `db/queries` transaction precedent, `lib/csv.ts`, `app/api/devices/export/route.ts`, `db/schema.ts` (D-16/D-17 constraints), `db/index.ts` (norm UDF)
-- npm registry (fetched 2026-09-15): @base-ui/react 1.8.0, cmdk 1.1.1 (+ its dependency manifest showing 4 @radix-ui packages), react-hotkeys-hook 5.3.3 — **Confidence: HIGH**
-- ui.shadcn.com/docs/components/base/command — the "base" Command component is cmdk-backed, not Base UI primitives (fetched 2026-09-15) — **Confidence: HIGH**
-- base-ui.com/react/components/combobox — Combobox+Dialog composition as the palette pattern — **Confidence: HIGH** (cross-checked with in-repo usage)
-- sqlite.org/fts5.html + community threads — FTS5 vs LIKE scale crossover (~100k docs) and unicode61 Cyrillic folding vs ASCII-only LIKE — **Confidence: MEDIUM** (scale claim is community consensus, not benchmarked here; irrelevant at this dataset size either way, since `norm()` already supersedes the folding concern)
+- npm registry `time`/`dependencies`/`dist`/`engines` for all candidate packages, fetched 2026-09-29 — **HIGH**, primary
+- NVD API `keywordSearch=exceljs` — four unfixed 2026 CVEs through 4.4.0 — **HIGH**, primary
+- SheetJS npm-vs-CDN CVE gap (CVE-2023-30533, CVE-2024-22363) — registry facts primary-verified; community framing corroborated across multiple sources — **HIGH** for facts, **MEDIUM** for framing
+- `write-excel-file` README (GitHub master, current), CHANGELOG, issue tracker (PR #19) — **HIGH**, official
+- **Empirical probe** (this machine, 2026-09-29): `write-excel-file@4.1.1` installed in isolation; RU/Ё workbook generated; emitted OOXML inspected — frozen pane, column widths, style attrs, numeric cells, Cyrillic sharedStrings; autofilter absent — **HIGH**, primary artifact
+- Local `node_modules/@base-ui/react@1.7.0` — Dialog parts, `modal` prop type, absence of any lightbox primitive — **HIGH**, pinned artifact
+- Next.js bundled docs `node_modules/next/dist/docs/01-app/01-getting-started/15-route-handlers.md` — **HIGH**, pinned artifact
+- Project source: `app/api/devices/export/route.ts`, `lib/device-csv.ts`, `lib/csv.ts`, `package.json` — **HIGH**, pinned
 
 ---
-*Stack research for: Barahlo v1.1 «Скорость и удобство» milestone delta*
-*Researched: 2026-09-15*
+*Stack research for: Barahlo v1.3 «Удобство и выгрузка» — XLSX export, photo lightbox, manager convenience*
+*Researched: 2026-09-29*

@@ -1,304 +1,340 @@
-# Architecture Research: v1.1 «Скорость и удобство» — Integration into Existing Barahlo App
+# Architecture Research — v1.3 Integration (XLSX export, photo lightbox, manager conveniences)
 
-**Domain:** Integration architecture for 5 features on an existing Next.js 16 App Router / better-sqlite3 / drizzle RSC app
-**Researched:** 2026-09-15
-**Confidence:** HIGH (every existing-module claim below was verified by reading the source this run; the only external claims — cmdk ecosystem status — are tagged LOW and are not load-bearing)
+**Domain:** Integration architecture for new features on an existing production app (учёт корпоративной техники)
+**Researched:** 2026-09-29
+**Confidence:** HIGH (all integration points verified by reading the actual production code this run; library facts source-verified against npm registry and library source; mobile gesture guidance MEDIUM — see Sources)
 
-## Verified Existing Architecture (the integration surface)
+## Standard Architecture
+
+### System Overview — the seam the features plug into
+
+The app already has a rigid five-layer shape. Every v1.3 feature is an *insertion into an existing layer*, never a new layer:
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│ proxy.ts (Next 16 proxy, default-deny matcher)                     │
-│   everything except _next/static|_next/image|favicon.ico is gated  │
-│   PUBLIC_PATHS = ['/login'] exact strings; api/* IS covered        │
-├────────────────────────────────────────────────────────────────────┤
-│ app/(app)/ layout.tsx  — requireSession() + 48px bar               │
-│   ├─ nav.tsx ('use client' island — layout-level client precedent) │
-│   ├─ devices/  page.tsx (RSC) + filter-bar (server compose) +      │
-│   │            search-box.tsx (300ms debounce island, URL state)   │
-│   │            query-params.ts (THE parser/builder)                │
-│   │            actions.ts (requireSession → zod → query → refresh) │
-│   ├─ employees/ page.tsx (RSC, local buildQuery, NO search yet)    │
-│   └─ (card)/   devices/[id], employees/[id] — palette targets      │
-├────────────────────────────────────────────────────────────────────┤
-│ app/api/  export/route.ts (requireSession-first GET precedent)     │
-│           attachments/, photos/, health/                           │
-├────────────────────────────────────────────────────────────────────┤
-│ db/queries/*.ts — PURE sync functions, no framework imports;       │
-│   devices.ts: deviceWhere (THE predicate) + searchPredicate +      │
-│               exportDevices (composes deviceWhere) + ruSortKey     │
-│   employees.ts: listEmployees (innerJoin departments, ruSortKey)   │
-│   movements.ts: guard-UPDATE .changes pattern, one tx per action,  │
-│                 append-only INSERTs (triggers in migration 0000)   │
-│ db/index.ts — norm() UDF (deterministic normalizeNumber) on conn   │
-└────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ SURFACES (RSC pages + thin server components)                        │
+│  devices/page.tsx · (card)/devices/[id]/page.tsx · (app)/page.tsx    │
+│  filter-bar.tsx («Скачать CSV» <a>) · command-palette.tsx (CSV row)  │
+├──────────────────────────────────────────────────────────────────────┤
+│ CLIENT ISLANDS ('use client', flat serializable props only)          │
+│  photo-grid.tsx (lightbox Dialog + delete confirm) · filter islands  │
+│  command-palette.tsx (Base UI Dialog+Autocomplete, GET /api/search)  │
+├──────────────────────────────────────────────────────────────────────┤
+│ ROUTES / ACTIONS (thin composers, requireSession() FIRST)            │
+│  /api/devices/export (CSV) · /api/attachments/[id] (photo bytes)     │
+│  /api/devices/[id]/photos · /api/search · app/(app)/**/actions.ts    │
+├──────────────────────────────────────────────────────────────────────┤
+│ PURE LIB (no framework imports, vitest-importable)                   │
+│  device-csv.ts · csv.ts · photos.ts · warranty.ts · device-schema.ts │
+│  query-params.ts (buildDevicesQuery — the ONE URL builder)           │
+├──────────────────────────────────────────────────────────────────────┤
+│ QUERY LAYER db/queries/*.ts (pure sync fns over module db, no fw)    │
+│  devices.ts: deviceWhere · warrantyPredicate · exportDevices ·       │
+│  searchPaletteDevices · dashboard counters (co-located by mandate)   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Invariants every feature must respect** (all confirmed in source):
-- Schema changes ONLY via drizzle-kit generate + migrate (never push).
-- movements is append-only: INSERT only in app code + `movements_no_update/no_delete` triggers (drizzle/0000_amusing_talon.sql:94–99).
-- query-params.ts is the single URL vocabulary for /devices; islands import builders themselves (functions never cross the RSC boundary — flat serializable props only).
-- deviceWhere is co-located in db/queries/devices.ts; the export is «the same predicate, second caller» — never a parallel schema (D-18).
-- requireSession() is the first statement of every action and API route (server actions are directly POST-able; the proxy does not cover them).
-- Query modules stay pure/sync (vitest imports them directly against a temp db — tests/helpers.ts); actions add session + zod + refresh().
-- better-sqlite3 v13 transaction semantics (verified from installed node_modules/lib/methods/transaction.js): ROLLBACK runs only when the exception propagates OUT of the transaction function; catching inside keeps the tx alive (HIGH).
+### Component Responsibilities (new components in **bold**)
 
-## Feature 1: Employee Live Search (справочник)
+| Component | Responsibility | Integration with existing |
+|-----------|----------------|---------------------------|
+| **lib/device-xlsx.ts** | The XLSX file's pure layer: sheetData builder + async buffer builder + response headers. Mirrors lib/device-csv.ts discipline verbatim | Imports `deviceCsvHeader()` and `WARRANTY_STATE_LABELS` from lib/device-csv.ts; consumes `DeviceExportRow[]` from db/queries/devices.ts |
+| **/api/devices/export-xlsx/route.ts** | Thin composer: session → parse → strip → exportDevices → build → Response | Calls the EXACT same chain as /api/devices/export/route.ts (one parser, one predicate — the D-18 zero-drift contract) |
+| **filter-bar.tsx (edit)** | Second `<a>` «Скачать Excel» beside «Скачать CSV» | `href={`/api/devices/export-xlsx${buildDevicesQuery(filters)}`}` — zero new state, no island |
+| **command-palette.tsx (edit)** | Second native-anchor row «Скачать ведомость Excel» | Sibling of the CSV_ITEM precedent (native `<a>` render, Enter downloads, handler only closes the palette) |
+| **lib/zoom-math.ts** | Pure gesture math: scale clamp, pinch→transform, pan clamp. Vitest-pinnable without DOM | Consumed by the zoom stage island; same pure-lib discipline as lib/csv.ts |
+| **photo-zoom-stage.tsx** | 'use client' Pointer-Events zoom/pan stage wrapping the full image | Rendered INSIDE the existing lightbox DialogContent in photo-grid.tsx — Dialog shell, delete confirm and a11y stay untouched |
+| **db/queries/devices.ts additions** | Any new manager-convenience counters/lists | CO-LOCATED beside deviceWhere/warrantyPredicate — the file's own header mandates this (a separate dashboard module would force exporting predicate terms = the drift path) |
 
-**Verdict: extend listEmployees with `q`, mirror the devices URL discipline in a new employees/query-params.ts, extract the search-box engine into a shared hook.**
+## Recommended Project Structure
 
-### Query-module shape
+Only additions; nothing moves.
 
-`db/queries/employees.ts` — modify `listEmployees` to take `q?: string` (the list IS the search target; pagination and the active/archive filter keep working unchanged). The predicate is the device searchPredicate recipe ported to people:
+```
+lib/
+├── device-csv.ts          # EXISTS — labels / warranty dictionary become shared imports
+├── device-xlsx.ts         # NEW — deviceXlsxSheetData + buildDeviceXlsx + xlsxResponseHeaders
+├── zoom-math.ts           # NEW — pure pinch/pan/clamp math (vitest-pinned)
+app/api/devices/
+├── export/route.ts        # EXISTS (CSV) — optionally put on a shared 1-liner (below)
+├── export-xlsx/route.ts   # NEW — thin composer mirroring export/route.ts
+app/(app)/devices/
+├── filter-bar.tsx         # EDIT — one more <a> sibling
+app/(app)/(card)/devices/[id]/
+├── photo-grid.tsx         # EDIT — DialogContent renders PhotoZoomStage instead of bare <img>
+├── photo-zoom-stage.tsx   # NEW — 'use client' gesture island
+components/
+├── command-palette.tsx    # EDIT — one more native-anchor Autocomplete.Item
+tests/
+├── xlsx-export.test.ts    # NEW — pins the sheetData matrix (mirror of csv-export.test.ts)
+├── zoom-math.test.ts      # NEW — pins scale/pan math
+```
+
+### Structure Rationale
+
+- **lib/device-xlsx.ts separate from the route:** route.ts is not vitest-importable (imports lib/auth → next/headers), and the 20-column layout must stay positionally pinned by vitest — the exact reason device-csv.ts exists. Shared pieces (header labels, warranty dictionary) are IMPORTED, never duplicated.
+- **export-xlsx as a sibling route, not `?format=xlsx` on the existing route:** the CSV route is a production path pinned by tests; a second thin route keeps it untouched and gives a clean URL (`/api/devices/export-xlsx${buildDevicesQuery(filters)}` — appending `&format=xlsx` to the builder output would technically work but is ugly and pollutes either the ONE builder or the link markup). The zero-drift contract is upheld at the FUNCTION level: both routes call the same `searchParamsRecord` → `parseDevicesSearchParams` → `toDeviceListFilters` → `exportDevices` chain — there is no second parse implementation anywhere, which is what the D-18 comment actually mandates ("one parser, one predicate, one sentinel-strip").
+- **photo-zoom-stage.tsx co-located in [id]/:** sibling of photo-grid.tsx / timeline.tsx (the established co-location spot for card islands; non-special files in app/ never become routes).
+
+## Architectural Patterns
+
+### Pattern 1: Pure lib file-builder + thin route composer (the device-csv pattern, applied to XLSX)
+
+**What:** the file's bytes are built in a pure, framework-free lib module; the route only composes session + parse + query + builder + headers.
+**When to use:** any new file-export surface.
+**Trade-offs:** one more file vs. the only alternative (untestable route logic) — not a real trade-off; the project already decided this (D-02, WR-01).
+
+**Key design for lib/device-xlsx.ts — split the library boundary from the pinned core.** The vitest-pinned artifact is the sheetData matrix (like buildDeviceCsv's cells); the write-excel-file call is a 1-line async wrapper, so tests never need an XLSX reader:
 
 ```typescript
-// same recipe as searchPredicate in devices.ts: fold the BIND pattern through
-// the SAME normalizeNumber the norm() UDF folds the columns with
-export function employeeSearchPredicate(rawQ: string | undefined) {
-  const q = normalizeNumber(rawQ ?? '').slice(0, 100)
-  if (q === '') return undefined
-  const pattern = `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`
-  return or(
-    sql`norm(${employees.name}) like ${pattern} escape '\\'`,
-    sql`norm(${departments.name}) like ${pattern} escape '\\'`,
-  )
+// lib/device-xlsx.ts — pure; imports ONLY device-schema, warranty,
+// device-csv (shared labels), and write-excel-file/node
+import writeExcelFile from 'write-excel-file/node'
+import { deviceCsvHeader, WARRANTY_STATE_LABELS } from '@/lib/device-csv'
+import { warrantyState } from '@/lib/warranty'
+
+// THE PINNED CORE — vitest asserts this matrix exactly like buildDeviceCsv's
+// cells. TYPED cells, not CSV strings:
+export function deviceXlsxSheetData(rows: DeviceExportRow[], today: Date) {
+  return rows.map((r) => [
+    deviceTypeName(r.typeKey),                     // string
+    r.model, r.serialNumber, r.inventoryNumber,
+    deviceStatusLabel(r.status), r.holder, r.departmentName,
+    r.ramGb,                                       // number — NOT a string
+    ramUpgradedCell(r.ramUpgraded),                // 'да'|'нет'|null (imported from device-csv)
+    r.ssdGb,                                       // number
+    // config block, contiguous, same CONFIG_EXPORT_KEYS order:
+    r.screenDiagonal,                              // NUMBER. RU-Excel renders «21,5»
+                                                   // via format '0.0' — diagonalCell()'s
+                                                   // comma-string is a CSV-only hack
+    r.panelType, r.portCount, r.peripheralKind,
+    r.purchaseDate,                                // Date cell — a real serial number:
+                                                   // sorts locale-independently (better
+                                                   // than CSV's ISO string), format 'dd.mm.yyyy'
+    r.purchasePrice, r.supplier,
+    r.warrantyUntil,                               // Date cell
+    WARRANTY_STATE_LABELS[warrantyState(r.warrantyUntil, today)], // WR-01 parity
+    r.notes,
+  ])
+}
+
+// Header = deviceCsvHeader() verbatim (D-02: one edit to the keystone changes
+// the form AND both files). Bold header + column widths via the columns option.
+export async function buildDeviceXlsx(rows: DeviceExportRow[], today: Date) {
+  return writeExcelFile(
+    [deviceCsvHeader().map((label) => ({ value: label, fontWeight: 'bold' })),
+     ...deviceXlsxSheetData(rows, today).map(toBeRowCells)],
+    { columns: XLSX_COLUMN_WIDTHS },
+  ).toBuffer()
+}
+
+export function xlsxResponseHeaders(isoDate: string): Record<string, string> {
+  // Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+  // + RFC 5987 dual filename (устройства-ГГГГ-ММ-ДД.xlsx) + nosniff + no-store
+  // — mirror of csvResponseHeaders in lib/csv.ts
 }
 ```
 
-- The `innerJoin(departments)` already in listEmployees carries the department term — the same «predicate rides the existing join» shape as the devices department filter (D-09).
-- The count query and the rows query share ONE where (the Pitfall-5 parity property listDevices already exhibits).
-- norm() needs no registration change — it is already a deterministic UDF on every connection (db/index.ts).
-- Extract the predicate into a named exported function (not inline) — the ⌘K palette's `searchEmployees` composes exactly this function, mirroring the deviceWhere/exportDevices factoring.
-
-### URL layer
-
-New `app/(app)/employees/query-params.ts` — parse/build for `{ q, filter, page }` (parse degrades invalid values to sentinels, never 500s; builder omits inactive sentinels). Rationale: the current local `buildQuery` in page.tsx would become the second place that knows the URL vocabulary the moment `q` lands, and the search island must import a pure builder itself (function props are banned across the RSC boundary). This is the same discipline query-params.ts established for /devices, scoped to the employees' smaller vocabulary.
-
-### Component: extract, don't copy
-
-`app/(app)/devices/search-box.tsx` holds ~90 lines of battle-tested reconciliation (lastSynced anchor, inFlight echo absorption, push-time stamping — two UAT bugs G-5-1/G-5-2 fixed here). Extract the engine into `components/debounced-search.ts`:
+**Route — thin composer; `async GET` is the one shape difference from the CSV route:**
 
 ```typescript
-'use client'
-// useDebouncedParam({ q, buildHref }) → { value, onChange, onKeyDown }
-// Encapsulates: value state, 300ms timer, lastSynced/inFlight refs, commitNow.
-// The BUILDER is imported by each wrapper, never passed as a prop.
-```
-
-- `DeviceSearchBox` is refactored onto the hook — **behavior-preserving refactor**; it keeps importing `buildDevicesQuery` and its `DeviceFilters` spread.
-- New `app/(app)/employees/search-box.tsx` — thin wrapper importing the employees builder, RU placeholder «Имя или отдел», same aria conventions.
-- **Risk (MEDIUM):** this code has no component tests (vitest covers queries/schemas only). Mitigate with a manual UAT checklist before merge: type-then-Back/Forward adopt, trailing-space mid-composition, external filter reset adopts into clean input, Enter commits immediately.
-
-Page wiring (`app/(app)/employees/page.tsx`): parse q → pass to listEmployees → builder carries q; switching Активные/Архив keeps q and resets page to 1; add the «Ничего не найдено» empty-state variant with a reset link (copy parity with /devices).
-
-**Files:** NEW employees/query-params.ts, employees/search-box.tsx, components/debounced-search.ts · MODIFIED db/queries/employees.ts, employees/page.tsx, devices/search-box.tsx.
-
-## Feature 2: ⌘K Global Palette (устройства + сотрудники)
-
-**Verdict: layout-level client island + one new authenticated GET /api/search route; hand-rolled on the existing Base UI dialog; one flattened keyboard index.**
-
-### Where it lives
-
-Mount `<CommandPalette />` in `app/(app)/layout.tsx` beside `<AppNav />` — a layout-level client island is an established precedent (nav.tsx). A global keydown listener (⌘K / Ctrl+K, ignore when a dialog already owns focus) toggles it; mounted at layout level it works on every protected page.
-
-### Where results come from: new API route, NOT a server action, NOT RSC prefetch
-
-- **Server actions are the wrong shape**: they are POST form machinery (FormData in, action state out) — type-ahead wants idempotent GET-with-params; and the action response carries an RSC payload of the current route, which is wasted bytes per keystroke.
-- **RSC prefetch / router navigation per keystroke** would re-render whole list pages per query — the search-box deliberately avoids this even for one input.
-- A **GET route handler** matches the export-route precedent: data leaves the RSC tree, authentication is explicit, the client gets a small JSON payload.
-
-New `app/api/search/route.ts`:
-
-```typescript
+// app/api/devices/export-xlsx/route.ts
 export async function GET(request: NextRequest) {
-  await requireSession() // FIRST statement — export-route precedent
-  const q = String(request.nextUrl.searchParams.get('q') ?? '').slice(0, 100)
-  const [devices, employees] = [searchDevices(q, 8), searchEmployees(q, 5)]
-  return Response.json({ devices, employees }) // hardcoded shape, no input echo
+  await requireSession()                               // FIRST statement (V3)
+  const sp = searchParamsRecord(request.nextUrl.searchParams)
+  const filters = parseDevicesSearchParams(sp)         // the ONE parser
+  const listFilters = toDeviceListFilters(filters)     // the ONE strip
+  const rows = exportDevices({ type: filters.type, filters: listFilters })
+  const today = displayTodayUtc()                      // once per request (WR-01)
+  const body = await buildDeviceXlsx(rows, today)      // the only await
+  const isoDate = new Date().toISOString().slice(0, 10)
+  return new Response(new Uint8Array(body), { headers: xlsxResponseHeaders(isoDate) })
 }
 ```
 
-Proxy/auth coexistence: **no matcher change needed.** The default-deny matcher already covers `/api/*` (only `_next/static|_next/image|favicon.ico` are excluded — verified in proxy.ts), and the palette only renders under the (app) layout whose requireSession already passed, so the same-origin fetch carries the session cookie automatically. `requireSession` in the route is the defense-in-depth layer (V3), exactly like the attachments and export routes.
+Pinned-docs verified (`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md`): route handlers are Web `Request`/`Response`; `new Response(body, { headers })` is the exact shape the CSV route already uses — nothing new to learn, no Next-version caveat. **Streaming (ReadableStream) is deliberately NOT used:** hundreds of rows produce a small buffer, single user on LAN, and a Buffer gives `Content-Length` for free.
 
-### New query functions (both pure-sync, tested against temp db)
+### Pattern 2: Enhance the existing lightbox Dialog in place (zoom stage island, not a lightbox library)
 
-- `searchDevices(q, limit)` in `db/queries/devices.ts` — composes the module-private `searchPredicate` (same module = the deviceWhere-colocation discipline; no need to export it), `ruSortKey` order + id tiebreaker, `.limit(limit)`; selects `{ id, typeKey, model, serialNumber, inventoryNumber, status }`.
-- `searchEmployees(q, limit)` in `db/queries/employees.ts` — composes `employeeSearchPredicate` from Feature 1; selects `{ id, name, department, isActive }`. Archived employees SHOULD appear (badge «архив» in the palette) — an archived person's card is exactly what «кто это был?» needs; flag as a planning decision if the operator disagrees.
-- Limit-driven: no pagination, no count query. At 50–200 employees / hundreds of devices a `norm() like` scan is single-digit ms (phase-5 measurement class).
-
-### Merge + one keyboard model
-
-Client-side, one flat array is the model (MEDIUM — universal palette pattern):
+**What:** the v1.3 complaint («клик открывает картинку, слишком мелкую, чтобы разглядеть») is a gap in the EXISTING lightbox — photo-grid.tsx already has the full apparatus: Base UI `Dialog` (max-w-3xl), sr-only `DialogTitle`, «Удалить фото» button, sibling delete-confirm Dialog, `fullUrl()` serving the 1600px variant with `Cache-Control: private, immutable`. The feature = replace the bare `<img>` inside `DialogContent` with a zoom/pan stage. Do NOT introduce yet-another-react-lightbox / react-photo-view: they render their own portal and chrome, would fight the Dialog shell, evict the delete affordance, and go against both the Apple styling and the project's supply-chain discipline (lib/csv.ts is hand-rolled by design).
+**When to use:** enhancing any dialog-embedded viewer.
+**Trade-offs:** ~150 lines of gesture code vs. a dependency — mitigated by keeping the MATH pure (lib/zoom-math.ts, vitest-pinned) and the DOM thin.
 
 ```typescript
-type PaletteItem =
-  | { kind: 'device'; id: number; title: string; subtitle: string }   // model · serial · holder
-  | { kind: 'employee'; id: number; title: string; subtitle: string } // name · department (+ «архив»)
-
-const items: PaletteItem[] = [
-  ...data.devices.map(toDeviceItem),   // devices FIRST — registry is the primary entity
-  ...data.employees.map(toEmployeeItem),
-]
-// selection = ONE index into items; section headers («Устройства», «Сотрудники»)
-// are derived at render time (kind changes between neighbors) and are NOT focus-stops.
-// ↑/↓ move (clamp), Home/End, Enter → router.push(`/devices/${id}` | `/employees/${id}`) + close,
-// Esc → close + restore focus to the previously focused element.
+// photo-zoom-stage.tsx ('use client') — thin DOM over pure math
+// Stage div: touch-action: none; overflow: hidden; cursor zoom-in/grab/grabbing
+// <img src={fullUrl(id)}> — the FULL variant only; the 400px thumb would
+//   pixelate at zoom. Optional progressive touch: absolute thumb underneath
+//   until full onLoad swaps in (cheap, nice even on LAN).
+// Pointer Events (unified mouse/touch/pen — one code path):
+//   pointers in a Map (pointerdown → setPointerCapture);
+//   one pointer  = pan (only when scale > 1)
+//   two pointers = pinch: scale *= distanceRatio, anchored at the midpoint
+//   wheel        = zoom at cursor (desktop)
+//   dblclick/dbltap = toggle 1x ↔ 2.5x
+// pointercancel / lostpointercapture → full release (iOS Safari fires cancel often)
+// Writes: transform: translate(...) scale(...) inside requestAnimationFrame;
+// gesture state lives in refs, never per-move setState (60 fps, no re-render storm).
+// Clamps: scale ∈ [1, 4]; pan clamped to the overflow; scale=1 ⇒ offset reset.
 ```
 
-Fetch discipline: debounce ~150–200 ms (shorter than the 300 ms URL debounce — palette results are ephemeral, never URL state), AbortController per request with latest-wins, do not fire until q is non-empty (unlike the list, a palette's «full list» is meaningless).
+Keep in photo-grid.tsx, untouched: the `Dialog`/`DialogContent` shell (a11y, focus trap, Escape, and the `data-slot="dialog-content"` attribute the ⌘K hotkey's "another dialog owns the surface" probe matches on — build the stage INSIDE `DialogContent`, never a raw `DialogPrimitive.Popup`, or that probe silently breaks), the delete button (in the footer row as today; it must stay reachable at any zoom), and the sibling confirm Dialog. `DialogContent` gets a wider class (e.g. `max-w-5xl`, near-fullbleed on phone). **Zero server changes:** the full variant is already served and immutable-cached — zooming re-uses the bytes the browser already fetched.
 
-### No cmdk dependency
+### Pattern 3: Dashboard/convenience queries co-located with the predicates (the DASH pattern)
 
-Hand-roll (~150 lines) on the existing `components/ui/dialog.tsx` (Base UI): the project hand-rolls for supply-chain reasons already (lib/csv.ts rationale), Base UI provides the dialog focus trap/Escape, and the filtering/ranking lives server-side in SQL anyway. The cmdk ecosystem is fork-fragmented around React 19 (cmdk-base, dip/cmdk) — LOW-confidence single-source web finding, supporting color only; the decision stands on the local precedent. aria: input with `aria-activedescendant` pointing at the active option id (listbox pattern) or roving highlight — pick one, pin it in the component comment.
-
-**Files:** NEW app/api/search/route.ts, app/(app)/command-palette.tsx · MODIFIED app/(app)/layout.tsx, db/queries/devices.ts, db/queries/employees.ts.
-
-## Feature 3: CSV Full-Context Report (ведомость)
-
-**Verdict: extend the existing /api/devices/export in place. A second endpoint would be exactly the «параллельная таблица» D-18 exists to prevent — zero-drift is structural when the route keeps one parser, one strip, one predicate.**
-
-What the phase-5 export already carries: Тип, Модель, Серийник, Инвентарник, Статус, Держатель, Отдел (holder's department, D-09), RAM, RAM апгрейд, SSD, Дата закупки, Стоимость, Поставщик, Гарантия до, Заметки. «Владелец, отдел, гарантия, стоимость» are DONE. The gap is the per-type config columns.
-
-Changes:
-- `db/queries/devices.ts` — `DeviceExportRow` gains `screenDiagonal, panelType, portCount, peripheralKind`; `exportDevices` select gains the same four. This module owns the export scan (it already exists here — no new owner).
-- `app/api/devices/export/route.ts` — HEADER gains «Диагональ, ″», «Тип матрицы», «Количество портов», «Вид периферии» (after SSD, before the purchase block — registry visual order); cells map them (null → empty via esc()). Typed payload note: a row only populates its OWN type's columns — sparse columns are the honest machine-readable representation; do NOT merge into one «Конфигурация» text column (prettier, lossy, unfilterable in Excel).
-- `lib/csv.ts` — unchanged (buildCsv/esc/csvResponseHeaders sufficient; BOM/«;»/CRLF/CWE-1236 guard all ride along).
-- The «Скачать CSV» link in filter-bar.tsx — unchanged (same route, same href).
-- `tests/csv-export.test.ts` — extend the column matrix.
-
-**Files:** MODIFIED db/queries/devices.ts, app/api/devices/export/route.ts, tests/csv-export.test.ts. Nothing new.
-
-## Feature 4: Device Cloning with Inventory Auto-Increment
-
-**Verdict: query function in devices.ts (createDevice's sibling), one tx for the whole batch, prefix-scoped max+1 computed inside the tx, and — the milestone's one schema decision — allow empty serials via the proven NULL-pair migration.**
-
-### Transaction shape
-
-`cloneDevices(sourceId, count, serials, opts)` in `db/queries/devices.ts` — one `db.transaction` creating all N rows (returnAllDevices atomic-batch precedent: a mid-flight failure leaves no partial batch):
+**What:** any manager-convenience feature that needs a new number or list gets a query function *in db/queries/devices.ts* (or movements.ts for feed-shaped data), composing the private `deviceWhere`/`warrantyPredicate`. The file's own header says it: co-location IS the D-04 invariant; a separate dashboard module would force exporting predicate terms — the drift path.
+**When to use:** every new dashboard tile, counter or «список» row.
+**Trade-offs:** devices.ts grows (already ~750 lines) — acceptable; split only if a second aggregate domain ever appears, never per-page.
 
 ```typescript
-return db.transaction((tx) => {
-  const src = tx.select().from(devices).where(eq(devices.id, sourceId)).get()
-  if (!src) throw { code: 'NOT_FOUND' }
-  // copied: typeKey, model, config fields, purchaseDate/Price, supplier, warrantyUntil
-  // NOT copied: serial (per-clone), inventory (auto or NULL), status (always 'in_stock'),
-  //             currentEmployeeId (always NULL), notes (or per-clone), createdAt/updatedAt
-  for (let i = 0; i < count; i++) { tx.insert(devices).values(rowFor(i)).run() }
-})
+// New convenience counter — the exact shape of warrantyPresetCounts:
+export function someNewCount(today: Date = displayTodayUtc()): number {
+  return db.select({ value: count() }).from(devices)
+    .where(/* compose deviceWhere terms, never re-spell them */)
+    .get()!.value
+}
+// Page consumption: const today = displayTodayUtc() computed ONCE per render,
+// handed to every consumer (counters + WarrantyDate) — the WR-01 discipline.
 ```
 
-Custody fields are never cloned — a clone is stock, exactly like createDevice produces. Validation rides the existing keystone: the clone dialog is the save dialog pre-filled (deviceSaveSchema validates each clone's effective payload); the action maps uniqueCodeOf results to the existing inline copy.
+Deep-links for every new tile/row go through the ONE builder with a FULL `DeviceFilters` object, other dimensions at inactive sentinels — copy `typeTileHref` / `statusTileHref` / `warrantyCounterHref` in app/(app)/page.tsx verbatim; hand-built filter URLs are forbidden (phase-6 rule; D-08 coupling lives in the builder).
 
-### Inventory auto-increment rule
+## Data Flow
 
-If the source's inventoryNumber ends in a digit run (e.g. «2026-015», «Б-12»): extract prefix + width, scan `inventoryNormalized like prefix%` **inside the same tx**, parse suffixes in JS, take max+1, assign `base+1..base+N` zero-padded to the source width. No source number, or no trailing digits → all clones get NULL inventory (manual 1C assignment later — D-16 «inventory is manual-only» semantics preserved; do not invent numbers 1C will contradict).
+### XLSX request flow (mirrors the CSV flow structurally, line for line)
 
-- Race safety: better-sqlite3 executes the tx synchronously and serialized — the like-scan and the inserts cannot interleave with another writer. The uniqueCodeOf catch remains the backstop; a catch-and-bump retry inside the tx fn is safe (verified from transaction.js: rollback only on propagation; SQLite ABORT undoes only the failed statement).
+```
+«Скачать Excel» <a> / palette row (plain href; browser-native download UI is the feedback)
+    ↓ GET /api/devices/export-xlsx?…(buildDevicesQuery output)
+requireSession → searchParamsRecord → parseDevicesSearchParams → toDeviceListFilters
+    ↓ (one parser, one strip, one sentinel rule — shared with the page and the CSV route)
+exportDevices (deviceWhere + RU-sort + holder/dept joins) → DeviceExportRow[]
+    ↓
+buildDeviceXlsx(rows, displayTodayUtc()) → write-excel-file .toBuffer() → Uint8Array
+    ↓
+new Response(body, { headers: xlsxResponseHeaders(isoDate) })
+```
 
-### The serial sharp edge — recommend the NULL-pair migration
+### Lightbox zoom flow (client-only; zero server changes)
 
-Verified today: `serialNumber: z.string().min(1)` (device-schema.ts:174) + `serial_number NOT NULL` + `UNIQUE(serial_normalized)` (D-17). Clones of one model cannot share a serial, and a batch of serial-less peripherals (mice, docks) currently forces the operator to invent unique strings («б/н», «б/н 2») — a live data-corruption pressure that cloning makes acute.
+```
+thumb click → setLightboxId (existing) → Dialog opens (existing)
+    → PhotoZoomStage renders <img src=fullUrl(id)>  (immutable-cached; fetched once)
+    → pointer/wheel/dbltap events → zoom-math (pure) → rAF transform write
+    → «Удалить фото» (existing footer) → confirm Dialog (existing sibling)
+    → DELETE /api/attachments/[id] (existing) → router.refresh() (existing)
+```
 
-- **Recommended (b): allow empty serial via migration** — make `serial_normalized` nullable and store the empty serial as the NULL/NULL pair, the EXACT inventoryPair recipe (Pitfall 5, proven). SQLite UNIQUE permits multiple NULLs; search simply never matches a NULL serial (same three-valued behavior as NULL inventory); schema change goes through generate + migrate — the sanctioned path — plus schema.test.ts updates. The clone dialog accepts one serial per line where blank = «без серийника».
-- Fallback (a): no schema change — the dialog requires N distinct serials; ship with a documented data-quality wart.
-- Whatever is chosen: decide it in planning, BEFORE build — it is the only schema touch of the milestone.
+### Key Data Flows
 
-### Movements on clone
-
-Recommend writing ONE `received` («Поступление») event per clone in the same tx (append-only INSERT — sanctioned; the vocabulary exists in MOVEMENT_EVENT_LABELS; comment «Клон устройства #id»). It makes the batch visible in the dashboard feed (listRecentMovements) and on each card's timeline — a clone without history contradicts «Полная история перемещений». Open question for planning: plain createDevice writes no received event today — either accept the inconsistency or wire the same event there (small, same milestone).
-
-**Files:** MODIFIED db/queries/devices.ts (cloneDevices), app/(app)/devices/actions.ts (cloneDeviceAction), lib/device-schema.ts (serial optional + clone payload pieces — only per decision), db/schema.ts + NEW drizzle migration (only if (b)), card UI (clone entry point beside device-actions.tsx), tests/devices-queries.test.ts, tests/schema.test.ts.
-
-## Feature 5: Bulk Issue / Return
-
-**Verdict: client-side selection island (children-as-props), NOT URL params; one tx per batch in movements.ts reusing the guard-UPDATE loop of returnAllDevices; all-or-nothing semantics.**
-
-### Selection state: client island, explicitly NOT a URL param
-
-- Selection is ephemeral UI state, not a filter. Adding `sel` to query-params.ts would corrupt THE filter vocabulary (a non-filter in DeviceFilters; every parse/strip/builder site must then know it), and `?sel=1,2,3` URLs go stale the moment any selected device changes status.
-- Shape: `app/(app)/devices/selection.tsx` — a `'use client'` `SelectionProvider` holding `Set<number>` + the floating action bar. The server-rendered list passes THROUGH it as `children` (children-as-props keeps the 20 RSC rows server-rendered; only checkbox leaves are client). Per-row `SelectCheckbox` reads/writes context (Base UI checkbox exists).
-- **UI refactor (the real cost of this feature):** rows are currently a full-row `<Link>`. A checkbox inside a Link navigates on click. Restructure the row: link on the content area, checkbox as a sibling outside the anchor.
-- Scope: selection resets on navigation (provider remounts per page render) — per-page selection is accepted for v1.1; cross-page selection is a documented non-goal (typical bulk = one purchase batch on one filtered page).
-
-### Server side: two batch functions beside the single transitions
-
-`db/queries/movements.ts` — `bulkAssignDevices(deviceIds, employeeId, event)` and `bulkAcceptDevices(deviceIds, event)`:
-
-- ONE `db.transaction`; loop over ids; **one movement event PER device** (append-only INSERTs — the returnAllDevices loop precedent verbatim); the guard-UPDATE (`status='in_stock'` / `status='assigned'` precondition, `.changes===0 → throw ILLEGAL_TRANSITION`) decides per device from the DB row.
-- `assertActiveEmployee` reused for bulk assign.
-- **All-or-nothing**: any guard failure rolls back the whole batch (a throw out of the tx fn rolls back — verified). Single operator, races rare; partial-success UX is deferred complexity. Error copy: «Не удалось выдать: часть выбранного уже изменена» — one string, same contract as returnAllDevices.
-- Shared occurredAt/comment for the batch (one dialog, one date — a batch is one fact); backdate rules ride the existing movement-schema pieces.
-
-Actions: `bulkAssignDeviceAction` / `bulkAcceptDeviceAction` in `app/(app)/devices/actions.ts` — requireSession, zod, refresh(). New zod in `lib/movement-schema.ts` (keystone discipline — no parallel schema lists): `{ deviceIds: z.array(z.coerce.number().int().positive()).min(1).max(50), employeeId?, occurredAt?, comment? }` — dedupe ids in the action; cap 50 (a page is 20; headroom without unbounded payloads).
-
-**Files:** NEW app/(app)/devices/selection.tsx · MODIFIED app/(app)/devices/page.tsx (row structure, provider), db/queries/movements.ts, app/(app)/devices/actions.ts, lib/movement-schema.ts, tests/movements-queries.test.ts.
-
-## Recommended Build Order (dependency-driven)
-
-| # | Slice | Why here |
-|---|-------|----------|
-| 1 | **Employee live search** | Foundation: creates employees/query-params.ts + `employeeSearchPredicate` + the extracted debounce hook. The palette composes its predicate. Behavior-preserving search-box refactor is safest before new UI piles on. |
-| 2 | **CSV ведомость** | Fully independent, smallest diff (2 files + tests), zero coupling — a clean warm-up; can run parallel to 1. |
-| 3 | **Clone** | Independent of 1–2; the serial-nullable decision (the only schema touch) must be resolved at planning and migrated FIRST if accepted. |
-| 4 | **Bulk issue/return** | Independent query/action layer; largest UI refactor (row structure). Doing it after clone keeps actions.ts churn in two reviewable steps. |
-| 5 | **⌘K palette** | LAST by dependency: composes `searchDevices` (exists) + `searchEmployees` (slice 1) behind the new /api/search route; pure additive UI + one route. Delivers the headline UX once both backends exist. |
-
-Hard dependency: 1 → 5. Everything else is soft ordering chosen for review size and risk isolation.
-
-## New-vs-Modified File Map (consolidated)
-
-| File | Status | Features |
-|------|--------|----------|
-| app/(app)/employees/query-params.ts | NEW | 1 |
-| app/(app)/employees/search-box.tsx | NEW | 1 |
-| components/debounced-search.ts | NEW (extracted engine) | 1 |
-| app/api/search/route.ts | NEW | 2 |
-| app/(app)/command-palette.tsx | NEW | 2 |
-| app/(app)/devices/selection.tsx | NEW | 5 |
-| drizzle/000X_*.sql (+ db/schema.ts change) | NEW, only if serial decision (b) | 4 |
-| db/queries/employees.ts | MODIFIED | 1, 2 |
-| db/queries/devices.ts | MODIFIED | 2, 3, 4 |
-| db/queries/movements.ts | MODIFIED | 5 |
-| app/(app)/employees/page.tsx | MODIFIED | 1 |
-| app/(app)/devices/search-box.tsx | MODIFIED (refactor onto hook) | 1 |
-| app/(app)/devices/page.tsx | MODIFIED | 5 |
-| app/(app)/devices/actions.ts | MODIFIED | 4, 5 |
-| app/(app)/layout.tsx | MODIFIED (mount palette) | 2 |
-| app/api/devices/export/route.ts | MODIFIED (4 columns) | 3 |
-| lib/device-schema.ts | MODIFIED (only per serial decision / clone payload) | 4 |
-| lib/movement-schema.ts | MODIFIED (bulk schemas) | 5 |
-| lib/csv.ts, filter-bar.tsx, proxy.ts, db/index.ts | UNCHANGED | — |
-
-## Anti-Patterns to Avoid (this codebase's specific drift paths)
-
-1. **Second URL parser/builder** (employees local buildQuery growing q ad hoc, or a palette-private param encoding) — every second parse path is the drift the phase-5 refactor killed. Each list gets exactly one pure params module its islands import.
-2. **Second device predicate for the palette** — `searchDevices` MUST compose the existing `searchPredicate`; a re-spelled LIKE with different escaping/caps will diverge from the list («палитра находит, список — нет» is the cardinal bug of this milestone).
-3. **Second CSV endpoint for «ведомость»** — parallel-table regression against D-18; extend exportDevices/route instead.
-4. **Selection in the URL** — non-filter state in the filter vocabulary; stale ids in shareable links.
-5. **Per-device server action calls in a JS loop for bulk** — N round trips, N transactions, partial states on failure; one tx, one event per device, `.changes` guard.
-6. **Copying serial/inventory into clones** — UNIQUE normalized columns are business conditions (D-17); collision must be structurally impossible (per-clone serials, computed inventory), with uniqueCodeOf as backstop, never the mechanism.
-7. **Inventing inventory numbers when the source has none** — D-16: inventory is 1C-assigned; auto-increment only extends an existing digit-suffixed number.
-8. **cmdk import before measuring** — a dependency for ~150 lines the Base UI dialog + a flat index already cover; the project's hand-rolled rule exists for exactly this size of need.
+1. **Filter parity (XLSX):** the file MUST equal «что на экране» — guaranteed structurally by reusing parseDevicesSearchParams + toDeviceListFilters + exportDevices; any second parse path WILL drift (the CSV route's own header comment, WR-01).
+2. **Warranty verdict parity:** the «Статус гарантии» cell composes `warrantyState(warrantyUntil, today)` through `WARRANTY_STATE_LABELS` — the same calculation behind the site color, so text and color cannot disagree (WR-01/D-03).
+3. **Keystone parity (both files):** header labels come from `deviceCsvHeader()` / `keystoneLabel` — one edit to PER_TYPE_FIELDS changes the form AND both files (D-02).
 
 ## Scaling Considerations
 
-Not a concern at this scale (single operator, hundreds of rows — phase-5 measured 0.76 ms @ 600 rows), but two design points keep headroom free: palette queries are LIMIT-capped scans (an FTS5 index over devices/employees is the drop-in upgrade if the registry ever reaches tens of thousands), and the bulk tx is capped at 50 devices per call (bounded statements per transaction, no unbounded payloads). Nothing else in these five features has a scaling dimension worth engineering for now.
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| Current (1 user, hundreds of devices, ≤8 photos each @1600px) | In-memory XLSX buffer, no streaming, unpaginated file — all fine; phase-5 measured class 0.76 ms @ 600 rows |
+| Thousands of devices | Still fine; write-excel-file has `.toStream()` as the drop-in upgrade — do not build it now |
+| Never (out of scope per PROJECT.md) | Multi-user, roles, external cloud |
+
+### Scaling Priorities
+
+1. **First bottleneck (theoretical):** none of these features moves the needle — DB queries are single-digit ms and photos are disk-served with immutable private caching. Spend no effort here.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: A second parse/strip path in the XLSX route
+**What people do:** re-shaping search params or re-implementing sentinel-stripping «just for xlsx».
+**Why it's wrong:** a malformed URL would make the XLSX diverge from the page view — the exact D-08 bug class the CSV route fixed in phase 11 (duplicate `?q=` values).
+**Do this instead:** the 5-call shared chain verbatim. Optional hardening: extract `toDeviceListFilters(parseDevicesSearchParams(sp))` into one pure helper in query-params.ts consumed by BOTH export routes (vitest-importable, and it shrinks the CSV route too).
+
+### Anti-Pattern 2: Reusing the CSV cell hacks in the XLSX
+**What people do:** copying `diagonalCell()` («21,5» comma-string) and `isoFileDate()` strings into the xlsx builder.
+**Why it's wrong:** typed number cells with format `'0.0'` make RU-Excel render «21,5» itself; Date cells sort numerically regardless of display format. String cells would break Excel sorting/filtering and re-create the «21.май» bug in reverse.
+**Do this instead:** numbers stay numbers, dates stay Dates; the comma/ISO hacks remain CSV-only. (`esc()` is likewise CSV-only — XLSX string cells are not re-parsed as formulas, so CWE-1236 has no XLSX surface here; notes stay a plain string cell.)
+
+### Anti-Pattern 3: Duplicating the 20 labels or the warranty dictionary in lib/device-xlsx.ts
+**Why it's wrong:** parallel dictionaries drift (D-02).
+**Do this instead:** import `deviceCsvHeader`/`WARRANTY_STATE_LABELS` from lib/device-csv.ts; extract the inline `да/нет` mapping into an exported `ramUpgradedCell()` there (one-line production refactor, already pinned by tests/csv-export.test.ts).
+
+### Anti-Pattern 4: A third-party lightbox component
+**What people do:** `yet-another-react-lightbox` (+ zoom plugin) or `react-photo-view`.
+**Why it's wrong:** they own the portal, scrim and chrome — they REPLACE the existing Dialog (losing the delete affordance, confirm-dialog stacking, sr-only title, and the ⌘K probe attribute) instead of enhancing it; supply-chain surface for a solved problem.
+**Do this instead:** zoom stage island inside the existing DialogContent; gesture math in pure lib/zoom-math.ts.
+
+### Anti-Pattern 5: `touch-action: none` on the whole dialog, or setState per pointermove
+**Why it's wrong:** kills all scrolling/interaction inside the panel; per-move re-renders jank the transform on phones.
+**Do this instead:** touch-action only on the stage element; refs + requestAnimationFrame writes; handle `pointercancel` (iOS fires it aggressively).
+
+### Anti-Pattern 6: A separate "dashboard-queries" module for convenience features
+**Why it's wrong:** forces exporting deviceWhere/warrantyPredicate terms — the drift path the devices.ts header explicitly forbids.
+**Do this instead:** add functions to db/queries/devices.ts beside the predicates; injectable `today` defaulting to displayTodayUtc().
+
+## Integration Points
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| lib/device-xlsx.ts ↔ lib/device-csv.ts | direct imports | Header labels, WARRANTY_STATE_LABELS, (optionally extracted) ramUpgradedCell — one source each |
+| export-xlsx route ↔ query-params.ts | parse + strip + builder | Same trio the page and CSV route use; the XLSX link needs NO query-param changes (no new DeviceFilters field) |
+| export-xlsx route ↔ db/queries/devices.ts | exportDevices() | Unchanged — the XLSX row set IS the CSV row set (same DeviceExportRow superset) |
+| photo-zoom-stage ↔ photo-grid.tsx | props: src/alt (+ optional thumbSrc) | Dialog shell, delete flow, confirm sibling, router.refresh() all stay in photo-grid |
+| Zoom stage ↔ /api/attachments/[id] | existing GET ?variant=full | Zero server changes; `Cache-Control: private, immutable` already correct |
+| New convenience queries ↔ (app)/page.tsx | direct sync calls, once-per-render `today` | Deep-links only via buildDevicesQuery |
+| New dialog features ↔ dialog families | components/ui/dialog.tsx recipes | Red destructive reserved («Списать», device delete — UI-SPEC Default 11); neutral ink primary for photo-delete-style confirms; React 19 echo-values-in-state on form error (4886f6a decision) |
+| Palette extensions ↔ command-palette.tsx | Autocomplete.Group / native-anchor items | Downloads = native `<a>` anchors (CSV precedent, last keyboard stop; Enter dispatches a real DOM click); new entity kinds would extend /api/search + searchPaletteDevices (parity via deviceWhere is structural) |
+
+### External Dependencies
+
+| Dependency | Integration Pattern | Notes |
+|------------|--------------------|-------|
+| **write-excel-file ^4.1.1** (npm, active — Jun 2026 publish, 1.8 MB unpacked) | `import writeExcelFile from 'write-excel-file/node'`; `writeExcelFile(sheetData, { columns }).toBuffer()` | v4 API; per-cell `value/type/format/fontWeight/align`; `columns[].width` in characters; header styling explicit in v4 (no default bold). Date→serial conversion is `getTime()/86400000 + 25569` — pure UTC math, no local getters (source-verified), so the app's UTC-midnight stamps land on the exact calendar day with zero TZ drift — the CR-01 bug class is structurally absent. **Spike first:** if the route bundler chokes on the Node import, add `serverExternalPackages: ['write-excel-file']` to next.config.ts (the sharp precedent) |
+| SheetJS (`xlsx` npm) — REJECTED | — | npm copy stale at 0.18.5 (known CVEs fixed only in vendor-CDN builds); real releases live on cdn.sheetjs.com, not npm — supply-chain smell for an internal app |
+| exceljs — REJECTED | — | Richest styling API but 21.8 MB unpacked, last publish Dec 2024, explicit maintenance-inactivity concerns (GitHub issue #2884) |
+| Lightbox libs — REJECTED | — | see Anti-Pattern 4 |
+
+## Build Order (dependency-respecting)
+
+| # | Slice | Why here |
+|---|-------|----------|
+| 1 | **XLSX lib module** | `npm i write-excel-file` + bundling spike → lib/device-xlsx.ts (`deviceXlsxSheetData` + `buildDeviceXlsx` + `xlsxResponseHeaders`) → tests/xlsx-export.test.ts pinning the matrix (labels byte-exact incl. U+2033 ″, sparse config block order, warranty text parity, 21.5 stays a number, UTC-midnight date → exact serial day). The module is independently testable — no route needed yet. |
+| 2 | **XLSX route** | app/api/devices/export-xlsx/route.ts (thin composer). Optionally first extract the shared parse-strip helper into query-params.ts and put the CSV route on it — mechanical, test-pinned. Depends on 1. |
+| 3 | **XLSX surfaces** | filter-bar.tsx second `<a>`; command-palette.tsx second native-anchor row. Depends on 2; zero new state anywhere. |
+| 4 | **Lightbox** | Fully independent of 1–3, can run in parallel: lib/zoom-math.ts + tests → photo-zoom-stage.tsx → rewire photo-grid.tsx DialogContent (wider panel) → phone UAT (pinch, pointercancel, delete-button reachability at zoom, Escape still closes). |
+| 5 | **Manager conveniences** | LAST — scope first (per PROJECT.md, «скоупятся на этапе требований»). Each plugs into the Pattern-3 / deep-link / dialog-family / palette extension points; no new infra. |
+
+Slices 1–3 are one linear chain (lib → route → surfaces); 4 is an independent client island; 5 is query-layer + page work.
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|---------------|------------|
+| XLSX route bundling | write-excel-file's Node import vs Next's route bundler | 30-min spike before planning the lib module; `serverExternalPackages` escape hatch (sharp precedent) |
+| XLSX numFmt | `format: 'dd.mm.yyyy'` / `'0.0'` display quirks in RU Excel/Numbers | Pin sheetData in vitest; eyeball one real file in UAT on RU-locale Excel |
+| Lightbox a11y | Escape must still close the Dialog (Base UI owns it); gestures must not swallow it; ⌘K must stay inert while open | Gestures pointer-only, Dialog root untouched; assert the `data-slot="dialog-content"` probe still matches |
+| iOS Safari | pointercancel mid-pinch; double-tap page zoom | touch-action: none on the stage; handle pointercancel as full release; preventDefault on dbltap |
+| Convenience filters (if scoped) | A new filter dimension must touch 2 files in lockstep: query-params.ts (DeviceFilters + parser + strip + builder) AND deviceWhere in db/queries/devices.ts | query-params.ts header says it: «a new DeviceFilters field must be added here too — in this single place»; parity tests follow the csv-export precedent |
 
 ## Open Questions for Planning
 
-1. **Serial-nullable migration (Feature 4)** — accept (b) or ship (a)? Decides whether the milestone has a schema touch at all.
-2. **`received` event on clone (and on plain create?)** — timeline/feed consistency vs. scope discipline.
-3. **Archived employees in the palette** — show with «архив» badge (recommended) or active-only?
-4. **Bulk cap (50?) and cross-page selection** — confirm cap; cross-page selection documented non-goal unless the operator objects.
-5. **CSV typed columns** — 4 sparse columns (recommended) vs one merged «Конфигурация» text column.
+1. **write-excel-file bundling spike** — does the route handler bundle it cleanly, or is `serverExternalPackages` needed? Resolves slice 1's only unknown.
+2. **XLSX date display format** — real Date cells with `dd.mm.yyyy` (recommended: RU-readable, sorts by underlying serial) vs ISO-string cells for byte-parity with the CSV? Recommend Date cells; confirm in scoping.
+3. **Column widths / styling depth** — bold header + widths only (recommended), or borders/freeze-pane? Freeze header row is a cheap differentiator.
+4. **Lightbox extras** — prev/next arrows and swipe-between photos are cheap (the array is already in scope in photo-grid) but expand gesture surface; in or out?
+5. **Manager conveniences scope** — entirely deferred to requirements scoping; this research only maps the extension points they would plug into.
 
 ## Sources
 
-- Codebase (HIGH, read this run): db/queries/devices.ts, employees.ts, movements.ts; db/index.ts; db/schema.ts; drizzle/0000_amusing_talon.sql (movements triggers); app/(app)/devices/{page,filter-bar,search-box,query-params,actions}.*; app/(app)/employees/page.tsx; app/(app)/layout.tsx, nav.tsx; app/api/devices/export/route.ts; lib/{csv,normalize.mjs,device-schema,movement-schema}.ts; proxy.ts; tests/helpers.ts; package.json.
-- better-sqlite3 v13 transaction.js from installed node_modules (HIGH — source read: rollback only on exception propagation).
-- Next.js 16.3.3 bundled docs node_modules/next/dist/docs (HIGH for this version): proxy.md (middleware→proxy rename), server-actions.md (refresh/revalidatePath semantics), route-handlers.md.
-- Web: cmdk ecosystem fragmentation (LOW, single source, non-load-bearing) — [cmdk-base](https://www.npmjs.com/package/cmdk-base), [dip/cmdk](https://github.com/dip/cmdk), [react-cmdk](https://react-cmdk.com/).
+- Codebase (HIGH, read this run): lib/device-csv.ts, lib/csv.ts, lib/photos.ts, db/queries/devices.ts, app/api/devices/export/route.ts, app/api/attachments/[attachmentId]/route.ts, app/(app)/(card)/devices/[id]/photo-grid.tsx, app/(app)/devices/filter-bar.tsx, app/(app)/devices/query-params.ts, app/(app)/page.tsx, components/command-palette.tsx, components/ui/dialog.tsx, package.json, tests/csv-export.test.ts
+- Pinned Next.js 16.3.3 docs (HIGH): node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md — Web Request/Response handlers, streaming section
+- npm registry (HIGH, queried directly 2026-09-29): exceljs 4.4.0 / publish 2024-12 / 21.8 MB; write-excel-file 4.1.1 / publish 2026-06 / 1.8 MB; xlsx 0.18.5 stale on npm
+- write-excel-file README + source (HIGH): `source/xlsx/helpers/convertDateToSerialNumber.js` — `getTime()/day + daysBeforeUnixEpoch`, pure UTC; v4 `.toBuffer()` API; cell format/fontWeight/align; `columns[].width`
+- Mobile gesture best practice (MEDIUM): MDN Pointer Events pinch-zoom guidance; LogRocket zoom/pan/pinch write-up; react-quick-pinch-zoom as reference gesture implementation
+- Digests cached via research-store (keys 2950192d…, 52a19c64…, 1aa41b2e…, 984bd277…)
 
 ---
-*Architecture research for: Barahlo v1.1 «Скорость и удобство»*
-*Researched: 2026-09-15*
+*Architecture research for: Barahlo v1.3 «Удобство и выгрузка»*
+*Researched: 2026-09-29*

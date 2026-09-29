@@ -1,0 +1,1 @@
+{"content":"SQLite DROP TRIGGER [IF EXISTS] name removes a trigger so it no longer fires; DDL participates in transactions and rolls back; IF EXISTS suppresses the missing-trigger error. Source: sqlite.org/lang_droptrigger.html.","source":"web","provider":"webfetch","confidence":"MEDIUM","fetched_at":"2026-09-28T05:00:38.952Z","ttl":86400000,"kind":"docs"}
