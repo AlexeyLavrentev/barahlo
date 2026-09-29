@@ -21,10 +21,10 @@ current_phase_name: Удаление устройств
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-28)
+See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 12 — Правка и удаление записей истории
+**Current focus:** Planning next milestone (v1.2 closed)
 
 ## Current Position
 
