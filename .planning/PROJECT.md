@@ -135,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-29 после Phase 13 (удаление устройств) — milestone v1.2 fully executed, awaiting close*
+*Last updated: 2026-09-29 after v1.2 milestone (Гигиена данных — правка/удаление истории, удаление устройств)*

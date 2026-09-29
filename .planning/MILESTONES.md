@@ -1,5 +1,18 @@
 # Milestones
 
+## v1.2 Гигиена данных (Shipped: 2026-09-29)
+
+**Phases completed:** 2 phases, 4 plans, 9 tasks
+
+**Key accomplishments:**
+
+- Дата-ядро правки истории: миграция 0002 сняла append-only в цепочке (SC5), кейстоун получил edit-схемы с обязательной датой, query-слой — replay-движок editMovement/deleteMovement с проекцией статуса в одной транзакции (D-03/D-04)
+- UI-поверхность правки истории: клиентский остров таймлайна с «Исправить»/«Удалить» на каждой записи, диалоги по паттерну movement-dialogs, два Server Actions с requireSession-first и {code}→русские копии; UAT оркестратора 9/9 + backstop-фикс переноса 500-символьного комментария
+- `deleteDevice` — жёсткое удаление устройства одной транзакцией (movements → attachments → devices с guardом DEVICE_GONE) + post-commit unlink фото-пар, keystone `deviceDeleteSchema` и тест-матрица из 7 ножей, включая parity-обход шести поверхностей при нулевых правках read-кода
+- `deleteDeviceAction` (requireSession-first, {code}→русские копии, redirect вне try/catch) + красный `DeviceDeleteDialog` — третья инсталляция деструктивного семейства — + тихая зона `data-device-delete` на карточке вне disposed-условного + `pluralMovementRecords`; контракт прикреплён source-gates
+
+---
+
 ## v1.1 Скорость и удобство (Shipped: 2026-09-18)
 
 **Phases completed:** 5 phases, 7 plans, 17 tasks
