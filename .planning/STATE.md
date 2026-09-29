@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Гигиена данных
 current_phase: 13
-current_phase_name: Удаление устройств
-status: verifying
+status: completed
 stopped_at: Completed 13-02-PLAN.md (deleteDeviceAction + DeviceDeleteDialog + quiet zone + pluralMovementRecords)
-last_updated: "2026-09-28T11:31:09.288Z"
-last_activity: 2026-09-28
-last_activity_desc: Phase 12 complete, transitioned to Phase 13
+last_updated: "2026-09-29T04:21:29.139Z"
+last_activity: 2026-09-29
+last_activity_desc: Phase 13 complete
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 4
   completed_plans: 4
   percent: 100
+current_phase_name: Удаление устройств
 ---
 
 # Project State
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-28)
 
 ## Current Position
 
-Phase: 13 — Удаление устройств
-Plan: 2 of 2
-Status: Phase complete — ready for verification
-Last activity: 2026-09-28 — Phase 12 complete, transitioned to Phase 13
+Phase: 13
+Plan: Not started
+Status: All phases complete
+Last activity: 2026-09-29 — Phase 13 complete
 
 Progress: [██████████] 100%
 
@@ -39,7 +39,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 30
+- Total plans completed: 32
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -59,7 +59,7 @@ Progress: [██████████] 100%
 | 10 | 1 | - | - |
 | 11 | 1 | - | - |
 | 12 | 2 | - | - |
-| 13 | ? | - | - |
+| 13 | 2 | - | - |
 
 **Recent Trend:**
 
