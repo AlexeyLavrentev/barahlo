@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Гигиена данных
-status: Awaiting next milestone
-stopped_at: Completed 13-02-PLAN.md (deleteDeviceAction + DeviceDeleteDialog + quiet zone + pluralMovementRecords)
-last_updated: "2026-09-29T04:32:56.412Z"
+milestone: v1.3
+milestone_name: Удобство и выгрузка
+status: planning
+last_updated: "2026-09-29T05:28:47.311Z"
 last_activity: 2026-09-29
-last_activity_desc: Milestone v1.2 completed and archived
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 100
-current_phase: 13
-current_phase_name: Удаление устройств
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Phase: Milestone v1.2 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-09-29 — Milestone v1.2 completed and archived
+Status: Defining requirements
+Last activity: 2026-09-29 — Milestone v1.3 started
 
 ## Performance Metrics
 
