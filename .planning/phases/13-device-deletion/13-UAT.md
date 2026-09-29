@@ -1,9 +1,10 @@
 ---
-status: testing
+status: resolved
 phase: 13-Удаление устройств
 source: [13-02-PLAN.md human-check / 13-VALIDATION.md Manual-Only]
 started: 2026-09-28T11:40:00Z
-updated: 2026-09-28T11:40:00Z
+updated: 2026-09-29T09:00:00Z
+signoff: user pass 2026-09-29
 ---
 
 ## Current Test
@@ -59,8 +60,10 @@ result: pass (unit) — childless no-op тест; existsSync false для ори
 total: 9
 passed: 9
 issues: 0
-pending: 1 (юзерский sign-off)
+pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
+
+**Sign-off: юзер подтвердил «pass» 2026-09-29 (по отчёту оркестратора 9/9).**
