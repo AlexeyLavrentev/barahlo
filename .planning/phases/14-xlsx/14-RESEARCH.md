@@ -399,14 +399,18 @@ The two load-bearing code blocks (builder + route) are inline in Pattern 1 above
 | A2 | `read-excel-file@9.x` Node API suits a round-trip test if adopted | Standard Stack | Test-only dependency; if API differs, drop the round-trip test — the matrix pin alone satisfies the discipline |
 | A3 | Next 16 runtime accepts a `Uint8Array` body for a GET handler | Architecture Patterns | Already proven in-house by the attachments route serving photo bytes — risk ≈ 0 |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Standalone spike outcome (D-06, first task)** — does `next build` bundle write-excel-file cleanly into the standalone server, or is `serverExternalPackages: ['write-excel-file']` needed?
    - What we know: pure JS + fflate, not on the default external list; `next.config.ts` currently has only `{ output: "standalone" }` [VERIFIED].
    - Recommendation: run the spike exactly as D-06 scopes it; only add the config entry on an actual error, and record the decision.
+   - **Resolution:** kept as the D-06 spike task — plan 14-01 Task 3 (build + standalone server + two curls + verdict; `serverExternalPackages` added only on actual error).
 2. **read-excel-file round-trip test — adopt or not** (planner decision). The sheetData matrix pin + header parity + headers pin already satisfy the csv-export discipline; the round-trip adds byte-level confidence for the serial/inventory string cells at the cost of a devDependency. CONTEXT's «async wrapper thin» pattern suggests matrix-only is sufficient.
+   - **Resolution:** round-trip REJECTED — matrix pin is sufficient, no extra devDependency (plan 14-01 Task 1 installs write-excel-file only).
 3. **Sheet name final choice** — «Устройства» (10 chars, safe) vs «Ведомость» (9 chars, safe). Claude's discretion per CONTEXT; option name `sheet` now verified, so no probe is needed — either constant just works.
+   - **Resolution:** «Устройства» pinned as `XLSX_SHEET_NAME` (plan 14-01 Task 2).
 4. **Column width values** — sensible per-column character widths are an implementation/UAT eyeball matter (D-01 «по содержимому»); suggest starting values in the plan (e.g. 12–30 chars per column) and tuning during UAT.
+   - **Resolution:** starting widths 12–30 chars in `XLSX_COLUMN_WIDTHS` (plan 14-01 Task 2), tuned during UAT (plan 14-03 checkpoint).
 
 ## Environment Availability
 
