@@ -15,7 +15,6 @@
 **Target features:**
 - XLSX-выгрузка (те же 20 колонок ведомости) рядом с существующим CSV — руководство открывает в Excel без настройки разделителей
 - Лайтбокс фото устройства: клик открывает крупно с зумом
-- Фичи удобства из research (практики руководителя) — скоупятся на этапе требований
 
 ## Requirements
 
@@ -48,7 +47,8 @@
 
 ### Active
 
-<!-- v1.3: требования определяются (research → scoping). -->
+- [ ] **EXP-02**: XLSX-выгрузка ведомости (20 колонок, parity с CSV-ведомостью, типизированные ячейки)
+- [ ] **PHOTO-01**: Лайтбокс фото устройства с зумом
 
 ### Out of Scope
 
@@ -135,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-29 at v1.3 start (Удобство и выгрузка — Excel-выгрузка, лайтбокс фото, фичи удобства)*
+*Last updated: 2026-09-29 — v1.3 scope fixed (EXP-02 XLSX-выгрузка, PHOTO-01 лайтбокс); convenience-кандидаты research отклонены владельцем → v2*
