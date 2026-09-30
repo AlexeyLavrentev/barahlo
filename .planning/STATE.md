@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Удобство и выгрузка
 status: planning
-last_updated: "2026-09-29T05:28:47.311Z"
-last_activity: 2026-09-29
+last_updated: "2026-09-30T09:24:50.000Z"
+last_activity: 2026-09-30
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Planning next milestone (v1.2 closed)
+**Current focus:** Phase 14 — XLSX-выгрузка ведомости (roadmap v1.3 создан)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-09-29 — Milestone v1.3 started
+Phase: 14 of 15 (XLSX-выгрузка ведомости)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-09-30 — Roadmap v1.3 создан (Phases 14–15, покрытие EXP-02/PHOTO-01 2/2)
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Last activity: 2026-09-29 — Milestone v1.3 started
 | 11 | 1 | - | - |
 | 12 | 2 | - | - |
 | 13 | 2 | - | - |
+| 14 | TBD | - | - |
+| 15 | TBD | - | - |
 
 **Recent Trend:**
 
@@ -97,6 +99,7 @@ Last activity: 2026-09-29 — Milestone v1.3 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [Roadmap]: v1.3 = Phases 14–15 (EXP-02→14, PHOTO-01→15); зависимостей между фазами нет — 14 серверная поверхность (thin route поверх CSV-цепочки + pure lib/device-xlsx.ts, write-excel-file@4.1.1 exact pin server-only), 15 клиентский остров без write-path риска; порядок: XLSX первым — standalone-Docker спайк первой задачей гейтит бандлинг, лайтбокс вторым — усиление существующего Base UI Dialog в photo-grid.tsx, НЕ замена (иначе умирают delete-flow и ⌘K-проба data-slot); CSV-костыли остаются CSV-only — XLSX шарит модель колонок, не рендереры; convenience-кандидаты research отклонены владельцем → v2 (VIEW-01..MOB-01)
 - [Roadmap]: v1.2 = Phases 12–13 (HIST-01..03 → 12, DEL-01..02 → 13); единственная жёсткая зависимость 12→13 — каскадное удаление истории требует снятого DELETE-триггера, а снятие append-only инварианта делается миграцией в Phase 12 (не обходом); updateDeviceAction не трогается; удаление ≠ списание; research вехи скипнут владельцем
 - [Roadmap]: v1.1 = Phases 7–11 (FIND-05→7, EXP-01→8, REG-06→9, MOVE-06→10, FIND-06→11); единственная жёсткая зависимость 7→11; порядок 8–10 — изоляция рисков (CSV — нулевой diff, клон несёт единственную миграцию схемы serial→nullable — решение на плане фазы 9, bulk — крупнейший UI-рефактор)
 - [Roadmap]: Фото (REG-05) слиты в Фазу 4 (Custody) — одиночное требование, зависят только от реестра устройств; объявленная линия отреза при сдвиге сроков
@@ -159,8 +162,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 12]: как именно снимается append-only инвариант (дроп триггеров vs замена на мягкую защиту) и как выглядит миграция (hand-written SQL как триггеры в 0000; путь применения — прецедент раннера serial→nullable фазы 9) — решение принимается на плане фазы
-- [Phase 13]: механика каскада (ON DELETE CASCADE в миграции vs явный in-tx DELETE movements перед устройством) и подтверждение удаления (диалог vs type-to-confirm) — решение принимается на плане фазы
+- [Phase 14]: решения на плане фазы (research Gaps, не блокируют roadmap) — sheet-name опция write-excel-file v4 (проба одной строкой), формат дат в ячейках (реальные Date-ячейки dd/mm/yyyy рекомендовано vs ISO-строки byte-parity с CSV), глубина стайлинга (bold+widths+freeze рекомендовано), notes-кап 32 767 (патологический тест, defensive slice); autofilter в библиотеке отсутствует (PR #19) — обход «Данные → Фильтр», библиотеку не менять
 
 ## Deferred Items
 
@@ -172,10 +174,10 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-28T11:31:09.282Z
-Stopped at: Completed 13-02-PLAN.md (deleteDeviceAction + DeviceDeleteDialog + quiet zone + pluralMovementRecords)
+Last session: 2026-09-30T09:24:50.000Z
+Stopped at: Roadmap v1.3 создан — Phases 14–15, покрытие 2/2 (EXP-02→14, PHOTO-01→15), REQUIREMENTS.md traceability обновлена
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan the first phase: /gsd-plan-phase 14

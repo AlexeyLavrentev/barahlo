@@ -47,14 +47,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXP-02 | — | Pending |
-| PHOTO-01 | — | Pending |
+| EXP-02 | Phase 14 | Pending |
+| PHOTO-01 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 2 total
-- Mapped to phases: 0
-- Unmapped: 2 ⚠️
+- Mapped to phases: 2
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-09-29*
-*Last updated: 2026-09-29 after initial definition*
+*Last updated: 2026-09-30 — roadmap v1.3: EXP-02 → Phase 14, PHOTO-01 → Phase 15*
