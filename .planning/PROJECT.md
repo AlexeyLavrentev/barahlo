@@ -48,7 +48,7 @@
 
 ### Active
 
-- [ ] **PHOTO-01**: Лайтбокс фото устройства с зумом
+- ✓ Лайтбокс фото: зум (колесо к курсору/даблклик/pinch), drag-pan, сброс, prev/next-навигация, удаление и ⌘K не сломаны — Validated in Phase 15: Лайтбокс фото устройства
 
 ### Out of Scope
 
@@ -135,4 +135,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-29 — v1.3 scope fixed (EXP-02 XLSX-выгрузка, PHOTO-01 лайтбокс); convenience-кандидаты research отклонены владельцем → v2*
+*Last updated: 2026-10-01 — v1.3 complete: EXP-02 (фаза 14) + PHOTO-01 (фаза 15) validated; веха готова к /gsd-complete-milestone*
