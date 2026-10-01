@@ -1,10 +1,12 @@
 ---
 phase: 15
 slug: lightbox
-status: draft
+status: approved
 shadcn_initialized: true
 preset: base-nova
 created: 2026-10-01
+reviewed_at: 2026-10-01
+reviewed_by: gsd-ui-checker (6/6 PASS, no recommendations)
 ---
 
 # Phase 15 — UI Design Contract — Лайтбокс фото устройства
@@ -223,11 +225,11 @@ CONTEXT.md D-01..D-06 user-locked и использованы дословно. 
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-10-01 (gsd-ui-checker, `## UI-SPEC VERIFIED`)
