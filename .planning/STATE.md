@@ -6,15 +6,15 @@ current_phase: 15
 current_phase_name: Лайтбокс фото устройства
 status: executing
 stopped_at: Phase 15 UI-SPEC approved
-last_updated: "2026-10-01T06:54:40.652Z"
+last_updated: "2026-10-01T07:07:41.000Z"
 last_activity: 2026-10-01
-last_activity_desc: Phase 14 complete, transitioned to Phase 15
+last_activity_desc: Phase 15 plan 15-01 executed (lightbox + wheel zoom)
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
-  percent: 50
+  completed_plans: 4
+  percent: 60
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** Мгновенный точный ответ: где конкретная единица техники, кто ею пользуется и какая конфигурация — за секунды, поиском или фильтром.
-**Current focus:** Phase 14 — XLSX-выгрузка ведомости
+**Current focus:** Phase 15 — Лайтбокс фото устройства
 
 ## Current Position
 
-Phase: 15 — Лайтбокс фото устройства
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-01 — Phase 14 complete, transitioned to Phase 15
+Phase: 15 (Лайтбокс фото устройства) — EXECUTING
+Plan: 2 of 2 (15-01 complete)
+Status: Executing Phase 15
+Last activity: 2026-10-01 — 15-01 executed: усиленный лайтбокс max-w-5xl + ZoomStage fade-in + wheel-зум к курсору, TDD lib/zoom.ts (530/530)
 
 ## Performance Metrics
 
@@ -97,6 +97,7 @@ Last activity: 2026-10-01 — Phase 14 complete, transitioned to Phase 15
 | Phase 13 P02 | 13min | 2 tasks | 6 files |
 | Phase 14 P02 | 12min | 2 tasks | 2 files |
 | Phase 14 P03 | 10min+UAT | 2 tasks | 2 files |
+| Phase 15 P01 | 9min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -106,6 +107,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - [Roadmap]: v1.3 = Phases 14–15 (EXP-02→14, PHOTO-01→15); зависимостей между фазами нет — 14 серверная поверхность (thin route поверх CSV-цепочки + pure lib/device-xlsx.ts, write-excel-file@4.1.1 exact pin server-only), 15 клиентский остров без write-path риска; порядок: XLSX первым — standalone-Docker спайк первой задачей гейтит бандлинг, лайтбокс вторым — усиление существующего Base UI Dialog в photo-grid.tsx, НЕ замена (иначе умирают delete-flow и ⌘K-проба data-slot); CSV-костыли остаются CSV-only — XLSX шарит модель колонок, не рендереры; convenience-кандидаты research отклонены владельцем → v2 (VIEW-01..MOB-01)
+- [Phase 15/План 01]: ZoomStage — соседний клиентский модуль (D-04) с чистым жизненным циклом useEffect для нативного wheel-листенера; math только через pure lib/zoom.ts (t'=(1−k)·p+k·t, clamp scale ДО translate — Pitfall 8), пиннут 15 vitest-тестами — единый источник для Wave 2; колесо вешается только на stageRef (над контролами инертно, Default 5)
+- [Phase 15/План 01]: Сброс зума — key-ремаут <ZoomStage key={lightboxPhoto.id}> (Pattern 4), ноль setState в телах эффектов (правило React 19 eslint); DialogContent несёт ОБА класса max-w-5xl sm:max-w-5xl (tailwind-merge переживает базовый sm:max-w-sm — Pitfall 2); «Удалить фото» — оверлей bottom-2 left-2 z-10 bg-surface/90 поверх стейджа, вне CSS-трансформации (гейт canMutate байт-точен); Rule 1: wheelScale(2,−100) плана — описка, пиннута формула 2·e^0.15=2.3237
 - [Roadmap]: v1.2 = Phases 12–13 (HIST-01..03 → 12, DEL-01..02 → 13); единственная жёсткая зависимость 12→13 — каскадное удаление истории требует снятого DELETE-триггера, а снятие append-only инварианта делается миграцией в Phase 12 (не обходом); updateDeviceAction не трогается; удаление ≠ списание; research вехи скипнут владельцем
 - [Roadmap]: v1.1 = Phases 7–11 (FIND-05→7, EXP-01→8, REG-06→9, MOVE-06→10, FIND-06→11); единственная жёсткая зависимость 7→11; порядок 8–10 — изоляция рисков (CSV — нулевой diff, клон несёт единственную миграцию схемы serial→nullable — решение на плане фазы 9, bulk — крупнейший UI-рефактор)
 - [Roadmap]: Фото (REG-05) слиты в Фазу 4 (Custody) — одиночное требование, зависят только от реестра устройств; объявленная линия отреза при сдвиге сроков
@@ -183,9 +186,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T06:18:59.624Z
-Stopped at: Phase 15 UI-SPEC approved
-Resume file: .planning/phases/15-lightbox/15-UI-SPEC.md
+Last session: 2026-10-01T07:07:41.000Z
+Stopped at: Completed 15-01-PLAN.md — next: 15-02 (pointer-жесты + навигация)
+Resume file: .planning/phases/15-lightbox/15-02-PLAN.md
 
 ## Operator Next Steps
 
