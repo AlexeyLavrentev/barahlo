@@ -15,7 +15,7 @@ requires:
 provides:
   - Кнопка «Скачать XLSX» в filter-bar — серверный якорь /api/devices/export-xlsx + buildDevicesQuery(filters) (текущие фильтры), без второго ml-auto (Pitfall 14.5)
   - Строка «Скачать ведомость XLSX» в ⌘K-палитре — XLSX_ITEM ({ kind: 'xlsx' }) + Autocomplete.Item с render-якорем на /api/devices/export-xlsx (весь парк), без router.push/window.open (Pitfall 14.4)
-  - UAT-чекпойнт (T2) — 8-шаговая приёмка в реальном RU-Excel (SC 1–4 фазы); на момент записи awaiting human approval
+  - UAT-чекпойнт (T2) — 8-шаговая приёмка в реальном RU-Excel (SC 1–4 фазы); пройдена оператором 2026-10-01, протокол .planning/phases/14-xlsx/14-UAT.md
 affects: [14-xlsx verify-work (SC 2/3 human_judgment), phase-15-next]
 
 # Tech tracking
@@ -26,6 +26,7 @@ tech-stack:
 key-files:
   created:
     - .planning/phases/14-xlsx/14-03-SUMMARY.md
+    - .planning/phases/14-xlsx/14-UAT.md
   modified:
     - app/(app)/devices/filter-bar.tsx
     - components/command-palette.tsx
@@ -38,7 +39,7 @@ key-decisions:
 patterns-established:
   - "Additive sibling surface: второй экспорт рядом с первым копирует рецепт, но НЕ дублирует якорные декорации (авто-маржин кнопки, разделитель списка) — они принадлежат первому элементу блока"
 
-requirements-completed: [] # EXP-02 уже помечен в 14-02 (серверная часть); финальный UAT-гейт — T2 этого плана, продолжение закроет после одобрения
+requirements-completed: [] # EXP-02 уже помечен в 14-02 (серверная часть); финальный UAT-гейт T2 этого плана пройден 2026-10-01 (14-UAT.md)
 
 coverage:
   - id: S1
@@ -60,26 +61,30 @@ coverage:
   - id: S3
     description: "UAT SC 1–4 в реальном RU-Excel: файл без «восстановить книгу», «21,5»/«125 000» numFmt-ами, даты дд.мм.гггг, серийники текстом без E+15, кириллическое имя из Windows-браузера, Enter в палитре скачивает, без сессии данные не отдаются, пустой результат = шапка без строк"
     requirement: EXP-02
-    verification: []
+    verification:
+      - kind: uat
+        ref: ".planning/phases/14-xlsx/14-UAT.md — 8/8 шагов result: pass, одобрено оператором 2026-10-01 (шаг 7 — диагностика валидного session-cookie, не дефект)"
+        status: pass
     human_judgment: true
-    rationale: "SC 1–4 фазы проверяются только глазами в реальном RU-Excel и живой палитре — ни один раннер репозитория не эмулирует viewer-локаль/клавиатуру/сессионный гейт (research §Test Map); гейт — чекпойнт T2 этого плана, на момент записи awaiting human approval"
+    rationale: "SC 1–4 фазы проверяются только глазами в реальном RU-Excel и живой палитре — ни один раннер репозитория не эмулирует viewer-локаль/клавиатуру/сессионный гейт (research §Test Map); гейт — чекпойнт T2 этого плана, пройден оператором 2026-10-01"
 
 # Metrics
-duration: ~10 min (T1) — UAT (T2) pending
+duration: ~10 min (T1) + human UAT (T2)
 completed: 2026-10-01
-status: checkpoint # T1 committed 642bfa3; T2 = blocking human-verify, продолжение финализирует после "approved"
+status: complete # T1 committed 642bfa3; T2 UAT пройдена оператором 2026-10-01 (14-UAT.md, 8/8 pass)
 ---
 
 # Phase 14 Plan 03: Поверхности XLSX + UAT Summary
 
-**Обе поверхности экспорта доставлены аддитивно — кнопка «Скачать XLSX» рядом с «Скачать CSV» (тот же рецепт минус ml-auto) и строка «Скачать ведомость XLSX» в ⌘K-палитре (нативный render-якорь, без border-t); CSV-поверхности байт-нетронуты, tsc/build/suite 514/514 зелёные; UAT-чекпойнт T2 возвращён человеку (реальный RU-Excel)**
+**Обе поверхности экспорта доставлены аддитивно — кнопка «Скачать XLSX» рядом с «Скачать CSV» (тот же рецепт минус ml-auto) и строка «Скачать ведомость XLSX» в ⌘K-палитре (нативный render-якорь, без border-t); CSV-поверхности байт-нетронуты, tsc/build/suite 514/514 зелёные; UAT в реальном RU-Excel пройден оператором 2026-10-01 — 8/8 шагов, SC 1–4 закрыты**
 
 ## Performance
 
-- **Duration:** ~10 min (T1) — T2 (UAT) ожидает человека
+- **Duration:** ~10 min (T1) + human UAT (T2)
 - **Started:** 2026-10-01T04:15:18Z
 - **T1 committed:** 2026-10-01T04:22Z
-- **Tasks:** 1 of 2 (T2 = checkpoint:human-verify, gate="blocking" — awaiting approval)
+- **T2 UAT approved:** 2026-10-01 (оператор; протокол 14-UAT.md)
+- **Tasks:** 2 of 2 (T2 = checkpoint:human-verify — пройден и одобрен)
 
 ## Accomplishments
 
@@ -92,7 +97,7 @@ status: checkpoint # T1 committed 642bfa3; T2 = blocking human-verify, прод�
 
 1. **Task 1: Поверхности — XLSX-якорь в filter-bar + XLSX-строка в ⌘K-палитре (D-08)** - `642bfa3` (feat)
 
-**Task 2 (checkpoint:human-verify, gate="blocking"):** UAT в реальном RU-Excel — возвращён оркестратору как структурированный чекпойнт; НЕ одобрялся автоматически (по мандату: человеческие глаза на реальный Excel не эмулируются). Продолжение после "approved" отметит UAT в этом SUMMARY и переведёт план в complete.
+**Task 2 (checkpoint:human-verify, gate="blocking"):** UAT в реальном RU-Excel — возвращён оркестратору как структурированный чекпойнт (НЕ одобрялся автоматически: человеческие глаза на реальный Excel не эмулируются). **Одобрен оператором 2026-10-01** — 8/8 шагов `result: pass`; протокол приёмки: `.planning/phases/14-xlsx/14-UAT.md` (шаг 7 — диагностика валидного session-cookie, не дефект).
 
 ## Files Created/Modified
 
@@ -121,6 +126,10 @@ status: checkpoint # T1 committed 642bfa3; T2 = blocking human-verify, прод�
 **Total deviations:** 1 auto-fixed (doc-drift, Rule 1)
 **Impact on plan:** Нет — комментарий-точность. CSV-якорь и CSV-строка байт-нетронуты.
 
+### UAT Note — шаг 7 (сессионный гейт): наблюдение в ходе приёмки, НЕ дефект
+
+В ходе UAT пользователь сначала наблюдал скачивание XLSX в «приватном» окне (ожидание — redirect на логин). Диагноз: в браузере присутствовал **валидный session-cookie** (30-дневный JWT, D-01; Safari в приватном режиме разделяет cookies с основной сессией) — «приватное окно» не эмулирует отсутствие сессии. Оркестратор проверил гейт живьём на работающем dev-сервере: запрос без cookie → 307, с мусорным cookie → 307. RequireSession-first работает корректно; после объяснения пользователь одобрил шаг. Задокументировано в 14-UAT.md (шаг 7); в WINDOWS.md не записывалось (не дефект).
+
 ## Issues Encountered
 
 None — tsc/build/suite зелёные с первого прогона, все acceptance-критерии T1 прошли.
@@ -131,9 +140,9 @@ None — no external service configuration required. Для T2 (UAT) нужен 
 
 ## Next Phase Readiness
 
-- После "approved" план 14-03 закрывается (SUMMARY → complete, STATE/ROADMAP финализируются) — фаза 14 достигает end-of-phase verify-work
-- Открытым остаётся только D7-класс human_judgment (SC 2/3 в реальном RU-Excel) — покрыт T2; Windows-проверка кириллического имени (шаг 5) входит в UAT
+- План 14-03 закрыт (UAT одобрен 2026-10-01) — все 3 плана фазы 14 выполнены; фаза готова к end-of-phase verify-work
+- D7-класс human_judgment (SC 2/3 в реальном RU-Excel) покрыт T2 (14-UAT.md); Windows-проверка кириллического имени (шаг 5) прошла в UAT
 
 ---
 *Phase: 14-xlsx*
-*Completed: 2026-10-01 (T1; T2 checkpoint pending)*
+*Completed: 2026-10-01 (T1 `642bfa3`; T2 UAT approved 2026-10-01)*

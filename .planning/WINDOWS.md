@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 10
+open_count: 9
 waived_count: 0
-fixed_count: 0
+fixed_count: 1
 total_count: 10
-last_updated: 2026-10-01T04:24:04.069Z
+last_updated: 2026-10-01T04:44:39.001Z
 ---
 
 # Broken Windows Ledger
@@ -24,7 +24,7 @@ last_updated: 2026-10-01T04:24:04.069Z
 | 7 | 07 | lint-warning | lib/use-search-param.ts | 124 | react-hooks/exhaustive-deps warning (flagged dep is the stable Next router — reviewed non-blocking in 07-03 gate); first recorded at plan 07-03 final gate | open |  | 2026-09-16T03:49:21.374Z |  |
 | 8 | 08 | unrun-verify | lib/device-csv.ts |  | 08: ручная проверка end-of-phase (08-VALIDATION): открыть выгрузку на dev-инстансе в RU-Excel/Numbers — «Диагональ, ″» со значением 21,5 читается числом, а не датой «21.мая» (поведение локали Excel не воспроизводится vitest); запятая-десятичная ячейка запинена unit-тестами | open |  | 2026-09-16T08:33:43.243Z |  |
 | 9 | 09 | unrun-verify | app/(app)/devices/clone-dialog.tsx |  | 09: ручная приёмка UAT (Manual-Only из 09-VALIDATION, компонентного раннера в репо нет — прецедент фаз 2–8): карточка → «Дублировать» → N=2 → копии «на складе»; backstop-пункты must_haves (порядок ряда, disabled-сабмит, очистка линии успеха); ядро и миграция запинены 391 автотестом + pragma-ассертом | open |  | 2026-09-17T05:24:20.905Z |  |
-| 10 | 14 | unrun-verify | app/(app)/devices/filter-bar.tsx |  | 14-03 T2 UAT (human-verify checkpoint): реальный RU-Excel — файл без «восстановить книгу», «21,5»/«125 000» numFmt-ами, даты дд.мм.гггг, серийники текстом без E+15 и с нулями, кириллическое имя из Windows-браузера, Enter в ⌘K-палитре скачивает XLSX, без сессии redirect, пустой результат = шапка без строк; CSV не сломан (SC 1–4 фазы 14) | open |  | 2026-10-01T04:24:04.069Z |  |
+| 10 | 14 | unrun-verify | app/(app)/devices/filter-bar.tsx |  | 14-03 T2 UAT (human-verify checkpoint): реальный RU-Excel — файл без «восстановить книгу», «21,5»/«125 000» numFmt-ами, даты дд.мм.гггг, серийники текстом без E+15 и с нулями, кириллическое имя из Windows-браузера, Enter в ⌘K-палитре скачивает XLSX, без сессии redirect, пустой результат = шапка без строк; CSV не сломан (SC 1–4 фазы 14) | fixed | RUN and PASSED 2026-10-01 — оператор одобрил UAT (8/8 pass), протокол .planning/phases/14-xlsx/14-UAT.md; шаг 7 — валидный session-cookie в браузере, не дефект | 2026-10-01T04:24:04.069Z | 2026-10-01T04:44:39.001Z |
 
 ````json
 [
@@ -143,10 +143,10 @@ last_updated: 2026-10-01T04:24:04.069Z
     "file": "app/(app)/devices/filter-bar.tsx",
     "line": null,
     "description": "14-03 T2 UAT (human-verify checkpoint): реальный RU-Excel — файл без «восстановить книгу», «21,5»/«125 000» numFmt-ами, даты дд.мм.гггг, серийники текстом без E+15 и с нулями, кириллическое имя из Windows-браузера, Enter в ⌘K-палитре скачивает XLSX, без сессии redirect, пустой результат = шапка без строк; CSV не сломан (SC 1–4 фазы 14)",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "RUN and PASSED 2026-10-01 — оператор одобрил UAT (8/8 pass), протокол .planning/phases/14-xlsx/14-UAT.md; шаг 7 — валидный session-cookie в браузере, не дефект",
     "recorded_at": "2026-10-01T04:24:04.069Z",
-    "resolved_at": null
+    "resolved_at": "2026-10-01T04:44:39.001Z"
   }
 ]
 ````
