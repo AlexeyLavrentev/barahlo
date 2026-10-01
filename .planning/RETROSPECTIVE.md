@@ -139,9 +139,53 @@
 - ~240 коммитов за 14 дней (2026-08-31 → 2026-09-14)
 - Субагенты: researcher/planner/executor/checker/reviewer/verifier — тяжелейшие проходы 1–3.8М токенов; стабильные победы — ранняя поимка TZ-гонки, NULL-RAM, search-box reconciliation
 
+## Milestone: v1.3 — «Удобство и выгрузка»
+
+**Shipped:** 2026-10-01
+**Phases:** 2 | **Plans:** 5 | **Tasks:** 12 | **Tests:** 530/28 файлов (стартовали с 515)
+
+### What Was Built
+
+- XLSX-ведомость (EXP-02): write-excel-file@4.1.1 exact pin (server-only, /node вход), те же 20 колонок из deviceCsvHeader() — типизированные ячейки (диагональ Number «21,5» рендерит Excel, даты Date dd.mm.yyyy, серийники String+'@' без scientific notation), standalone-Docker спайк первой задачей гейтит бандлинг; обе поверхности (filter-bar + ⌘K) аддитивны, CSV байт-нетронут
+- Лайтбокс (PHOTO-01): усиление существующего Base UI Dialog (max-w-5xl оба класса — tailwind-merge не снимает base sm:max-w-sm, латентный баг старой панели найден попутно), ZoomStage с fade-in, контролы-оверлей вне transform
+- Полный жестовой контракт: wheel к курсору (нативный {passive:false} — React onWheel пассивен), даблклик/тап 1↔2.5 к точке, pinch к midpoint, drag-pan с пан-клэмпом |t|≤(scaled−stage)/2, диапазон [1,4], pointercancel/lostpointercapture-гвад (с W3C-нюансом: capture теряется имплицитно после каждого pointerup — guard «pointerId ещё в кэше»), prev/next со сбросом зума key={photo.id}-ремайтом
+- TDD-математика lib/zoom.ts (15 тестов RED→GREEN) — единственный автоматический слой фазы 15, жесты верифицированы UAT
+
+### What Worked
+
+- **Разделение риска вехи:** серверная фаза (14) и клиентский остров (15) без зависимостей; спайк бандлинга ДО построения фичи закрыл главный риск XLSX
+- **Research-гвозди выстрелили точно:** оба repo-факта (passive wheel, sm:max-w-sm) попали из research прямо в планы и не стоили ни часа отладки
+- **UAT-автоматизация:** Playwright MCP + CDP dispatchTouchEvent (честный pinch в desktop-контексте!) + route-abort для битого img — 9/9 с машинными доказательствами, оператору осталось только iPhone и финальное слово
+- **Sequential-исполнители после смерти worktree-изоляции:** фаза из 2 планов лягла без конфликтов, оба агента отбились чисто
+
+### What Was Inefficient
+
+- UI-SPEC-фаза 15 сгенерировала 16 дефолтов при 100%-auto — часть (позиции контролов) оказалась переуточнением того, что executor и так вывел бы из D-контрактов CONTEXT.md
+- Формат UAT: uat-predicate не ест маркдаун «**Результат:**» — человеческий и машинный формат пришлось дублировать в одном файле (ff805b7)
+- CDP-pinch-эмуляция открылась случайно (try/catch вокруг «может не поддерживаться») — задокументирована только к финалу фазы
+
+### Patterns Established
+
+- ZoomStage-композиция: {scale,tx,ty} через pure lib/zoom.ts, жест-детекция в компоненте — математика всегда тестируема
+- key={photo.id} ремайт = конструктивный сброс стейта (React 19 setState-in-effect-безопасно)
+- Оверлей-контролы поверх трансформируемого стейджа: сиблинги вне transform, z-10, всегда смонтированы
+- CDP Input.dispatchTouchEvent — протокол touch-эмуляции без мобильного контекста
+
+### Key Lessons
+
+- «Открывается при открытом X» в SC ≠ «открывается поверх X»: probe-инерция (фаза 11) была лочена как контракт — трактовку SC сверять с планом до UAT, не на нём
+- Пин-гейты «нулевой diff package.json» — дёшевы и работают: supply-chain угроза закрыта одной строкой acceptance-критерия
+- Replay-контракт фазы 12 окупился сразу: откат списания фикстуры = удаление записи, ноль спец-кода
+
+### Cost Observations
+
+- 50 коммитов за 3 дня (2026-09-29 → 2026-10-01); 47 файлов, +6293/−68
+- Полный auto-пайплайн фазы 15 (discuss→UI-SPEC→plan→execute→review→verify→UAT→security→complete) в одной сессии — ~10 субагентов, исполнители 5.2М+4.2М токенов
+
 ## Cross-Milestone Trends
 
 | Milestone | Phases | UAT issues → fixes | Security | Note |
 |-----------|--------|--------------------|----------|------|
 | v1.0 | 6 | 30/30 pass после 7 фиксов (picker, TZ, 2×search-box, attachments flake, RAM NULL, 404-матрица) | 63 threats, 0 open | Первый milestone |
 | v1.1 | 5 | 27/27 pass (10+8+10, включая UAT-пойманные гонки G-7-1; 1 code-review WR-01 фикс до UAT) | 27 threats, 0 open | Один run на фазу; 2 миграции ноль (runner), 1 миграция через runner |
+| v1.3 | 2 | 17/17 pass (8/8 RU-Excel + 9/9 лайтбокс automated+sign-off; 2 code-review фикса инлайн до UAT: img onError, bitmap.close) | 5 threats, 0 open | Полный auto-пайплайн; 1 новая зависимость (write-excel-file pin) в фазе 14, ноль в фазе 15; миграций ноль |
