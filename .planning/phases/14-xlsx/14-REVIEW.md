@@ -65,6 +65,8 @@ it('разреженная строка (null-инвентарник/диаго�
 **Issue:** the phase-5 semantics ternary (`null → null / 1 → 'да' / 0 → 'нет'`) is hand-copied between the CSV and XLSX row builders. The phase research explicitly sanctioned this inline copy ("zero production refactor" option), so it is not a violation — but it is now the one cell renderer duplicated across the two formats, and a future wording/semantics change can silently drift them (the exact WR-01-class drift the rest of the file is built to prevent).
 **Fix:** when either file is next touched, extract a shared `ramUpgradedCell(value: number | null): 'да' | 'нет' | null` into `lib/device-csv.ts` and import it from both builders (research Pattern table already sketches this).
 
+
+**RESOLVED 2026-10-01:** sparse-row test added to tests/xlsx-export.test.ts (buildDeviceXlsx with all-nullable row → valid PK book); 515/515 green. Fixed inline by orchestrator.
 ### IN-02: `XLSX_COLUMN_WIDTHS` is positionally coupled to `deviceCsvHeader()` with no length cross-check
 
 **File:** `lib/device-xlsx.ts:33-54`

@@ -363,6 +363,34 @@ describe('buildDeviceXlsx — сборка книги (D-01/D-02/D-04)', () => {
     expect(buf.subarray(0, 2).toString('latin1')).toBe('PK')
     expect(buf.length).toBeGreaterThan(0)
   })
+
+  it('разреженная строка (все nullable поля null, как клон/без держателя) → книга собирается, не 500 (WR-01 ревью 14)', async () => {
+    const sparse: DeviceExportRow = {
+      id: 0,
+      typeKey: 'laptop',
+      model: 'Sparse Test',
+      serialNumber: null,
+      inventoryNumber: null,
+      status: 'in_stock',
+      holder: null,
+      departmentName: null,
+      ramGb: null,
+      ramUpgraded: null,
+      ssdGb: null,
+      screenDiagonal: null,
+      panelType: null,
+      portCount: null,
+      peripheralKind: null,
+      purchaseDate: null,
+      purchasePrice: null,
+      supplier: null,
+      warrantyUntil: null,
+      notes: null,
+    }
+    const buf = await buildDeviceXlsx([sparse], today)
+    expect(buf.subarray(0, 2).toString('latin1')).toBe('PK')
+    expect(buf.length).toBeGreaterThan(0)
+  })
 })
 
 describe('xlsxResponseHeaders — XLSX MIME, RFC 5987 dual filename, nosniff, no-store (D-08, SC 4)', () => {
