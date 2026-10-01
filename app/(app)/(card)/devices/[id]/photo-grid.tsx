@@ -48,8 +48,13 @@ async function resizeToJpeg(file: File, maxEdge = MAX_EDGE): Promise<Blob> {
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(bitmap.width * scale)
   canvas.height = Math.round(bitmap.height * scale)
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  bitmap.close()
+  try {
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  } finally {
+    // Canvas holds its own pixel copy — close even if drawImage throws
+    // (code-review IN-02: ImageBitmap leak on the error path).
+    bitmap.close()
+  }
   return new Promise((res, rej) =>
     canvas.toBlob(
       (b) => (b ? res(b) : rej(new Error('toBlob failed'))),

@@ -67,6 +67,9 @@ export function ZoomStage({ src, alt }: { src: string; alt: string }) {
   const imgRef = useRef<HTMLImageElement>(null)
   const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 })
   const [loaded, setLoaded] = useState(false)
+  // Broken image (404/network): fade in anyway so the alt text is VISIBLE on
+  // the muted stage (code-review WR-01) — opacity-0 hides it entirely.
+  const [failed, setFailed] = useState(false)
 
   // Mutable gesture state — refs, never React state (only {scale, tx, ty}
   // and `loaded` render). pointers is the MDN pointer cache; panStart
@@ -330,11 +333,12 @@ export function ZoomStage({ src, alt }: { src: string; alt: string }) {
         alt={alt}
         draggable={false}
         onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
         style={{
           transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})`,
         }}
         className={`max-h-full max-w-full object-contain transition-opacity duration-200 [-webkit-touch-callout:none] [-webkit-user-drag:none] ${
-          loaded ? 'opacity-100' : 'opacity-0'
+          loaded || failed ? 'opacity-100' : 'opacity-0'
         }`}
       />
     </div>
