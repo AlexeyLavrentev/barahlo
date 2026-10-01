@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Удобство и выгрузка
-current_phase: 15
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 15 executed — UAT awaiting (8 human-verification items)
-last_updated: "2026-10-01T08:51:38.534Z"
+last_updated: "2026-10-01T08:59:23.950Z"
 last_activity: 2026-10-01
-last_activity_desc: Phase 15 complete
+last_activity_desc: Milestone v1.3 completed and archived
 progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 5
   completed_plans: 5
   percent: 100
+current_phase: 15
 current_phase_name: Лайтбокс фото устройства
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Status: All phases complete
-Last activity: 2026-10-01 — Phase 15 complete
+Phase: Milestone v1.3 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-10-01 — Milestone v1.3 completed and archived
 
 ## Performance Metrics
 
@@ -196,5 +196,4 @@ Resume file: .planning/phases/15-lightbox/15-UAT.md
 
 ## Operator Next Steps
 
-- End-of-phase UAT Phase 15 (human_verify_mode): touch-эмуляция Chrome (drag/pinch/даблтап/pointercancel-гвад, края disabled, M=1, confirm/⌘K-инертность клавиш) + реальный iPhone (SC 2/3 на iOS); чеклист — 15-02-SUMMARY.md Next Phase Readiness + 15-VALIDATION.md
-- Run phase verification: /gsd-verify-work 15
+- Start the next milestone with /gsd-new-milestone

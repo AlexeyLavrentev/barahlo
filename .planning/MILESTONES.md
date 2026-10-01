@@ -1,5 +1,18 @@
 # Milestones
 
+## v1.3 Удобство и выгрузка (Shipped: 2026-10-01)
+
+**Phases completed:** 2 phases, 5 plans, 9 tasks
+
+**Key accomplishments:**
+
+- deviceXlsxSheetData заменён с трассера на пиннутую типизированную матрицу (20 ячеек: String+'@' серийники, Number 0.0/#,##0 диагональ/цена, настоящие Date-ячейки, слайс заметок 32 767), закреплённую 31 тестом через RED→GREEN — полный suite 514/514, lint 0 ошибок, build зелёный
+- Обе поверхности экспорта доставлены аддитивно — кнопка «Скачать XLSX» рядом с «Скачать CSV» (тот же рецепт минус ml-auto) и строка «Скачать ведомость XLSX» в ⌘K-палитре (нативный render-якорь, без border-t); CSV-поверхности байт-нетронуты, tsc/build/suite 514/514 зелёные; UAT в реальном RU-Excel пройден оператором 2026-10-01 — 8/8 шагов, SC 1–4 закрыты
+- Трассер усиленного лайтбокса (DialogContent max-w-5xl + ZoomStage с fade-in) и колесо-зум к курсору на нативном non-passive листенере, поверх TDD-математики lib/zoom.ts (RED→GREEN, 15 тестов) — полный suite 530/530, lint 0 ошибок, build зелёный, ноль новых зависимостей
+- Полный жестовой контракт ZoomStage (drag-pan, pinch к midpoint, двойной клик/тап 1↔2.5, iOS pointercancel/lostpointercapture-гвад) поверх математики lib/zoom.ts + навигация D-01 (стрелки/счётчик «N из M»/клавиши ←/→ с guard-контрактом) — PHOTO-01 закрыт: suite 530/530, lint 0 ошибок, smoke-custody зелёный, ноль новых зависимостей
+
+---
+
 ## v1.2 Гигиена данных (Shipped: 2026-09-29)
 
 **Phases completed:** 2 phases, 4 plans, 9 tasks
