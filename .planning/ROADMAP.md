@@ -66,7 +66,7 @@
   4. Parity с сайтом и гигиена файла: «Статус гарантии» берётся из общего словаря с цветом сайта (не параллельным); имя «устройства-ГГГГ-ММ-ДД.xlsx» корректно скачивается из Windows Chrome/Edge (RFC 5987); без сессии выгрузка данных не отдаёт (requireSession-first)
   5. Выгрузка работает на прод-способе деплоя: standalone-Docker спайк (первая задача фазы — `next build` + `node .next/standalone/server.js` + curl, до построения фичи) подтверждает, что write-excel-file корректно попадает в standalone-бандл
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -75,7 +75,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 14-02-PLAN.md — Пиннутая типизированная матрица 20 колонок (TDD RED→GREEN): Date/Number/String-ячейки, header-parity с кейстоуном, пин заголовков (SC 1–4)
+- [x] 14-02-PLAN.md — Пиннутая типизированная матрица 20 колонок (TDD RED→GREEN): Date/Number/String-ячейки, header-parity с кейстоуном, пин заголовков (SC 1–4)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -114,5 +114,5 @@ Plans:
 | 11. ⌘K глобальная палитра | v1.1 | 1/1 | Complete | 2026-09-18 |
 | 12. Правка и удаление записей истории | v1.2 | 2/2 | Complete | 2026-09-28 |
 | 13. Удаление устройств | v1.2 | 2/2 | Complete | 2026-09-29 |
-| 14. XLSX-выгрузка ведомости | v1.3 | 1/3 | In Progress|  |
+| 14. XLSX-выгрузка ведомости | v1.3 | 2/3 | In Progress|  |
 | 15. Лайтбокс фото устройства | v1.3 | 0/TBD | Not started | - |

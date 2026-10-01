@@ -5,15 +5,15 @@ milestone_name: Удобство и выгрузка
 current_phase: 14
 current_phase_name: XLSX-выгрузка ведомости
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-10-01T03:16:09.153Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-10-01T04:13:40.831Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 14 execution started
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 14 (XLSX-выгрузка ведомости) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 14
+Plan: 3 of 3
+Status: Ready to execute
 Last activity: 2026-10-01 — Phase 14 execution started
 
 ## Performance Metrics
@@ -95,6 +95,7 @@ Last activity: 2026-10-01 — Phase 14 execution started
 | Phase 11 P01 | 32min | 3 tasks | 10 files |
 | Phase 13 P01 | 13min | 2 tasks | 5 files |
 | Phase 13 P02 | 13min | 2 tasks | 6 files |
+| Phase 14 P02 | 12min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -159,6 +160,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 13/План 01]: deleteDevice — единственный guard .changes===0 → DEVICE_GONE, без статус-предусловий (D-01, DISPOSED-guard deleteAttachment сознательно не перенесён); файлы — sync unlink [key, thumbKeyOf(key)] строго после COMMIT через resolveUploadPath (D-04)
 - [Phase ?]: [Phase 13/План 01]: периметр-гейт «devices are never deleted» перевёрнут в «ровно один аудированный delete-путь (deleteDevice)» — посылка отменена D-03; SC4 проверен буквально: устройство без движений, счётчик movements базы до == после
 - [Phase ?]: [Phase 13/План 02]: redirect('/devices', 'replace') — строковый литерал по фактической сигнатуре Next (плановый A1-фолбэк, replace-семантика сохранена: мёртвая карточка вне back stack); остров без ok-эффекта — успех = redirect (13-UI-SPEC Default 11)
+- [Phase ?]: [Phase 14/План 02]: Матрица XLSX пиннута позиционно — только 4 колонки несут явные объекты-ячейки (серийник/инвентарник String+'@', диагональ Number '0.0', цена Number '#,##0'), остальные — сырые значения с library-inference; пин множества типов {String,Number,Date} по всем строкам закрывает формульные ячейки (T-14-05) и тихий дрейф (T-14-08); даты без per-cell формата — только листовой dateFormat 'dd.mm.yyyy' (D-02)
+- [Phase ?]: [Phase 14/План 02]: Rule 3 — return deviceXlsxSheetData типизирован SheetData с одним документированным кастом: CellObjectOfType<Value> write-excel-file@4.1.1 опускает null из value, рантайм пишет null как пустую ячейку; без каста TS сваливается на objects-оверлоуд и columns [{width}] не проходит; значения и сигнатура (rows, today) не тронуты
 
 ### Pending Todos
 
@@ -178,9 +181,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-09-30T10:00:34.745Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-xlsx/14-CONTEXT.md
+Last session: 2026-10-01T04:13:40.819Z
+Stopped at: Completed 14-02-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
