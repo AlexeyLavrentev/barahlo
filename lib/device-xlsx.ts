@@ -17,7 +17,7 @@
 // nested node entry — the package root resolves the browser build and
 // /universal yields Blob-only output without toBuffer (server-only rule).
 
-import writeXlsxFile from 'write-excel-file/node'
+import writeXlsxFile, { type SheetData } from 'write-excel-file/node'
 import { deviceStatusLabel, deviceTypeName } from '@/lib/device-schema'
 import { deviceCsvHeader, WARRANTY_STATE_LABELS } from '@/lib/device-csv'
 import { warrantyState } from '@/lib/warranty'
@@ -62,20 +62,39 @@ export function deviceXlsxHeaderCells() {
   }))
 }
 
-// One 20-cell row per device, in deviceCsvHeader() order. TRACER version
-// (plan 14-01): values pass through AS-IS from the DB — no Date
-// reconstruction and no number coercion (serials/inventory stay TEXT; Date
-// cells ride the sheet-level dateFormat). Plan 14-02 replaces the body with
-// the pinned typed-cell matrix (explicit type/format per column, defensive
-// notes slice) WITHOUT changing this signature. `today` feeds only the
-// warranty verdict — the same warrantyState behind the site color (WR-01),
-// hoisted by the caller ONCE per request.
-export function deviceXlsxSheetData(rows: DeviceExportRow[], today: Date) {
+// One 20-cell row per device, in deviceCsvHeader() order. THE PINNED TYPED
+// MATRIX (plan 14-02, Cell-Type Map of 14-RESEARCH.md): DB values pass
+// through verbatim — dates are never reconstructed (Date cells ride the
+// sheet-level dateFormat, D-02) and numbers are never stringified (the
+// library throws loudly on a type:Number cell with a non-number value).
+// Serials/inventory are the DANGEROUS direction — a numeric write is silent:
+// they are String cells with '@', the ONLY legal String-cell format
+// (Pitfall 14.1), and no Number()/+ coercion may appear between the query
+// row and this array (scientific notation + stripped leading zeros,
+// c4b2e2d recurrence, D-03). Explicit type/format objects carry ONLY the
+// four columns whose cell contract differs from the inferred default;
+// everything else stays a raw value — String/Number inference is the
+// library's own and is pinned positionally by tests/xlsx-export.test.ts
+// (type ∈ {String, Number, Date}, no Formula cells). CSV-only renderers
+// (decimal-comma diagonalCell, ISO-text isoFileDate, esc(), BOM, «;») do
+// NOT transfer — typed cells make them wrong, not redundant (D-05).
+// `today` feeds only the warranty verdict — the same warrantyState behind
+// the site color (WR-01), hoisted by the caller ONCE per request.
+export function deviceXlsxSheetData(
+  rows: DeviceExportRow[],
+  today: Date,
+): SheetData {
+  // The `as SheetData` edge: the library's `CellObjectOfType<Value>` omits
+  // null from `value`, but its RUNTIME writes a null value as an empty cell
+  // (research §Cell object) — DB nulls pass through verbatim, so the cast
+  // documents a library-type omission, never a value transformation.
   return rows.map((r) => [
     deviceTypeName(r.typeKey),
     r.model,
-    r.serialNumber,
-    r.inventoryNumber,
+    // D-03: TEXT columns ride as String cells — never Number() (see above);
+    // null stays null → empty cell, not the empty string.
+    { value: r.serialNumber, type: String, format: '@' },
+    { value: r.inventoryNumber, type: String, format: '@' },
     deviceStatusLabel(r.status),
     r.holder,
     r.departmentName,
@@ -84,17 +103,24 @@ export function deviceXlsxSheetData(rows: DeviceExportRow[], today: Date) {
     // the checkbox was never touched (renders empty) — CSV parity (D-05).
     r.ramUpgraded === null ? null : r.ramUpgraded === 1 ? 'да' : 'нет',
     r.ssdGb,
-    r.screenDiagonal,
+    // Raw REAL (D-03/D-05): RU-Excel renders «21,5» from 21.5 via the 0.0
+    // numFmt — diagonalCell()'s decimal comma stays CSV-only.
+    { value: r.screenDiagonal, type: Number, format: '0.0' },
     r.panelType,
     r.portCount,
     r.peripheralKind,
+    // D-02: the Date itself; the display format is the sheet-level
+    // dateFormat 'dd.mm.yyyy' — no per-cell format to duplicate it.
     r.purchaseDate,
-    r.purchasePrice,
+    // D-03: thousands grouping is drawn by Excel from '#,##0' — the cell
+    // holds 125000, not a pre-formatted string.
+    { value: r.purchasePrice, type: Number, format: '#,##0' },
     r.supplier,
     r.warrantyUntil,
-    WARRANTY_STATE_LABELS[warrantyState(r.warrantyUntil, today)], // D-05
-    r.notes,
-  ])
+    WARRANTY_STATE_LABELS[warrantyState(r.warrantyUntil, today)], // WR-01
+    // XLSX cell limit 32 767 chars (CONTEXT discretion); null stays null.
+    r.notes === null ? null : r.notes.slice(0, 32_767),
+  ]) as SheetData
 }
 
 // The workbook: bold header + one row per device. stickyRowsCount: 1 freezes
