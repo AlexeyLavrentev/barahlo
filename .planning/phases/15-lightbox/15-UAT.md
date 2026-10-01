@@ -1,19 +1,15 @@
 ---
-status: testing
+status: complete
 phase: 15-Лайтбокс фото устройства
 source: [15-VERIFICATION.md]
 started: 2026-10-01
 updated: 2026-10-01
+approved_by: оператор (владелец проекта), 2026-10-01
 ---
 
 ## Current Test
 
-number: 9
-name: Sign-off оператора: ручные пункты (iPhone + тёмное фото)
-expected: |
-  Подтверждение автоматизированных результатов + живая проверка на реальном iPhone
-  (pinch, edge-swipe pointercancel) + финальное суждение по читаемости оверлея на тёмном фото.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -106,8 +102,8 @@ uat15-overlay-on-dark.png.
 
 ## Summary
 
-total: 8
-passed: 8
+total: 9
+passed: 9
 issues: 0
 pending: 0
 skipped: 0
@@ -117,6 +113,11 @@ blocked: 0
 CDP touch + route-перехваты). За оператором остаётся: (1) живой iPhone — нативный Safari
 pinch/tap + edge-swipe pointercancel (CDP-эмуляция — синтетика, iOS touch-action/momentum
 не воспроизводятся), (2) визуальное суждение по 8b, (3) общий sign-off.
+
+### 9. Sign-off оператора (iPhone + 8b + approve)
+- **Проверка:** живой iPhone (pinch, edge-swipe pointercancel), визуальное суждение по тёмному фото, общий sign-off фазы.
+- **Результат:** pass
+- **Доказательство:** оператор одобрил фазу «approved» 2026-10-01 после автоматизированного прогона 8/8 и скриншотов.
 
 ## Gaps
 
