@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ZoomStage } from '@/components/zoom-stage'
 
 // The photo section island (REG-05, D-05, D-06; 04-UI-SPEC «Photos»): 3/4-col
 // grid of thumbnails, add tile (phones included — the OS sheet offers
@@ -149,6 +150,9 @@ export function PhotoGrid({
   // <!-- --> markers — the smoke asserts these copies byte-exact.
   const counter = `${photos.length} из ${maxPhotos}`
   const emptyBody = `Добавьте до ${maxPhotos} фото — подойдут снимки с телефона.`
+  // Lightbox alt (same one-line-literal pattern; client-only portal content —
+  // UAT-checked, never smoke-pinned — RESEARCH Pitfall 10).
+  const lightboxAlt = `Фото ${lightboxIndex + 1} из ${photos.length}`
 
   return (
     <section className="mt-8">
@@ -227,16 +231,20 @@ export function PhotoGrid({
         </p>
       ) : null}
 
-      {/* Lightbox (UI-SPEC): max-w-3xl panel, image capped at 70svh; «Удалить
-          фото» secondary on the left; custom close with the «Закрыть»
-          aria-label (a11y fallbacks). Deleted/refreshed ids close cleanly. */}
+      {/* Lightbox (UI-SPEC, Phase 15 D-03): widened to max-w-5xl — BOTH max-w
+          classes are required, tailwind-merge keeps the base sm:max-w-sm from
+          dialog.tsx otherwise (Pitfall 2). The full variant renders in
+          ZoomStage (key=photo.id remount resets zoom constructively, Pattern
+          4); «Удалить фото» and close are stage SIBLINGS outside the CSS
+          transform (absolute z-10) — mounted and clickable at any zoom
+          (SC 4). Deleted/refreshed ids close cleanly. */}
       <Dialog
         open={lightboxPhoto !== null}
         onOpenChange={(open) => {
           if (!open) setLightboxId(null)
         }}
       >
-        <DialogContent className="max-w-3xl p-4" showCloseButton={false}>
+        <DialogContent className="max-w-5xl sm:max-w-5xl p-4" showCloseButton={false}>
           <DialogTitle className="sr-only">
             {lightboxPhoto ? lightboxPhoto.fileName : 'Фото'}
           </DialogTitle>
@@ -253,27 +261,23 @@ export function PhotoGrid({
             <X aria-hidden />
           </DialogClose>
           {lightboxPhoto ? (
-            <>
-              <img
-                src={fullUrl(lightboxPhoto.id)}
-                alt={`Фото ${lightboxIndex + 1} из ${photos.length}`}
-                loading="lazy"
-                className="mx-auto max-h-[70svh] w-auto rounded-lg"
-              />
-              {canMutate ? (
-                <div className="flex">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setDeleteError(null)
-                      setConfirmOpen(true)
-                    }}
-                  >
-                    Удалить фото
-                  </Button>
-                </div>
-              ) : null}
-            </>
+            <ZoomStage
+              key={lightboxPhoto.id}
+              src={fullUrl(lightboxPhoto.id)}
+              alt={lightboxAlt}
+            />
+          ) : null}
+          {canMutate ? (
+            <Button
+              variant="secondary"
+              className="absolute bottom-2 left-2 z-10 h-11 rounded-lg bg-surface/90 px-4 font-normal text-ink ring-1 ring-foreground/10 hover:bg-surface"
+              onClick={() => {
+                setDeleteError(null)
+                setConfirmOpen(true)
+              }}
+            >
+              Удалить фото
+            </Button>
           ) : null}
         </DialogContent>
       </Dialog>
