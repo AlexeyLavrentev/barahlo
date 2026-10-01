@@ -5,7 +5,14 @@
    authorized route; next/image would re-fetch and re-process auth'd binaries
    per request for nothing (04-RESEARCH decision). */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+import {
+  clampOffset,
+  normalizeWheelDelta,
+  wheelScale,
+  zoomAtPoint,
+} from '@/lib/zoom'
 
 // Phase 15 (D-03/D-04): the lightbox zoom stage. The image lives on a CSS
 // transform (translate + scale, origin center) manipulated directly — NO
@@ -21,8 +28,52 @@ import { useRef, useState } from 'react'
 export function ZoomStage({ src, alt }: { src: string; alt: string }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement>(null)
-  const [zoom] = useState({ scale: 1, tx: 0, ty: 0 })
+  const [zoom, setZoom] = useState({ scale: 1, tx: 0, ty: 0 })
   const [loaded, setLoaded] = useState(false)
+
+  // Wheel zoom to the cursor (SC 2). React 19 registers wheel passively on
+  // the root — preventDefault inside an onWheel prop is a no-op that logs an
+  // Intervention warning (Pitfall 1), so the ONLY correct interception is a
+  // native non-passive listener on the stage element. The listener hangs on
+  // the stage ONLY: over the overlay controls (close/«Удалить фото») the
+  // wheel stays inert (Default 5). The recompute goes exclusively through
+  // lib/zoom.ts helpers in one functional setState — no stale closures, no
+  // setState in effect bodies: scale clamped FIRST (Pitfall 8), then
+  // zoom-to-point, then the offset clamp (an axis without overflow pins to 0,
+  // so panning cannot exist at 1x).
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const dy = normalizeWheelDelta(e.deltaY, e.deltaMode, window.innerHeight)
+      setZoom((prev) => {
+        const nextScale = wheelScale(prev.scale, dy)
+        const next = zoomAtPoint(
+          prev,
+          nextScale,
+          {
+            x: e.clientX - rect.left - rect.width / 2,
+            y: e.clientY - rect.top - rect.height / 2,
+          },
+        )
+        const img = imgRef.current
+        const clamped = clampOffset(
+          next.tx,
+          next.ty,
+          nextScale,
+          img ? img.offsetWidth : 0,
+          img ? img.offsetHeight : 0,
+          rect.width,
+          rect.height,
+        )
+        return { scale: nextScale, tx: clamped.tx, ty: clamped.ty }
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   return (
     <div
