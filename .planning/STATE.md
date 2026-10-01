@@ -4,17 +4,17 @@ milestone: v1.3
 milestone_name: Удобство и выгрузка
 current_phase: 15
 current_phase_name: Лайтбокс фото устройства
-status: executing
-stopped_at: Phase 15 UI-SPEC approved
-last_updated: "2026-10-01T07:07:41.000Z"
+status: verifying
+stopped_at: "Completed 15-02-PLAN.md — Phase 15 plans complete; next: end-of-phase UAT + /gsd-verify-work 15"
+last_updated: "2026-10-01T07:27:32.229Z"
 last_activity: 2026-10-01
-last_activity_desc: Phase 15 plan 15-01 executed (lightbox + wheel zoom)
+last_activity_desc: "15-02 executed: полный жестовой контракт ZoomStage (drag/pinch/даблтап/pointercancel-гвад) + навигация prev/next, PHOTO-01 закрыт"
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
-  percent: 60
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Phase: 15 (Лайтбокс фото устройства) — EXECUTING
-Plan: 2 of 2 (15-01 complete)
-Status: Executing Phase 15
-Last activity: 2026-10-01 — 15-01 executed: усиленный лайтбокс max-w-5xl + ZoomStage fade-in + wheel-зум к курсору, TDD lib/zoom.ts (530/530)
+Phase: 15 (Лайтбокс фото устройства) — PLANS COMPLETE (2/2), UAT PENDING
+Plan: 2 of 2 (15-02 complete)
+Status: Phase complete — ready for verification
+Last activity: 2026-10-01 — 15-02 executed: полный жестовой контракт ZoomStage (drag/pinch/даблтап/pointercancel-гвад) + навигация prev/next (стрелки/счётчик/клавиши ←/→), PHOTO-01 закрыт (530/530, smoke зелёный)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 35
+- Total plans completed: 36
 - Average duration: —
 - Total execution time: 0 hours
 
@@ -98,6 +98,8 @@ Last activity: 2026-10-01 — 15-01 executed: усиленный лайтбок�
 | Phase 14 P02 | 12min | 2 tasks | 2 files |
 | Phase 14 P03 | 10min+UAT | 2 tasks | 2 files |
 | Phase 15 P01 | 9min | 3 tasks | 4 files |
+| Phase 15 P02 | 7min | 2 tasks | 2 files |
+| Phase 15 P02 | 7min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -167,6 +169,8 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 14/План 02]: Матрица XLSX пиннута позиционно — только 4 колонки несут явные объекты-ячейки (серийник/инвентарник String+'@', диагональ Number '0.0', цена Number '#,##0'), остальные — сырые значения с library-inference; пин множества типов {String,Number,Date} по всем строкам закрывает формульные ячейки (T-14-05) и тихий дрейф (T-14-08); даты без per-cell формата — только листовой dateFormat 'dd.mm.yyyy' (D-02)
 - [Phase ?]: [Phase 14/План 02]: Rule 3 — return deviceXlsxSheetData типизирован SheetData с одним документированным кастом: CellObjectOfType<Value> write-excel-file@4.1.1 опускает null из value, рантайм пишет null как пустую ячейку; без каста TS сваливается на objects-оверлоуд и columns [{width}] не проходит; значения и сигнатура (rows, today) не тронуты
 - [Phase ?]: [Phase 14/План 03]: поверхности XLSX аддитивны — ml-auto только на CSV-якоре (свободное место бара забирается один раз, Pitfall 14.5), XLSX-строка палитры копирует нативный render={<a href>} паттерн CSV-строки без border-t (Enter = DOM-клик по якорю, фазовое решение 11; Pitfall 14.4); обе поверхности байт-нетрогают CSV
+- [Phase ?]: Phase 15/План 02: жестовой контракт ZoomStage — pointer-кэш/базисы в refs (React-state только {scale,tx,ty}+loaded), pinch с якорем на ТЕКУЩИЙ midpoint через recomposed zoomAtPoint per-event, drag-pan t=t0+Δ только при scale>1, даблтап-детекция 300ms/5px только на пиннутых константах lib/zoom; lostpointercapture-гвад гвардится pointerId-в-кэше — имплицитный release после pointerup иначе стирал бы pending-даблтап (Rule 1)
+- [Phase ?]: Phase 15/План 02: навигация D-01 — стрелки disabled на краях (не скрыты), при M=1 скрыты при живом счётчике; клавиши ←/→ — onKeyDown на DialogContent, БЕЗ window-листенера (при confirm/⌘K фокус в чужих порталах — инертно); сброс зума при переходе конструктивен (key-ремоут); PHOTO-01 закрыт
 
 ### Pending Todos
 
@@ -186,10 +190,11 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T07:07:41.000Z
-Stopped at: Completed 15-01-PLAN.md — next: 15-02 (pointer-жесты + навигация)
-Resume file: .planning/phases/15-lightbox/15-02-PLAN.md
+Last session: 2026-10-01T07:27:32.221Z
+Stopped at: Completed 15-02-PLAN.md — Phase 15 plans complete; next: end-of-phase UAT + /gsd-verify-work 15
+Resume file: None
 
 ## Operator Next Steps
 
-- Run phase verification: /gsd-verify-work 14
+- End-of-phase UAT Phase 15 (human_verify_mode): touch-эмуляция Chrome (drag/pinch/даблтап/pointercancel-гвад, края disabled, M=1, confirm/⌘K-инертность клавиш) + реальный iPhone (SC 2/3 на iOS); чеклист — 15-02-SUMMARY.md Next Phase Readiness + 15-VALIDATION.md
+- Run phase verification: /gsd-verify-work 15
