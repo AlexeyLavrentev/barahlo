@@ -84,6 +84,9 @@ type PaletteGroup = { value: 'Устройства' | 'Сотрудники'; it
 // keyboard stop). Not navigated through `go`: the native anchor's own click
 // semantics own the download; the handler only closes the palette.
 const CSV_ITEM = { kind: 'csv' } as const
+// The XLSX sibling (EXP-02, plan 14): same direct-value shape as CSV_ITEM —
+// outside the groups' items, passed straight as the row's value.
+const XLSX_ITEM = { kind: 'xlsx' } as const
 
 const EMPTY_RESULTS: SearchResponse = { devices: [], employees: [] }
 
@@ -461,6 +464,24 @@ export function CommandPalette() {
                       >
                         <span className="min-w-0 flex-1 truncate">
                           Скачать ведомость CSV
+                        </span>
+                      </Autocomplete.Item>
+                      {/* The XLSX row (D-08): the native-anchor recipe copied
+                          from the CSV row — Enter on the highlighted row
+                          dispatches a real DOM click on the anchor, so the
+                          keyboard downloads too; router.push / window.open
+                          would navigate or pop up instead (Pitfall 14.4). No
+                          query string: the palette exports the whole park,
+                          exactly like the CSV row. No border-t — the group
+                          separator stays on the CSV row. */}
+                      <Autocomplete.Item
+                        value={XLSX_ITEM}
+                        render={<a href="/api/devices/export-xlsx" />}
+                        onClick={() => setOpen(false)}
+                        className={`${ROW_CLASS} text-sm text-ink-secondary group-data-highlighted:text-accent-foreground/80`}
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          Скачать ведомость XLSX
                         </span>
                       </Autocomplete.Item>
                     </Autocomplete.List>
