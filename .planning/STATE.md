@@ -4,15 +4,15 @@ milestone: v1.3
 milestone_name: Удобство и выгрузка
 current_phase: 14
 current_phase_name: XLSX-выгрузка ведомости
-status: planning
+status: executing
 stopped_at: Phase 14 context gathered
-last_updated: "2026-09-30T10:00:34.756Z"
+last_updated: "2026-10-01T03:15:00.483Z"
 last_activity: 2026-09-30
 last_activity_desc: Roadmap v1.3 создан (Phases 14–15, покрытие EXP-02/PHOTO-01 2/2)
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
+  total_plans: 3
   completed_plans: 0
   percent: 0
 ---
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 Phase: 14 of 15 (XLSX-выгрузка ведомости)
 Plan: 0 of TBD in current phase
-Status: Ready to plan
+Status: Ready to execute
 Last activity: 2026-09-30 — Roadmap v1.3 создан (Phases 14–15, покрытие EXP-02/PHOTO-01 2/2)
 
 ## Performance Metrics

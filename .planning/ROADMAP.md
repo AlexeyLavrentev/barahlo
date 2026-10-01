@@ -69,8 +69,16 @@
 **Plans**: 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 14-01-PLAN.md — Пин write-excel-file 4.1.1 + трассер (pure lib/device-xlsx.ts минимальной книги + thin route D-07) + спайк standalone-сборки с curl-доказательством (D-06, SC 5)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14-02-PLAN.md — Пиннутая типизированная матрица 20 колонок (TDD RED→GREEN): Date/Number/String-ячейки, header-parity с кейстоуном, пин заголовков (SC 1–4)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14-03-PLAN.md — Поверхности: «Скачать XLSX» в filter-bar и ⌘K-палитре (нативный якорь) + UAT в реальном RU-Excel (SC 1–4)
 
 ### Phase 15: Лайтбокс фото устройства
