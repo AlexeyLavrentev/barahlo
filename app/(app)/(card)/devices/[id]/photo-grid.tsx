@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -153,6 +153,9 @@ export function PhotoGrid({
   // Lightbox alt (same one-line-literal pattern; client-only portal content —
   // UAT-checked, never smoke-pinned — RESEARCH Pitfall 10).
   const lightboxAlt = `Фото ${lightboxIndex + 1} из ${photos.length}`
+  // Lightbox nav counter «{n} из {m}» (D-01) — one whole string, the grid
+  // counter pattern; stays visible at M=1 («1 из 1»).
+  const lightboxCounter = `${lightboxIndex + 1} из ${photos.length}`
 
   return (
     <section className="mt-8">
@@ -237,14 +240,35 @@ export function PhotoGrid({
           ZoomStage (key=photo.id remount resets zoom constructively, Pattern
           4); «Удалить фото» and close are stage SIBLINGS outside the CSS
           transform (absolute z-10) — mounted and clickable at any zoom
-          (SC 4). Deleted/refreshed ids close cleanly. */}
+          (SC 4). Deleted/refreshed ids close cleanly. prev/next arrows (D-01)
+          flank the stage — rendered at M>1 only, the edge one disabled (not
+          hidden); the counter chip stays at every M. */}
       <Dialog
         open={lightboxPhoto !== null}
         onOpenChange={(open) => {
           if (!open) setLightboxId(null)
         }}
       >
-        <DialogContent className="max-w-5xl sm:max-w-5xl p-4" showCloseButton={false}>
+        <DialogContent
+          className="max-w-5xl sm:max-w-5xl p-4"
+          showCloseButton={false}
+          onKeyDown={(e) => {
+            // ←/→ navigate (D-01) with NO window listener (Pitfall 9): the
+            // source must live inside the lightbox — when the delete-confirm
+            // or the ⌘K palette is open, focus sits in THEIR portal and this
+            // handler never fires, so the keys are inert behind foreign
+            // modals. Zoom reset on transition is constructive: the id change
+            // remounts ZoomStage via key (Pattern 4) — no reset code here.
+            if (e.key === 'ArrowLeft' && lightboxIndex > 0) {
+              setLightboxId(photos[lightboxIndex - 1].id)
+            } else if (
+              e.key === 'ArrowRight' &&
+              lightboxIndex < photos.length - 1
+            ) {
+              setLightboxId(photos[lightboxIndex + 1].id)
+            }
+          }}
+        >
           <DialogTitle className="sr-only">
             {lightboxPhoto ? lightboxPhoto.fileName : 'Фото'}
           </DialogTitle>
@@ -260,6 +284,45 @@ export function PhotoGrid({
           >
             <X aria-hidden />
           </DialogClose>
+          {lightboxPhoto ? (
+            <>
+              {/* Counter chip (Default 4/8): top-2 left-2, Label role
+                  (text-sm text-ink-secondary) — the ONLY new visible copy. */}
+              <span className="absolute top-2 left-2 z-10 flex h-11 items-center rounded-full bg-surface/90 px-4 text-sm text-ink-secondary">
+                {lightboxCounter}
+              </span>
+              {/* Prev/next arrows (D-01): non-circular — the edge arrow is
+                  disabled (Button register: opacity-50 + pointer-events-none),
+                  NOT hidden (Default 12); at M=1 neither renders. Overlay
+                  recipe: size-11 rounded-full bg-surface/90 + hairline ring
+                  (UI-SPEC); icons 20px via size-5 (the Button [&_svg] rule
+                  would pin size-4 otherwise). */}
+              {photos.length > 1 ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    className="absolute top-1/2 left-2 z-10 size-11 -translate-y-1/2 rounded-full bg-surface/90 text-ink ring-1 ring-foreground/10 hover:bg-surface"
+                    aria-label="Предыдущее фото"
+                    disabled={lightboxIndex <= 0}
+                    onClick={() => setLightboxId(photos[lightboxIndex - 1].id)}
+                  >
+                    <ChevronLeft className="size-5" aria-hidden />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="absolute top-1/2 right-2 z-10 size-11 -translate-y-1/2 rounded-full bg-surface/90 text-ink ring-1 ring-foreground/10 hover:bg-surface"
+                    aria-label="Следующее фото"
+                    disabled={lightboxIndex >= photos.length - 1}
+                    onClick={() =>
+                      setLightboxId(photos[lightboxIndex + 1].id)
+                    }
+                  >
+                    <ChevronRight className="size-5" aria-hidden />
+                  </Button>
+                </>
+              ) : null}
+            </>
+          ) : null}
           {lightboxPhoto ? (
             <ZoomStage
               key={lightboxPhoto.id}
