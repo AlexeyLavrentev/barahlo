@@ -5,16 +5,16 @@ milestone_name: Удобство и выгрузка
 current_phase: 14
 current_phase_name: XLSX-выгрузка ведомости
 status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-10-01T04:13:40.831Z"
+stopped_at: Checkpoint 14-03 T2 — UAT human-verify (T1 642bfa3 surfaces built)
+last_updated: "2026-10-01T04:24:19.344Z"
 last_activity: 2026-10-01
 last_activity_desc: Phase 14 execution started
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -162,6 +162,7 @@ Recent decisions affecting current work:
 - [Phase ?]: [Phase 13/План 02]: redirect('/devices', 'replace') — строковый литерал по фактической сигнатуре Next (плановый A1-фолбэк, replace-семантика сохранена: мёртвая карточка вне back stack); остров без ok-эффекта — успех = redirect (13-UI-SPEC Default 11)
 - [Phase ?]: [Phase 14/План 02]: Матрица XLSX пиннута позиционно — только 4 колонки несут явные объекты-ячейки (серийник/инвентарник String+'@', диагональ Number '0.0', цена Number '#,##0'), остальные — сырые значения с library-inference; пин множества типов {String,Number,Date} по всем строкам закрывает формульные ячейки (T-14-05) и тихий дрейф (T-14-08); даты без per-cell формата — только листовой dateFormat 'dd.mm.yyyy' (D-02)
 - [Phase ?]: [Phase 14/План 02]: Rule 3 — return deviceXlsxSheetData типизирован SheetData с одним документированным кастом: CellObjectOfType<Value> write-excel-file@4.1.1 опускает null из value, рантайм пишет null как пустую ячейку; без каста TS сваливается на objects-оверлоуд и columns [{width}] не проходит; значения и сигнатура (rows, today) не тронуты
+- [Phase ?]: [Phase 14/План 03]: поверхности XLSX аддитивны — ml-auto только на CSV-якоре (свободное место бара забирается один раз, Pitfall 14.5), XLSX-строка палитры копирует нативный render={<a href>} паттерн CSV-строки без border-t (Enter = DOM-клик по якорю, фазовое решение 11; Pitfall 14.4); обе поверхности байт-нетрогают CSV
 
 ### Pending Todos
 
@@ -181,9 +182,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-10-01T04:13:40.819Z
-Stopped at: Completed 14-02-PLAN.md
-Resume file: None
+Last session: 2026-10-01T04:24:04.181Z
+Stopped at: Checkpoint 14-03 T2 — UAT human-verify (T1 642bfa3 surfaces built)
+Resume file: .planning/phases/14-xlsx/14-03-PLAN.md
 
 ## Operator Next Steps
 
