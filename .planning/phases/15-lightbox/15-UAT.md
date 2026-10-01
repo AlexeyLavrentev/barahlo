@@ -20,7 +20,7 @@ awaiting: user response
 Приёмка полной матрицы фазы 15. Автоматизированный прогон Playwright MCP по dev-серверу
 :3000 (next dev, код фазы af347c8+), 2026-10-01: устройство 7 «Aspire 5» (4 фото), CDP
 touch-эмуляция для пинча, route-abort для битого img. Доказательства — в тексте каждого
-пункта; скриншоты: .playwright-mcp/uat15-lightbox-1x.png, uat15-lightbox-4x.png,
+пункта; скриншоты в корне репо (untracked): uat15-lightbox-1x.png, uat15-lightbox-4x.png,
 uat15-overlay-on-dark.png.
 
 ### 1. Открытие / ESC / скролл-лок (SC 1)
@@ -98,8 +98,7 @@ uat15-overlay-on-dark.png.
 ### 8. Backstop-визуалы (2 шт.)
 - **Проверка:** (а) сломанное фото — alt ВИДЕН на приглушённом стейдже, раскладка не
   коллапсирует; (б) оверлей-контролы читаемы на самом тёмном фото стока.
-- **Результат:** 8a pass (automated); 8b — финальное суждение за оператором (скриншот
-  uat15-overlay-on-dark.png приложен)
+- **Результат:** 8a pass (automated); 8b — финальное суждение за оператором (скриншот uat15-overlay-on-dark.png (корень репо) приложен)
 - **Доказательство (automated, 8a):** route-abort full-варианта → naturalWidth=0,
   opacity=1 (фикс WR-01 жив), alt «Фото 1 из 1», стейдж 620px (70svh) — раскладка цела.
 - **Доказательство (8b):** тёмное фото (bg #0A0A0C): счётчик, prev, next, «Удалить фото»
